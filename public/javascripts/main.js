@@ -11,6 +11,8 @@ $(document).ready(function() {
       bucket: "your-bucket-name",
       awsAccessKey: "your-aws-access-key", 
       key: "a-key-for-the-upload",
+      initSignaturePath: "/get_init_signature",
+      remainingSignaturesPath: "/get_remaining_signatures",
 
       onReady: function() {
         $("#startUpload").removeAttr("disabled");
@@ -36,8 +38,8 @@ $(document).ready(function() {
       onRetry: function(attempt) {
         $("#retries").text("Retry #" + attempt).show();
       },
-      onError: function(message) {
-        $("#error").text(message).show();
+      onError: function(errorCode, description) {
+        $("#error").text(description).show();
         $("#progress-bar").text("Upload failed!").css("width", "100%").addClass("error");
         $("#startUpload").removeAttr("disabled").text("Upload it");
         $("#cancelUpload").attr("disabled", "disabled");

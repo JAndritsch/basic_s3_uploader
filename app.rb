@@ -11,7 +11,7 @@ class MyApp < Sinatra::Base
     hash.to_json
   end
 
-  get '/get_all_signatures' do
+  get '/get_remaining_signatures' do
     content_type :json
     list     = S3UploadRequest.new(:type => :list, :params => params)
     complete = S3UploadRequest.new(:type => :complete, :params => params)

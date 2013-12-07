@@ -14,17 +14,19 @@ BasicS3Uploader.prototype._configureUploader = function(settings) {
 
   uploader.settings = {};
 
-  uploader.settings.contentType      = settings.contentType || uploader.file.type;
-  uploader.settings.chunkSize        = settings.chunkSize || 1024 * 1024 * 10; // 10MB
-  uploader.settings.encrypted        = settings.encrypted || false;
-  uploader.settings.maxRetries       = settings.maxRetries || 5;
-  uploader.settings.maxRetries       = settings.maxFileSize || 1024 * 1024 * 1024 * 5; // 5GB
-  uploader.settings.acl              = settings.acl || "public-read";
-  uploader.settings.signatureBackend = settings.signatureBackend || "";
-  uploader.settings.bucket           = settings.bucket || "your-bucket-name";
-  uploader.settings.host             = settings.host || "http://" + uploader.settings.bucket + "." + "s3.amazonaws.com";
-  uploader.settings.awsAccessKey     = settings.awsAccessKey || "YOUR_AWS_ACCESS_KEY_ID";
-  uploader.settings.log              = settings.log || false;
+  uploader.settings.contentType             = settings.contentType || uploader.file.type;
+  uploader.settings.chunkSize               = settings.chunkSize || 1024 * 1024 * 10; // 10MB
+  uploader.settings.encrypted               = settings.encrypted || false;
+  uploader.settings.maxRetries              = settings.maxRetries || 5;
+  uploader.settings.maxRetries              = settings.maxFileSize || 1024 * 1024 * 1024 * 5; // 5GB
+  uploader.settings.acl                     = settings.acl || "public-read";
+  uploader.settings.signatureBackend        = settings.signatureBackend || "";
+  uploader.settings.initSignaturePath       = settings.initSignaturePath || "/get_init_signature";
+  uploader.settings.remainingSignaturesPath = settings.initSignaturePath || "/get_remaining_signature";
+  uploader.settings.bucket                  = settings.bucket || "your-bucket-name";
+  uploader.settings.host                    = settings.host || "http://" + uploader.settings.bucket + "." + "s3.amazonaws.com";
+  uploader.settings.awsAccessKey            = settings.awsAccessKey || "YOUR_AWS_ACCESS_KEY_ID";
+  uploader.settings.log                     = settings.log || false;
 
   // Generates a default key to use for the upload if none was provided.
   var defaultKey = "/" + uploader.settings.bucket + "/" + new Date().getTime() + "_" + uploader.file.name;
@@ -35,7 +37,7 @@ BasicS3Uploader.prototype._configureUploader = function(settings) {
   uploader.settings.onStart    = settings.onStart || function() {};
   uploader.settings.onProgress = settings.onProgress || function(loaded, total) {};
   uploader.settings.onComplete = settings.onComplete || function(location) {};
-  uploader.settings.onError    = settings.onError || function(message) {};
+  uploader.settings.onError    = settings.onError || function(errorCode, description) {};
   uploader.settings.onRetry    = settings.onRetry || function(attempts) {};
   uploader.settings.onCancel   = settings.onCancel || function() {};
 
@@ -50,7 +52,8 @@ BasicS3Uploader.prototype.startUpload = function() {
   }
 
   if (uploader.file.size > uploader.settings.maxFileSize) {
-    uploader._notifyUploadError("The file could not be uploaded because it exceeds the maximum file size allowed.");
+    var errorCode = 0;
+    uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
     uploader._setFailed();
     return;
   }
@@ -62,7 +65,8 @@ BasicS3Uploader.prototype.startUpload = function() {
       uploader._setUploading();
       uploader._getInitSignature();
     } else {
-      uploader._notifyUploadError("The file could not be uploaded because it cannot be read");
+      var errorCode = 1;
+      uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
       uploader._setFailed();
     }
   });
@@ -125,7 +129,7 @@ BasicS3Uploader.prototype._getInitSignature = function(retries) {
   var attempts = retries || 0;
 
   uploader._ajax({
-    url: uploader.settings.signatureBackend + '/get_init_signature',
+    url: uploader.settings.signatureBackend + uploader.settings.initSignaturePath,
     method: "GET",
     params: {
       key: uploader.settings.key,
@@ -155,7 +159,8 @@ BasicS3Uploader.prototype._getInitSignature = function(retries) {
           uploader._getInitSignature(attempts);
         }, 2000 * attempts)
       } else {
-        uploader._notifyUploadError("Max number of retries have been met. Unable to get init signature!");
+        var errorCode = 2;
+        uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
         uploader._setFailed();
       }
     }
@@ -202,7 +207,8 @@ BasicS3Uploader.prototype._initiateUpload = function(retries) {
           uploader._initiateUpload(attempts);
         }, 2000 * attempts)
       } else {
-        uploader._notifyUploadError("Max number of retries have been met. Unable to initiate an upload request!");
+        var errorCode = 3;
+        uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
         uploader._setFailed();
       }
     }
@@ -231,7 +237,7 @@ BasicS3Uploader.prototype._getRemainingSignatures = function(retries) {
   var attempts = retries || 0;
 
   uploader._ajax({
-    url: uploader.settings.signatureBackend + "/get_all_signatures",
+    url: uploader.settings.signatureBackend + uploader.settings.remainingSignaturesPath,
     params: {
       upload_id: uploader._uploadId,
       total_chunks: Object.keys(uploader._chunks).length,
@@ -261,7 +267,8 @@ BasicS3Uploader.prototype._getRemainingSignatures = function(retries) {
           uploader._getRemainingSignatures(attempts);
         }, 2000 * attempts)
       } else {
-        uploader._notifyUploadError("Max number of retries have been met. Unable to retrieve remaining signatures!");
+        var errorCode = 4;
+        uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
         uploader._setFailed();
       }
     }
@@ -337,7 +344,8 @@ BasicS3Uploader.prototype._uploadChunk = function(number, retries) {
           uploader._uploadChunk(number, attempts);
         }, 2000 * attempts)
       } else {
-        uploader._notifyUploadError("Max number of retries have been met. Upload of chunk #" + number + " failed!");
+        var errorCode = 5;
+        uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
         uploader._setFailed();
       }
     }
@@ -410,7 +418,8 @@ BasicS3Uploader.prototype._verifyAllChunksUploaded = function(retries) {
           uploader._verifyAllChunksUploaded(attempts);
         }, 2000 * attempts)
       } else {
-        uploader._notifyUploadError("Max number of retries have been met. Unable to verify all chunks have uploaded!");
+        var errorCode = 6;
+        uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
         uploader._setFailed();
       }
     }
@@ -456,7 +465,8 @@ BasicS3Uploader.prototype._retryChunk = function(chunkNumber) {
     uploader._chunks[chunkNumber].attempts = chunkAttempts;
     uploader._uploadChunk(chunkNumber, chunkAttempts);
   } else {
-    uploader._notifyUploadError("Max number of retries has been met. Cannot retry uploading chunk!");
+    var errorCode = 7;
+    uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
     uploader._setFailed();
   }
 }
@@ -520,7 +530,8 @@ BasicS3Uploader.prototype._completeUpload = function(retries) {
           uploader._completeUpload(attempts);
         }, 2000 * attempts)
       } else {
-        uploader._notifyUploadError("Max number of retries have been met. Unable to complete multipart upload!");
+        var errorCode = 8;
+        uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
         uploader._setFailed();
       }
     }
@@ -634,10 +645,10 @@ BasicS3Uploader.prototype._notifyUploadComplete = function(location) {
 }
 
 // Notifies that an error has occurred with the uploader. Calls the user-defined
-// onError method, sending in any error message that may exist.
-BasicS3Uploader.prototype._notifyUploadError = function(message) {
+// onError method, sending in the error code and description
+BasicS3Uploader.prototype._notifyUploadError = function(errorCode, description) {
   var uploader = this;
-  uploader.settings.onError.call(uploader, message);
+  uploader.settings.onError.call(uploader, errorCode, description);
 }
 
 // Notifies that a retry is being attempted. Calls the user-defined onRetry
@@ -738,4 +749,18 @@ BasicS3Uploader.prototype._validateFileIsReadable = function(callback) {
   }
 
   fr.readAsBinaryString(blob);
+}
+
+BasicS3Uploader.prototype.errors = {
+  // code: description
+  0: "The file could not be uploaded because it exceeds the maximum file size allowed.",
+  1: "The file could not be uploaded because it cannot be read",
+  2: "Max number of retries have been met. Unable to get init signature!",
+  3: "Max number of retries have been met. Unable to initiate an upload request!",
+  4: "Max number of retries have been met. Unable to retrieve remaining signatures!",
+  5: "Max number of retries have been met. Upload of chunk has failed!",
+  6: "Max number of retries have been met. Unable to verify all chunks have uploaded!",
+  7: "Max number of retries has been met. Cannot retry uploading chunk!",
+  8: "Max number of retries have been met. Unable to complete multipart upload!"
+  
 }
