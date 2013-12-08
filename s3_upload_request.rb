@@ -2,7 +2,6 @@ class S3UploadRequest
 
   AWS_SECRET_KEY = "YOUR_SECRET_KEY"
 
-
   require 'base64'
   require 'digest'
 
@@ -10,11 +9,10 @@ class S3UploadRequest
     :bucket, :signature
 
   def initialize(data)
-    params          = data[:params]
-    type            = data[:type]
+    params          = data[:params] # any data sent up from the client side
+    type            = data[:type]   # the type of the signature requeset
     @bucket         = params[:bucket]
-    @aws_secret_key = AWS_SECRET_KEY
-    @date           = Time.now.strftime("%a, %d %b %Y %X %Z")
+    @date           = Time.now.strftime("%a, %d %b %Y %X %Z") # the date format that AWS requires
     @upload_id      = params[:upload_id]
     @key            = params[:key]
     @chunk          = params[:chunk]
@@ -22,6 +20,7 @@ class S3UploadRequest
     @acl            = params[:acl]
     @encrypted      = params[:encrypted]
 
+    # figure out what type of signature is being requested, then get it
     if type == :init
       @signature = upload_init_signature
     elsif type == :part
@@ -74,7 +73,7 @@ class S3UploadRequest
 
   def encode(data)
     sha1      = OpenSSL::Digest::Digest.new('sha1')
-    hmac      = OpenSSL::HMAC.digest(sha1, @aws_secret_key, data)
+    hmac      = OpenSSL::HMAC.digest(sha1, AWS_SECRET_KEY, data)
     Base64.encode64(hmac).gsub("\n", "")
   end
 end
