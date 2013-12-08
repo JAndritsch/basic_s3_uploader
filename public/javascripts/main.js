@@ -11,6 +11,7 @@ $(document).ready(function() {
       bucket: "your-bucket-name",
       awsAccessKey: "your-aws-access-key", 
       key: "a-key-for-the-upload",
+      signatureBackend: "",
       initSignaturePath: "/get_init_signature",
       remainingSignaturesPath: "/get_remaining_signatures",
 

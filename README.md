@@ -30,7 +30,9 @@ requires that you set up a server-side web application that can generate the pro
 for each request. 
 
 Similar to Mule, BasicS3Uploader requires you to provide it with the path to your signature 
-backend application. Your backend application must respond to the following routes:
+backend application. You must also configure the backend application so that it defines two different 
+routes to access the necessary signatures. These specific paths can be configured for the uploader,
+but default to the following paths:
 
 - /get_init_signature
 - /get_remaining_signatures
@@ -169,13 +171,14 @@ You need to modify the sample app by providing it with your AWS secret access ke
 be accomplished by changing the value of `AWS_SECRET_KEY` found in the `s3_upload_request.rb`
 file.
 
-  
     AWS_SECRET_KEY = "YOUR_SECRET_KEY"
 
 Next, you will need to edit `public/javascripts/main.js` and provide the uploader settings with
-your bucket name, AWS access key, and a key for your upload (the key is going to be used for the
-file name when it is uploaded, and may also include subfolders). 
+your bucket name, AWS access key, a key for your upload (the key is going to be used for the
+file name when it is uploaded, and may also include subfolders), and lastly the path to your
+signature backend as well as each individual path used to retrieve the different signatures.
 
+Example:
 
     $("#fileinput").on("change", function(element) {
       file = element.target.files[0];
@@ -184,6 +187,10 @@ file name when it is uploaded, and may also include subfolders).
         bucket: "your-bucket-name",
         awsAccessKey: "your-aws-access-key", 
         key: "a-key-for-the-upload",
+        signatureBackend: "",
+        initSignaturePath: "/get_init_signature",
+        remainingSignaturesPath: "/get_remaining_signatures",
+        ...
 
 #### Step 3: Start the Sinatra app
 
