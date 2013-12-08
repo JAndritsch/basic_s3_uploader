@@ -174,10 +174,8 @@ file.
     AWS_SECRET_KEY = "YOUR_SECRET_KEY"
 
 Next, you will need to edit `public/javascripts/main.js` and provide the uploader settings with
-your bucket name, AWS access key, a key for your upload (the key is going to be used for the
-file name when it is uploaded, and may also include subfolders), and lastly the path to your
-signature backend as well as each individual path used to retrieve the different signatures.
-
+your bucket name, AWS access key, and a key for your upload (the key is going to be used for the
+file name when it is uploaded, and may also include subfolders). 
 Example:
 
     $("#fileinput").on("change", function(element) {
@@ -187,9 +185,6 @@ Example:
         bucket: "your-bucket-name",
         awsAccessKey: "your-aws-access-key", 
         key: "a-key-for-the-upload",
-        signatureBackend: "",
-        initSignaturePath: "/get_init_signature",
-        remainingSignaturesPath: "/get_remaining_signatures",
         ...
 
 #### Step 3: Start the Sinatra app
