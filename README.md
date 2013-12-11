@@ -146,7 +146,7 @@ changes in order for it to work.
 
 First, here is the list of files and description of each file used for the sample app:
 
-- __public/javascripts/uploader.js__: The uploader
+- __public/javascripts/basic_s3_uploader.js__: The uploader
 - __public/javascripts/main.js__: An example of how one might use the uploader
 - __public/stylesheets/main.css__: Some simple styling for the app
 - __views/layout.erb__: The application layout
