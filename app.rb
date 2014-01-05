@@ -32,7 +32,7 @@ class MyApp < Sinatra::Base
       # assign the chunk number to the params hash
       params[:chunk] = chunk_number
       # generate the signature for this speicifc chunk
-      request = S3UploadRequesjkt.new(:type => :part, :params => params)
+      request = S3UploadRequest.new(:type => :part, :params => params)
       # store the signature in a hash that will be returned later
       chunk_signatures[chunk_number] = {:signature => request.signature, :date => request.date}
     end
