@@ -47,7 +47,10 @@ BasicS3Uploader.prototype._configureUploader = function(settings) {
 BasicS3Uploader.prototype.startUpload = function() {
   var uploader = this; 
 
+  uploader._log("startUpload called");
+
   if (uploader._isUploading()) {
+    uploader._log("Uploader is already running.");
     return;
   }
 
@@ -55,6 +58,7 @@ BasicS3Uploader.prototype.startUpload = function() {
     var errorCode = 0;
     uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
     uploader._setFailed();
+    uploader._log("Uploader error: ", uploader.errors[errorCode]);
     return;
   }
 
@@ -68,6 +72,7 @@ BasicS3Uploader.prototype.startUpload = function() {
       var errorCode = 1;
       uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
       uploader._setFailed();
+      uploader._log("Uploader error: ", uploader.errors[errorCode]);
     }
   });
 
@@ -82,6 +87,7 @@ BasicS3Uploader.prototype.cancelUpload = function() {
     return;
   }
 
+  uploader._log("Aborting upload");
   for (index in uploader._XHRs) {
     uploader._XHRs[index].abort();
   }
@@ -96,6 +102,8 @@ BasicS3Uploader.prototype.cancelUpload = function() {
 BasicS3Uploader.prototype._createChunks = function() {
   var uploader = this;
   var chunks = {}
+
+  uploader._log("Slicing up file into chunks");
 
   var chunkSize = Math.min(uploader.settings.chunkSize, uploader.file.size);
   var totalChunks = Math.ceil(uploader.file.size / chunkSize);
@@ -119,6 +127,7 @@ BasicS3Uploader.prototype._createChunks = function() {
     }
   }
   uploader._chunks = chunks;
+  uploader._log("Total chunks to upload:", Object.keys(chunks).length);
 }
 
 // Call to the provided signature backend to get the init signature.
@@ -127,6 +136,8 @@ BasicS3Uploader.prototype._createChunks = function() {
 BasicS3Uploader.prototype._getInitSignature = function(retries) {
   var uploader = this;
   var attempts = retries || 0;
+
+  uploader._log("Getting the init signature");
 
   uploader._ajax({
     url: uploader.settings.signatureBackend + uploader.settings.initSignaturePath,
@@ -143,17 +154,20 @@ BasicS3Uploader.prototype._getInitSignature = function(retries) {
     success: function(response) {
       var xhr = this;
       if (xhr.status == 200) {
+        uploader._log("Init signature retrieved");
         var json = JSON.parse(response.target.responseText);
         uploader._initSignature = json['signature'];
         uploader._date = json['date'];
         uploader._initiateUpload();
       } else {
+        uploader._log("Server returned a non-200. Deferring to error handler!");
         xhr._data.error();
       }
     },
     error: function(response) {
       if (uploader._retryAvailable(attempts)) {
         attempts += 1;
+        uploader._log("Attempting to retry retrieval of init signature.");
         setTimeout(function() {
           uploader._notifyUploadRetry(attempts);
           uploader._getInitSignature(attempts);
@@ -162,6 +176,7 @@ BasicS3Uploader.prototype._getInitSignature = function(retries) {
         var errorCode = 2;
         uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
         uploader._setFailed();
+        uploader._log("Uploader error!", uploader.errors[errorCode]);
       }
     }
   });
@@ -173,6 +188,8 @@ BasicS3Uploader.prototype._initiateUpload = function(retries) {
   var uploader = this;
   var attempts = retries || 0;
   var authorization = "AWS " + uploader.settings.awsAccessKey + ":" + uploader._initSignature;
+
+  uploader._log("Initiating the upload");
 
   var headers = {
     "x-amz-date": uploader._date,
@@ -192,16 +209,19 @@ BasicS3Uploader.prototype._initiateUpload = function(retries) {
     success: function(response) {
       var xhr = this;
       if (xhr.status == 200) {
+        uploader._log("Upload initiated.");
         var xml = response.target.responseXML;
         uploader._uploadId = xml.getElementsByTagName('UploadId')[0].textContent;
         uploader._getRemainingSignatures();
       } else {
+        uploader._log("Initiate upload error. Deferring to error handler.");
         xhr._data.error();
       }
     },
     error: function(response) {
       if (uploader._retryAvailable(attempts)) {
         attempts += 1;
+        uploader._log("Retrying to initiate the upload.");
         setTimeout(function() {
           uploader._notifyUploadRetry(attempts);
           uploader._initiateUpload(attempts);
@@ -210,6 +230,7 @@ BasicS3Uploader.prototype._initiateUpload = function(retries) {
         var errorCode = 3;
         uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
         uploader._setFailed();
+        uploader._log("Uploader error!", uploader.errors[errorCode]);
       }
     }
   });
@@ -236,6 +257,8 @@ BasicS3Uploader.prototype._getRemainingSignatures = function(retries) {
   var uploader = this;
   var attempts = retries || 0;
 
+  uploader._log("Attempting to get the remaining upload signatures");
+
   uploader._ajax({
     url: uploader.settings.signatureBackend + uploader.settings.remainingSignaturesPath,
     params: {
@@ -248,6 +271,7 @@ BasicS3Uploader.prototype._getRemainingSignatures = function(retries) {
     success: function(response) {
       var xhr = this;
       if (xhr.status == 200) {
+        uploader._log("Remaining signatures have been retrieved");
         var json = JSON.parse(response.target.responseText);
 
         uploader._chunkSignatures = json['chunk_signatures'];
@@ -256,12 +280,14 @@ BasicS3Uploader.prototype._getRemainingSignatures = function(retries) {
 
         uploader._uploadChunks();
       } else { 
+        uploader._log("Failed to get remaining signatures. Deferring to error handler");
         xhr._data.error();
       }
     },
     error: function(response) {
       if (uploader._retryAvailable(attempts)) {
         attempts += 1;
+        uploader._log("Retrying retrieval of remaining signatures");
         setTimeout(function() {
           uploader._notifyUploadRetry(attempts);
           uploader._getRemainingSignatures(attempts);
@@ -270,6 +296,7 @@ BasicS3Uploader.prototype._getRemainingSignatures = function(retries) {
         var errorCode = 4;
         uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
         uploader._setFailed();
+        uploader._log("Uploader error!", uploader.errors[errorCode]);
       }
     }
   });
@@ -297,6 +324,8 @@ BasicS3Uploader.prototype._uploadChunk = function(number, retries) {
   var uploader = this;
   var attempts = retries || 0;
 
+  uploader._log("About to upload chunk " + number);
+
   var chunk = uploader._chunks[number];
   var signature = uploader._chunkSignatures[number].signature;
   var date = uploader._chunkSignatures[number].date;
@@ -318,11 +347,13 @@ BasicS3Uploader.prototype._uploadChunk = function(number, retries) {
     },
     progress: function(response) {
       uploader._chunkProgress[number] = response.loaded;
+      uploader._log("Upload progress for chunk " + number, response.loaded);
       uploader._notifyUploadProgress();
     },
     success: function(response) {
       var xhr = this;
       if (xhr.status == 200) {
+        uploader._log("Chunk " + number +  " has finished uploading");
         var eTag = xhr.getResponseHeader("ETag");
         if (eTag && eTag.length > 0) {
           eTag = uploader._getETag(eTag);
@@ -333,12 +364,14 @@ BasicS3Uploader.prototype._uploadChunk = function(number, retries) {
           uploader._verifyAllChunksUploaded();
         }
       } else {
+        uploader._log("Upload of chunk " + number +  " has failed. Deferring to error handler");
         xhr._data.error();
       }
     },
     error: function(response) {
       if (uploader._retryAvailable(attempts)) {
         attempts += 1;
+        uploader._log("Retrying to upload chunk " + number);
         setTimeout(function() {
           uploader._notifyUploadRetry(attempts);
           uploader._uploadChunk(number, attempts);
@@ -347,6 +380,7 @@ BasicS3Uploader.prototype._uploadChunk = function(number, retries) {
         var errorCode = 5;
         uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
         uploader._setFailed();
+        uploader._log("Uploader error!", uploader.errors[errorCode]);
       }
     }
   });
@@ -361,6 +395,8 @@ BasicS3Uploader.prototype._verifyAllChunksUploaded = function(retries) {
   var signature = uploader._listSignature.signature;
   var date = uploader._listSignature.date;
   var authorization = "AWS " + uploader.settings.awsAccessKey + ":" + signature;
+
+  uploader._log("Verifying all chunks have been uploaded");
 
   uploader._ajax({
     url: uploader.settings.host + "/" + uploader.settings.key,
@@ -398,14 +434,18 @@ BasicS3Uploader.prototype._verifyAllChunksUploaded = function(retries) {
         }
 
         if (totalParts != parts.length) {
+          uploader._log("Some chunks are missing. Attempting to re-upload them.");
           uploader._handleMissingChunks(parts);
         } else if (invalidParts.length > 0) {
+          uploader._log("Some chunks are invalid. Attempting to re-upload them.");
           uploader._handleInvalidChunks(invalidParts);
         } else {
+          uploader._log("All chunks have been uploaded");
           uploader._completeUpload();
         }
 
       } else {
+        uploader._log("Chunk verification has failed. Deferring to error handler");
         xhr._data.error();
       }
 
@@ -413,6 +453,7 @@ BasicS3Uploader.prototype._verifyAllChunksUploaded = function(retries) {
     error: function(response) {
       if (uploader._retryAvailable(attempts)) {
         attempts += 1;
+        uploader._log("Retrying chunk verification");
         setTimeout(function() {
           uploader._notifyUploadRetry(attempts);
           uploader._verifyAllChunksUploaded(attempts);
@@ -421,6 +462,7 @@ BasicS3Uploader.prototype._verifyAllChunksUploaded = function(retries) {
         var errorCode = 6;
         uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
         uploader._setFailed();
+        uploader._log("Uploader error!", uploader.errors[errorCode]);
       }
     }
   });
@@ -468,6 +510,7 @@ BasicS3Uploader.prototype._retryChunk = function(chunkNumber) {
     var errorCode = 7;
     uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
     uploader._setFailed();
+    uploader._log("Uploader error! Cannot retry chunk " + chunkNumber, uploader.errors[errorCode]);
   }
 }
 
@@ -478,6 +521,8 @@ BasicS3Uploader.prototype._completeUpload = function(retries) {
   var attempts = retries || 0;
   var signature = uploader._completeSignature.signature;
   var sortedETags = [];
+
+  uploader._log("About to complete the upload");
 
   for (var chunkNumber = 1; chunkNumber < Object.keys(uploader._eTags).length + 1; chunkNumber++) {
     sortedETags.push(uploader._eTags[chunkNumber]);
@@ -515,16 +560,19 @@ BasicS3Uploader.prototype._completeUpload = function(retries) {
         var xml = response.target.responseXML;
         var location = xml.getElementsByTagName('Location')[0].textContent;
         if (location) {
+          uploader._log("The upload has completed!");
           uploader._notifyUploadComplete(location);
           uploader._setComplete();
         }
       } else {
+        uploader._log("Unable to complete the uploader. Deferring to error handler");
         xhr._data.error();
       }
     },
     error: function(response) {
       if (uploader._retryAvailable(attempts)) {
         attempts += 1;
+        uploader._log("Attempting to retry upload completion");
         setTimeout(function() {
           uploader._notifyUploadRetry(attempts);
           uploader._completeUpload(attempts);
@@ -533,6 +581,7 @@ BasicS3Uploader.prototype._completeUpload = function(retries) {
         var errorCode = 8;
         uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
         uploader._setFailed();
+        uploader._log("Uploader error!", uploader.errors[errorCode]);
       }
     }
   });
@@ -666,6 +715,7 @@ BasicS3Uploader.prototype._notifyUploadCancelled = function() {
 }
 
 BasicS3Uploader.prototype._log = function(msg, object) {
+  msg = "[BasicS3Uploader] " + msg;
   if (this.settings.log) {
     if (object) {
       console.log(msg, object);
