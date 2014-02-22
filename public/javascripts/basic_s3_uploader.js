@@ -152,6 +152,7 @@ BasicS3Uploader.prototype._getInitSignature = function(retries) {
       acl: uploader.settings.acl,
       encrypted: uploader.settings.encrypted
     },
+    customHeaders: uploader.settings.customHeaders,
     success: function(response) {
       var xhr = this;
       if (xhr.status == 200) {
@@ -269,6 +270,7 @@ BasicS3Uploader.prototype._getRemainingSignatures = function(retries) {
       bucket: uploader.settings.bucket,
       key: uploader.settings.key
     },
+    customHeaders: uploader.settings.customHeaders,
     success: function(response) {
       var xhr = this;
       if (xhr.status == 200) {
@@ -739,7 +741,7 @@ BasicS3Uploader.prototype._ajax = function(data) {
   var body = data.body;
   var params = data.params;
   var headers = data.headers || {};
-  var customHeaders = uploader.settings.customHeaders || {};
+  var customHeaders = data.customHeaders || {};
 
   var success = data.success || function(response) {};
   var error = data.error || function(response) {};
@@ -771,7 +773,7 @@ BasicS3Uploader.prototype._ajax = function(data) {
   xhr.open(method, url);
 
   for (var header in customHeaders) {
-    xhr.setRequestHeader(header, headers[header]);
+    xhr.setRequestHeader(header, customHeaders[header]);
   }
 
   for (var header in headers) {
