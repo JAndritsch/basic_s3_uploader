@@ -22,11 +22,12 @@ BasicS3Uploader.prototype._configureUploader = function(settings) {
   uploader.settings.acl                     = settings.acl || "public-read";
   uploader.settings.signatureBackend        = settings.signatureBackend || "";
   uploader.settings.initSignaturePath       = settings.initSignaturePath || "/get_init_signature";
-  uploader.settings.remainingSignaturesPath = settings.remainingSignaturesPath || "/get_remaining_signature";
+  uploader.settings.remainingSignaturesPath = settings.remainingSignaturesPath || "/get_remaining_signatures";
   uploader.settings.bucket                  = settings.bucket || "your-bucket-name";
   uploader.settings.host                    = settings.host || "http://" + uploader.settings.bucket + "." + "s3.amazonaws.com";
   uploader.settings.awsAccessKey            = settings.awsAccessKey || "YOUR_AWS_ACCESS_KEY_ID";
   uploader.settings.log                     = settings.log || false;
+  uploader.settings.customHeaders           = settings.customHeaders || {};
 
   // Generates a default key to use for the upload if none was provided.
   var defaultKey = "/" + uploader.settings.bucket + "/" + new Date().getTime() + "_" + uploader.file.name;
@@ -738,6 +739,7 @@ BasicS3Uploader.prototype._ajax = function(data) {
   var body = data.body;
   var params = data.params;
   var headers = data.headers || {};
+  var customHeaders = uploader.settings.customHeaders || {};
 
   var success = data.success || function(response) {};
   var error = data.error || function(response) {};
@@ -767,6 +769,10 @@ BasicS3Uploader.prototype._ajax = function(data) {
   }
 
   xhr.open(method, url);
+
+  for (var header in customHeaders) {
+    xhr.setRequestHeader(header, headers[header]);
+  }
 
   for (var header in headers) {
     xhr.setRequestHeader(header, headers[header]);
