@@ -78,7 +78,7 @@ BasicS3UploaderMock.prototype._createChunks = function() {
     startRange = startRange || 0;
     sizeOfChunk = sizeOfChunk || chunkSize * partNumber;
 
-    endRange = (startRange + sizeOfChunk) - 1;
+    endRange = (startRange + sizeOfChunk);
 
     chunks[partNumber] = {startRange: startRange, endRange: endRange};
 
@@ -110,14 +110,13 @@ BasicS3UploaderMock.prototype._getRemainingSignatures = function() {
   uploader._chunkSignatures = "Mock-chunk-signatures";
   uploader._completeSignature = "Mock-complete-signature";
   uploader._listSignature = "Mock-list-signature";
+  uploader._chunkProgress = {};
+  uploader._eTags = {}
   uploader._uploadChunks();
 }
 
 BasicS3UploaderMock.prototype._uploadChunks = function() {
   var uploader = this;
-  uploader._chunkProgress = {};
-  uploader._eTags = {}
-
   var totalChunks = Object.keys(uploader._chunks).length;
 
   for(var chunkNumber = 1; chunkNumber < totalChunks + 1; chunkNumber++) {

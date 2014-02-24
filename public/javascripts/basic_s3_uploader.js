@@ -116,7 +116,7 @@ BasicS3Uploader.prototype._createChunks = function() {
     startRange = startRange || 0;
     sizeOfChunk = sizeOfChunk || chunkSize * partNumber;
 
-    endRange = (startRange + sizeOfChunk) - 1;
+    endRange = (startRange + sizeOfChunk);
 
     chunks[partNumber] = {startRange: startRange, endRange: endRange};
 
@@ -280,7 +280,8 @@ BasicS3Uploader.prototype._getRemainingSignatures = function(retries) {
         uploader._chunkSignatures = json['chunk_signatures'];
         uploader._completeSignature = json['complete_signature'];
         uploader._listSignature = json['list_signature'];
-
+        uploader._eTags = {}
+        uploader._chunkProgress = {};
         uploader._uploadChunks();
       } else { 
         uploader._log("Failed to get remaining signatures. Deferring to error handler");
@@ -308,9 +309,6 @@ BasicS3Uploader.prototype._getRemainingSignatures = function(retries) {
 // Iterate over all chunks and start all uploads simultaneously
 BasicS3Uploader.prototype._uploadChunks = function() {
   var uploader = this;
-  uploader._eTags = {}
-  uploader._chunkProgress = {};
-
   var totalChunks = Object.keys(uploader._chunks).length;
 
   for(var chunkNumber = 1; chunkNumber < totalChunks + 1; chunkNumber++) {
@@ -359,7 +357,6 @@ BasicS3Uploader.prototype._uploadChunk = function(number, retries) {
         uploader._log("Chunk " + number +  " has finished uploading");
         var eTag = xhr.getResponseHeader("ETag");
         if (eTag && eTag.length > 0) {
-          eTag = uploader._getETag(eTag);
           uploader._eTags[number] = eTag;
         }
 
@@ -425,7 +422,7 @@ BasicS3Uploader.prototype._verifyAllChunksUploaded = function(retries) {
           var part = parts[i];
 
           var number = parseInt(part.getElementsByTagName("PartNumber")[0].textContent, 10);
-          var eTag = uploader._getETag(part.getElementsByTagName("ETag")[0].textContent);
+          var eTag = part.getElementsByTagName("ETag")[0].textContent;
           var size = parseInt(part.getElementsByTagName("Size")[0].textContent, 10);
 
           var uploadedChunk = uploader._chunks[number];
@@ -523,16 +520,10 @@ BasicS3Uploader.prototype._completeUpload = function(retries) {
   var uploader = this;
   var attempts = retries || 0;
   var signature = uploader._completeSignature.signature;
-  var sortedETags = [];
 
   uploader._log("About to complete the upload");
 
-  for (var chunkNumber = 1; chunkNumber < Object.keys(uploader._eTags).length + 1; chunkNumber++) {
-    sortedETags.push(uploader._eTags[chunkNumber]);
-  }
-
   var authorization = "AWS " + uploader.settings.awsAccessKey + ":" + signature;
-
   var body = "<CompleteMultipartUpload>";
 
   for (chunkNumber in uploader._eTags) {
@@ -543,6 +534,11 @@ BasicS3Uploader.prototype._completeUpload = function(retries) {
   }
 
   body += "</CompleteMultipartUpload>";
+
+  //Hack: Firefox requires the data in the form of a blob
+  if(navigator.userAgent.indexOf("Firefox") !== -1) {
+    body = new Blob([body]);
+  }
 
   uploader._ajax({
     url: uploader.settings.host + "/" + uploader.settings.key,
@@ -726,11 +722,6 @@ BasicS3Uploader.prototype._log = function(msg, object) {
       console.log(msg);
     }
   }
-}
-
-BasicS3Uploader.prototype._getETag = function(eTag) {
-  var uploader = this;
-  return eTag.match(/^"([a-zA-Z0-9]+)"$/)[1];
 }
 
 // A convenient and uniform way for creating and sending XHR requests.
