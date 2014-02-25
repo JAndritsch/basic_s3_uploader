@@ -14,33 +14,71 @@ BasicS3Uploader.prototype._configureUploader = function(settings) {
 
   uploader.settings = {};
 
+  // The content type of the file
   uploader.settings.contentType             = settings.contentType || uploader.file.type;
+  // Size of each part sent in the multipart request. AWS requires a chunk size of at least 5mb,
+  // so it cannot be any lower than that.
   uploader.settings.chunkSize               = settings.chunkSize || 1024 * 1024 * 10; // 10MB
+  // If set to true, the upload will be performed using an AES256 encryption.
   uploader.settings.encrypted               = settings.encrypted || false;
+  // Should any part of the upload process fail, it will automatically retry any AJAX call
+  // as long as it's within the retry limit.
   uploader.settings.maxRetries              = settings.maxRetries || 5;
+  // The maximum file size allowed for this upload. AWS currently does not support uploading files
+  // larger than 5 gigabytes.
   uploader.settings.maxFileSize             = settings.maxFileSize || 1024 * 1024 * 1024 * 5; // 5GB
+  // The ACL (Access Control List) policy. Valid options are as follows:
+    // authenticated-read
+    // bucket-owner-full-control
+    // bucket-owner-read
+    // log-delivery-write
+    // private
+    // public-read (default)
+    // public-read-write
   uploader.settings.acl                     = settings.acl || "public-read";
+  // The root path to your signature backend. If you plan on defining the necessary
+  // routes at the root of your application, leave this blank.
   uploader.settings.signatureBackend        = settings.signatureBackend || "";
+  // The path for which the upload init signature can be retrieved.
   uploader.settings.initSignaturePath       = settings.initSignaturePath || "/get_init_signature";
+  // The path for which all other signatures can be retrieved.
   uploader.settings.remainingSignaturesPath = settings.remainingSignaturesPath || "/get_remaining_signatures";
+  // The name of your S3 bucket
   uploader.settings.bucket                  = settings.bucket || "your-bucket-name";
+  // The host name is not required but can be explicitly set.
   uploader.settings.host                    = settings.host || "http://" + uploader.settings.bucket + "." + "s3.amazonaws.com";
+  // Your AWS Access Key. NOTE: This is not your secret access key!
   uploader.settings.awsAccessKey            = settings.awsAccessKey || "YOUR_AWS_ACCESS_KEY_ID";
+  // If true, you will see logging output in your browser's web inspector. 
   uploader.settings.log                     = settings.log || false;
+  // Any custom headers that need to be set. Note that these headers are only used for
+  // communication with your own application and are not sent to AWS.
   uploader.settings.customHeaders           = settings.customHeaders || {};
 
   // Generates a default key to use for the upload if none was provided.
   var defaultKey = "/" + uploader.settings.bucket + "/" + new Date().getTime() + "_" + uploader.file.name;
+  // The key for this upload. 
   uploader.settings.key = settings.key || defaultKey;
 
   // Events
-  uploader.settings.onReady    = settings.onReady || function() {};
-  uploader.settings.onStart    = settings.onStart || function() {};
-  uploader.settings.onProgress = settings.onProgress || function(loaded, total) {};
-  uploader.settings.onComplete = settings.onComplete || function(location) {};
-  uploader.settings.onError    = settings.onError || function(errorCode, description) {};
-  uploader.settings.onRetry    = settings.onRetry || function(attempts) {};
-  uploader.settings.onCancel   = settings.onCancel || function() {};
+  
+  // Fires when the uploader has been initialized and ready to start uploading.
+  uploader.settings.onReady         = settings.onReady || function() {};
+  // Fires when the upload has started.
+  uploader.settings.onStart         = settings.onStart || function() {};
+  // Fires whenever upload progress is reported for any chunk.
+  uploader.settings.onProgress      = settings.onProgress || function(loaded, total) {};
+  // Fires whenever a single chunk has finished uploading.
+  uploader.settings.onChunkUploaded = settings.onChunkUploaded || function(chunkNumber, totalChunks) {};
+  // Fires whenever all chunks have finished uploading.
+  uploader.settings.onComplete      = settings.onComplete || function(location) {};
+  // Fires whenever an error is encountered.
+  uploader.settings.onError         = settings.onError || function(errorCode, description) {};
+  // Fires whenever a call is retried. Note that if multiple chunks are uploading at once and
+  // they all fail, this will get called once for each chunk.
+  uploader.settings.onRetry         = settings.onRetry || function(attempts) {};
+  // Fires whenever an upload is cancelled.
+  uploader.settings.onCancel        = settings.onCancel || function() {};
 
 }
 
@@ -331,6 +369,7 @@ BasicS3Uploader.prototype._uploadChunk = function(number, retries) {
   var signature = uploader._chunkSignatures[number].signature;
   var date = uploader._chunkSignatures[number].date;
   var authorization = "AWS " + uploader.settings.awsAccessKey + ":" + signature;
+  var totalChunks = Object.keys(uploader._chunks).length;
 
   uploader._ajax({
     url: uploader.settings.host + "/" + uploader.settings.key,
@@ -355,6 +394,7 @@ BasicS3Uploader.prototype._uploadChunk = function(number, retries) {
       var xhr = this;
       if (xhr.status == 200) {
         uploader._log("Chunk " + number +  " has finished uploading");
+        uploader._notifyChunkUploaded(number, totalChunks);
         var eTag = xhr.getResponseHeader("ETag");
         if (eTag && eTag.length > 0) {
           uploader._eTags[number] = eTag;
@@ -683,6 +723,13 @@ BasicS3Uploader.prototype._notifyUploadProgress = function() {
   var total = uploader.file.size;
 
   uploader.settings.onProgress.call(uploader, loaded, total);
+}
+
+// Notifies when a chunk has finished uploading and calls the user-defined
+// onChunkUploaded method.
+BasicS3Uploader.prototype._notifyChunkUploaded = function(chunkNumber, totalChunks) {
+  var uploader = this;
+  uploader.settings.onChunkUploaded.call(uploader, chunkNumber, totalChunks);
 }
 
 // Notifies when the upload has finished and the parts have been assembled. Calls
