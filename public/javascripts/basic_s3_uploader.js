@@ -1,9 +1,6 @@
 /*
 * Copyright © 2014 Joel Andritsch <joel.andritsch@gmail.com>
-*
-* This work is free. You can redistribute it and/or modify it under the
-* terms of the Do What The Fuck You Want To Public License, Version 2,
-* as published by Sam Hocevar. See the COPYING file for more details.
+* See LICENSE for copyright/licensing information.
 */
 
 // Simple constructor. Accepts a file object and some settings.
@@ -11,6 +8,7 @@ var BasicS3Uploader = function(file, settings) {
   var uploader = this;
   uploader.file = file;
   uploader._XHRs = [];
+  uploader._chunkUploadsInProgress = 0;
   uploader._configureUploader(settings);
   uploader._notifyUploaderReady();
   uploader._setReady();
@@ -69,6 +67,11 @@ BasicS3Uploader.prototype._configureUploader = function(settings) {
   // Any custom headers that need to be set. Note that these headers are only used for
   // communication with your own application and are not sent to AWS.
   uploader.settings.customHeaders           = settings.customHeaders || {};
+  // The maximum number of concurrent XHR requests for a given upload. Increasing this
+  // number may result in faster uploads, however browsers tend to have their own concurrent
+  // XHR limitation built in. This means anything greater than that number will not have
+  // any effect on upload performance.
+  uploader.settings.maxConcurrentChunks     = settings.maxConcurrentChunks || 5;
 
   // Generates a default key to use for the upload if none was provided.
   var defaultKey = "/" + uploader.settings.bucket + "/" + new Date().getTime() + "_" + uploader.file.name;
@@ -171,7 +174,7 @@ BasicS3Uploader.prototype._createChunks = function() {
 
     endRange = (startRange + sizeOfChunk);
 
-    chunks[partNumber] = {startRange: startRange, endRange: endRange};
+    chunks[partNumber] = {startRange: startRange, endRange: endRange, uploading: false, uploadComplete: false};
 
     startRange = (chunkSize * partNumber);
     remainingSize = remainingSize - sizeOfChunk;
@@ -366,9 +369,21 @@ BasicS3Uploader.prototype._uploadChunks = function() {
 
   for(var chunkNumber = 1; chunkNumber < totalChunks + 1; chunkNumber++) {
     var chunk = uploader._chunks[chunkNumber];
-    uploader._uploadChunk(chunkNumber);
+    if (!chunk.uploading && !chunk.uploadComplete && uploader._uploadSpotAvailable()) {
+      uploader._log("Starting the XHR upload for chunk " + chunkNumber);
+      uploader._uploadChunk(chunkNumber);
+    } else {
+      uploader._log("Will not start the XHR upload for chunk " + chunkNumber + " until an upload spot becomes available");
+    }
   }
 };
+
+// This checks to see which chunks are uploading and returns true if there is room
+// for another chunk upload.
+BasicS3Uploader.prototype._uploadSpotAvailable = function() {
+  var uploader = this;
+  return uploader._chunkUploadsInProgress < uploader.settings.maxConcurrentChunks;
+}
 
 // Uploads a single chunk to S3. Because multiple chunks can be uploading at
 // the same time, the "success" callback for this request checks to see if all
@@ -379,8 +394,12 @@ BasicS3Uploader.prototype._uploadChunk = function(number, retries) {
   var attempts = retries || 0;
 
   uploader._log("About to upload chunk " + number);
-
   var chunk = uploader._chunks[number];
+
+  uploader._chunkUploadsInProgress += 1;
+  chunk.uploading = true;
+  chunk.uploadComplete = false;
+
   var signature = uploader._chunkSignatures[number].signature;
   var date = uploader._chunkSignatures[number].date;
   var authorization = "AWS " + uploader.settings.awsAccessKey + ":" + signature;
@@ -408,6 +427,9 @@ BasicS3Uploader.prototype._uploadChunk = function(number, retries) {
     success: function(response) {
       var xhr = this;
       if (xhr.status == 200) {
+        chunk.uploading = false;
+        chunk.uploadComplete = true;
+        uploader._chunkUploadsInProgress -= 1;
         uploader._log("Chunk " + number +  " has finished uploading");
         uploader._notifyChunkUploaded(number, totalChunks);
         var eTag = xhr.getResponseHeader("ETag");
@@ -416,7 +438,11 @@ BasicS3Uploader.prototype._uploadChunk = function(number, retries) {
         }
 
         if (uploader._allETagsAvailable()) {
+          // Verify that everything has been uploaded
           uploader._verifyAllChunksUploaded();
+        } else {
+          // Continue uploading the remaining chunks
+          uploader._uploadChunks();
         }
       } else {
         uploader._log("Upload of chunk " + number +  " has failed. Deferring to error handler");
@@ -424,6 +450,7 @@ BasicS3Uploader.prototype._uploadChunk = function(number, retries) {
       }
     },
     error: function(response) {
+      uploader._chunkUploadsInProgress -= 1;
       if (uploader._retryAvailable(attempts)) {
         attempts += 1;
         uploader._log("Retrying to upload chunk " + number);

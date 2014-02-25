@@ -33,22 +33,23 @@ BasicS3UploaderMock.prototype._configureUploader = function(settings) {
   uploader.settings.bucket                  = settings.bucket || "your-bucket-name";
   uploader.settings.host                    = settings.host || "http://" + uploader.settings.bucket + "." + "s3.amazonaws.com";
   uploader.settings.awsAccessKey            = settings.awsAccessKey || "YOUR_AWS_ACCESS_KEY_ID";
+  uploader.settings.log                     = settings.log || false;
   uploader.settings.customHeaders           = settings.customHeaders || {};
+  uploader.settings.maxConcurrentChunks     = settings.maxConcurrentChunks || 5;
 
-  // Generates a default key to use for the upload if none was provided.
   var defaultKey = "/" + uploader.settings.bucket + "/" + new Date().getTime() + "_" + uploader.file.name;
   uploader.settings.key = settings.key || defaultKey;
 
-  // Events
-  uploader.settings.onReady    = settings.onReady || function() {};
-  uploader.settings.onStart    = settings.onStart || function() {};
-  uploader.settings.onProgress = settings.onProgress || function(loaded, total) {};
-  uploader.settings.onComplete = settings.onComplete || function(location) {};
-  uploader.settings.onError    = settings.onError || function(errorCode, description) {};
-  uploader.settings.onRetry    = settings.onRetry || function(attempts) {};
-  uploader.settings.onCancel   = settings.onCancel || function() {};
+  uploader.settings.onReady         = settings.onReady || function() {};
+  uploader.settings.onStart         = settings.onStart || function() {};
+  uploader.settings.onProgress      = settings.onProgress || function(loaded, total) {};
+  uploader.settings.onChunkUploaded = settings.onChunkUploaded || function(chunkNumber, totalChunks) {};
+  uploader.settings.onComplete      = settings.onComplete || function(location) {};
+  uploader.settings.onError         = settings.onError || function(errorCode, description) {};
+  uploader.settings.onRetry         = settings.onRetry || function(attempts) {};
+  uploader.settings.onCancel        = settings.onCancel || function() {};
 
-}
+};
 
 BasicS3UploaderMock.prototype.startUpload = function() {
   var uploader = this; 
