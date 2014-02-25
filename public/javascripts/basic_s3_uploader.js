@@ -1,3 +1,11 @@
+/*
+* Copyright © 2014 Joel Andritsch <joel.andritsch@gmail.com>
+*
+* This work is free. You can redistribute it and/or modify it under the
+* terms of the Do What The Fuck You Want To Public License, Version 2,
+* as published by Sam Hocevar. See the COPYING file for more details.
+*/
+
 // Simple constructor. Accepts a file object and some settings.
 var BasicS3Uploader = function(file, settings) {
   var uploader = this; 
@@ -6,6 +14,13 @@ var BasicS3Uploader = function(file, settings) {
   uploader._configureUploader(settings);
   uploader._notifyUploaderReady();
   uploader._setReady();
+}
+
+BasicS3Uploader.version = {
+  full: "1.0.0",
+  major: "1",
+  minor: "0",
+  patch: "0"
 }
 
 // Configure the uploader using the provided settings or sensible defaults.
