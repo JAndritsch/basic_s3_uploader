@@ -94,7 +94,7 @@ BasicS3Uploader.prototype._configureUploader = function(settings) {
   uploader.settings.onError         = settings.onError || function(errorCode, description) {};
   // Fires whenever a call is retried. Note that if multiple chunks are uploading at once and
   // they all fail, this will get called once for each chunk.
-  uploader.settings.onRetry         = settings.onRetry || function(attempts) {};
+  uploader.settings.onRetry         = settings.onRetry || function(attempts, data) {};
   // Fires whenever an upload is cancelled.
   uploader.settings.onCancel        = settings.onCancel || function() {};
 
@@ -223,11 +223,16 @@ BasicS3Uploader.prototype._getInitSignature = function(retries) {
       }
     },
     error: function(response) {
+      var xhr = this;
       if (uploader._retryAvailable(attempts)) {
         attempts += 1;
         uploader._log("Attempting to retry retrieval of init signature.");
         setTimeout(function() {
-          uploader._notifyUploadRetry(attempts);
+          var data = {
+            action: "getInitSignature",
+            xhr: xhr
+          };
+          uploader._notifyUploadRetry(attempts, data);
           uploader._getInitSignature(attempts);
         }, 2000 * attempts)
       } else {
@@ -277,11 +282,16 @@ BasicS3Uploader.prototype._initiateUpload = function(retries) {
       }
     },
     error: function(response) {
+      var xhr = this;
       if (uploader._retryAvailable(attempts)) {
         attempts += 1;
         uploader._log("Retrying to initiate the upload.");
         setTimeout(function() {
-          uploader._notifyUploadRetry(attempts);
+          var data = {
+            action: "initiateUpload",
+            xhr: xhr
+          };
+          uploader._notifyUploadRetry(attempts, data);
           uploader._initiateUpload(attempts);
         }, 2000 * attempts)
       } else {
@@ -345,11 +355,16 @@ BasicS3Uploader.prototype._getRemainingSignatures = function(retries) {
       }
     },
     error: function(response) {
+      var xhr = this;
       if (uploader._retryAvailable(attempts)) {
         attempts += 1;
         uploader._log("Retrying retrieval of remaining signatures");
         setTimeout(function() {
-          uploader._notifyUploadRetry(attempts);
+          var data = {
+            action: "getRemainingSignatures",
+            xhr: xhr
+          };
+          uploader._notifyUploadRetry(attempts, data);
           uploader._getRemainingSignatures(attempts);
         }, 2000 * attempts)
       } else {
@@ -450,12 +465,19 @@ BasicS3Uploader.prototype._uploadChunk = function(number, retries) {
       }
     },
     error: function(response) {
+      var xhr = this;
       uploader._chunkUploadsInProgress -= 1;
       if (uploader._retryAvailable(attempts)) {
         attempts += 1;
         uploader._log("Retrying to upload chunk " + number);
         setTimeout(function() {
-          uploader._notifyUploadRetry(attempts);
+          var data = {
+            action: "uploadChunk",
+            xhr: xhr,
+            chunkNumber: number,
+            chunk: uploader._chunks[number]
+          }
+          uploader._notifyUploadRetry(attempts, data);
           uploader._uploadChunk(number, attempts);
         }, 2000 * attempts)
       } else {
@@ -533,11 +555,16 @@ BasicS3Uploader.prototype._verifyAllChunksUploaded = function(retries) {
 
     },
     error: function(response) {
+      var xhr = this;
       if (uploader._retryAvailable(attempts)) {
         attempts += 1;
         uploader._log("Retrying chunk verification");
         setTimeout(function() {
-          uploader._notifyUploadRetry(attempts);
+          var data = {
+            action: "verifyAllChunksUploaded",
+            xhr: xhr
+          };
+          uploader._notifyUploadRetry(attempts, data);
           uploader._verifyAllChunksUploaded(attempts);
         }, 2000 * attempts)
       } else {
@@ -651,11 +678,16 @@ BasicS3Uploader.prototype._completeUpload = function(retries) {
       }
     },
     error: function(response) {
+      var xhr = this;
       if (uploader._retryAvailable(attempts)) {
         attempts += 1;
         uploader._log("Attempting to retry upload completion");
         setTimeout(function() {
-          uploader._notifyUploadRetry(attempts);
+          var data = {
+            action: "completeUpload",
+            xhr: xhr
+          };
+          uploader._notifyUploadRetry(attempts, data);
           uploader._completeUpload(attempts);
         }, 2000 * attempts)
       } else {
@@ -790,9 +822,9 @@ BasicS3Uploader.prototype._notifyUploadError = function(errorCode, description) 
 
 // Notifies that a retry is being attempted. Calls the user-defined onRetry
 // method, sending the attempt number.
-BasicS3Uploader.prototype._notifyUploadRetry = function(attempt) {
+BasicS3Uploader.prototype._notifyUploadRetry = function(attempt, data) {
   var uploader = this;
-  uploader.settings.onRetry.call(uploader, attempt);
+  uploader.settings.onRetry.call(uploader, attempt, data);
 };
 
 // Notifies that the upload has been cancelled. Calls the user-defined onCancel
