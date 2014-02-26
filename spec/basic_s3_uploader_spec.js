@@ -480,4 +480,122 @@ describe("BasicS3Uploader", function() {
 
   });
 
+  describe("_getInitSignature", function() {
+    var mockFile, mockSettings, uploader;
+
+    beforeEach(function() {
+      mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
+      mockSettings = {
+        signatureBackend: "/signatures",
+        initSignaturePath: "/get_init_signature",
+        key: "my-upload-key",
+        contentType: "video/quicktime",
+        bucket: "some-bucket",
+        acl: "private",
+        encrypted: false,
+        customHeaders: { "X-Derp": "Yes" },
+        maxRetries: 3
+      };
+      uploader = new BasicS3Uploader(mockFile, mockSettings);
+    });
+
+    it("performs an ajax call to the provided init signature path", function() {
+      spyOn(uploader, '_ajax');
+      uploader._getInitSignature();
+      expect(uploader._ajax).toHaveBeenCalled();
+
+      ajaxSettings = uploader._ajax.calls.argsFor(0)[0];
+      expect(ajaxSettings.url).toEqual(mockSettings.signatureBackend + mockSettings.initSignaturePath);
+      expect(ajaxSettings.method).toEqual("GET");
+      expect(ajaxSettings.customHeaders).toEqual(mockSettings.customHeaders);
+      expect(ajaxSettings.params.key).toEqual(mockSettings.key);
+      expect(ajaxSettings.params.filename).toEqual(mockFile.name);
+      expect(ajaxSettings.params.filesize).toEqual(mockFile.size);
+      expect(ajaxSettings.params.mime_type).toEqual(mockSettings.contentType);
+      expect(ajaxSettings.params.bucket).toEqual(mockSettings.bucket);
+      expect(ajaxSettings.params.acl).toEqual(mockSettings.acl);
+      expect(ajaxSettings.params.encrypted).toEqual(mockSettings.encrypted);
+    });
+
+    describe("a successful response", function() {
+      var mockResponse;
+
+      beforeEach(function() {
+        mockResponse = {
+          target: { responseText: "{\"signature\": \"init-signature\", \"date\": \"init-date\"}" }
+        };
+
+        spyOn(uploader, '_ajax').and.callFake(function(ajaxSettings) {
+          ajaxSettings.status = 200;
+          ajaxSettings.success(mockResponse);
+        });
+
+        spyOn(uploader, '_initiateUpload');
+
+        uploader._getInitSignature();
+      });
+
+      it("stores the returned init signature and date on the uploader", function() {
+        expect(uploader._initSignature).toEqual("init-signature");
+        expect(uploader._date).toEqual("init-date");
+      });
+
+      it("continues to initiate the upload request", function() {
+        expect(uploader._initiateUpload).toHaveBeenCalled();
+      });
+
+    });
+
+    describe("a failed response", function() {
+
+      beforeEach(function() {
+        spyOn(uploader, '_ajax').and.callFake(function(ajaxSettings) {
+          ajaxSettings.status = 400;
+          ajaxSettings.error(null);
+        });
+
+      });
+
+      describe("when there are retries available", function() {
+        beforeEach(function() {
+          spyOn(window, 'setTimeout').and.callFake(function(callback, interval) {
+            callback();
+          });
+
+          spyOn(uploader, '_notifyUploadRetry');
+          spyOn(uploader, '_getInitSignature').and.callThrough();
+
+          uploader._getInitSignature();
+        });
+
+        it("notifies about the next retry attempt", function() {
+          expect(uploader._notifyUploadRetry.calls.count()).toEqual(mockSettings.maxRetries);
+        });
+
+        it("retries the call, up to the maxRetries setting", function() {
+          // 3 retries and 1 inital call
+          expect(uploader._getInitSignature.calls.count()).toEqual(mockSettings.maxRetries + 1);
+        });
+
+      });
+
+      describe("when no retries are available", function() {
+        beforeEach(function() {
+          spyOn(uploader, '_retryAvailable').and.returnValue(false);
+          spyOn(uploader, '_notifyUploadError');
+          spyOn(uploader, '_setFailed');
+          uploader._getInitSignature();
+        });
+
+        it("notifies that the upload has failed", function() {
+          expect(uploader._notifyUploadError).toHaveBeenCalledWith(2, uploader.errors[2]);
+        });
+
+        it("sets the uploader to a failed state", function() {
+          expect(uploader._setFailed).toHaveBeenCalled();
+        });
+      });
+    });
+  });
+
 });
