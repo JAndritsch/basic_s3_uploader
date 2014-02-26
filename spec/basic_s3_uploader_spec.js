@@ -320,6 +320,164 @@ describe("BasicS3Uploader", function() {
   });
 
   describe("_createChunks", function() {
+    var uploader, mockFile, fileSize, mockSettings, tenMB;
+
+    describe("when the file can be split into even chunks", function() {
+      var chunk1, chunk2, chunk3, chunk4, chunk5;
+
+      beforeEach(function() {
+        tenMB = 1024 * 1024 * 10;
+        fileSize = tenMB * 5; // 50 megabyte file;
+        mockFile = { name: "myfile", type: "video/quicktime", size: fileSize };
+        mockSettings = { maxChunkSize: tenMB };
+
+        uploader = new BasicS3Uploader(mockFile, mockSettings);
+        uploader._createChunks();
+
+        chunk1 = uploader._chunks[1];
+        chunk2 = uploader._chunks[2];
+        chunk3 = uploader._chunks[3];
+        chunk4 = uploader._chunks[4];
+        chunk5 = uploader._chunks[5];
+      });
+
+      it("slices up the file into chunks", function() {
+        expect(Object.keys(uploader._chunks).length).toEqual(5);
+      });
+
+      it("correctly calculates the chunk's startRange and endRage", function() {
+        expect(chunk1.startRange).toEqual(0);
+        expect(chunk1.endRange).toEqual(tenMB);
+
+        expect(chunk2.startRange).toEqual(chunk1.endRange);
+        expect(chunk2.endRange).toEqual(tenMB + chunk1.endRange);
+
+        expect(chunk3.startRange).toEqual(chunk2.endRange);
+        expect(chunk3.endRange).toEqual(tenMB + chunk2.endRange);
+
+        expect(chunk4.startRange).toEqual(chunk3.endRange);
+        expect(chunk4.endRange).toEqual(tenMB + chunk3.endRange);
+
+        expect(chunk5.startRange).toEqual(chunk4.endRange);
+        expect(chunk5.endRange).toEqual(tenMB + chunk4.endRange);
+      });
+
+      it("sets the 'uploading' and 'uploadCoplete' flags on each chunk to false", function() {
+        expect(chunk1.uploading).toBeFalsy();
+        expect(chunk1.uploadComplete).toBeFalsy();
+
+        expect(chunk2.uploading).toBeFalsy();
+        expect(chunk2.uploadComplete).toBeFalsy();
+
+        expect(chunk3.uploading).toBeFalsy();
+        expect(chunk3.uploadComplete).toBeFalsy();
+
+        expect(chunk4.uploading).toBeFalsy();
+        expect(chunk4.uploadComplete).toBeFalsy();
+
+        expect(chunk5.uploading).toBeFalsy();
+        expect(chunk5.uploadComplete).toBeFalsy();
+      });
+    });
+    
+    describe("when the file size is not evenly divisible by the chunk size", function() {
+      describe("and the file size is smaller than the chunk size", function() {
+        var chunk1;
+
+        beforeEach(function() {
+          tenMB = 1024 * 1024 * 10;
+          fileSize = (tenMB / 2);
+          mockFile = { name: "myfile", type: "video/quicktime", size: fileSize };
+          mockSettings = { maxChunkSize: tenMB };
+
+          uploader = new BasicS3Uploader(mockFile, mockSettings);
+          uploader._createChunks();
+
+          chunk1 = uploader._chunks[1];
+        });
+
+        it("slices up the file into chunks", function() {
+          expect(Object.keys(uploader._chunks).length).toEqual(1);
+        });
+
+        it("correctly calculates the chunk's startRange and endRage", function() {
+          expect(chunk1.startRange).toEqual(0);
+          expect(chunk1.endRange).toEqual(fileSize);
+        });
+
+        it("sets the 'uploading' and 'uploadCoplete' flags on each chunk to false", function() {
+          expect(chunk1.uploading).toBeFalsy();
+          expect(chunk1.uploadComplete).toBeFalsy();
+        });
+      });
+
+      describe("and there are remaining bytes leftover", function() {
+        var chunk1, chunk2, chunk3, chunk4, chunk5;
+
+        beforeEach(function() {
+          tenMB = 1024 * 1024 * 10;
+          fileSize = tenMB * 5.5; // 65 megabyte file;
+          mockFile = { name: "myfile", type: "video/quicktime", size: fileSize };
+          mockSettings = { maxChunkSize: tenMB };
+
+          uploader = new BasicS3Uploader(mockFile, mockSettings);
+          uploader._createChunks();
+
+          chunk1 = uploader._chunks[1];
+          chunk2 = uploader._chunks[2];
+          chunk3 = uploader._chunks[3];
+          chunk4 = uploader._chunks[4];
+          chunk5 = uploader._chunks[5];
+          chunk6 = uploader._chunks[6];
+        });
+
+        it("slices up the file into chunks", function() {
+          expect(Object.keys(uploader._chunks).length).toEqual(6);
+        });
+
+        it("correctly calculates the chunk's startRange and endRage", function() {
+          expect(chunk1.startRange).toEqual(0);
+          expect(chunk1.endRange).toEqual(tenMB);
+
+          expect(chunk2.startRange).toEqual(chunk1.endRange);
+          expect(chunk2.endRange).toEqual(tenMB + chunk1.endRange);
+
+          expect(chunk3.startRange).toEqual(chunk2.endRange);
+          expect(chunk3.endRange).toEqual(tenMB + chunk2.endRange);
+
+          expect(chunk4.startRange).toEqual(chunk3.endRange);
+          expect(chunk4.endRange).toEqual(tenMB + chunk3.endRange);
+
+          expect(chunk5.startRange).toEqual(chunk4.endRange);
+          expect(chunk5.endRange).toEqual(tenMB + chunk4.endRange);
+
+          expect(chunk6.startRange).toEqual(chunk5.endRange);
+          // 5 megabytes are left for this chunk
+          expect(chunk6.endRange).toEqual((tenMB / 2) + chunk5.endRange);
+        });
+
+        it("sets the 'uploading' and 'uploadCoplete' flags on each chunk to false", function() {
+          expect(chunk1.uploading).toBeFalsy();
+          expect(chunk1.uploadComplete).toBeFalsy();
+
+          expect(chunk2.uploading).toBeFalsy();
+          expect(chunk2.uploadComplete).toBeFalsy();
+
+          expect(chunk3.uploading).toBeFalsy();
+          expect(chunk3.uploadComplete).toBeFalsy();
+
+          expect(chunk4.uploading).toBeFalsy();
+          expect(chunk4.uploadComplete).toBeFalsy();
+
+          expect(chunk5.uploading).toBeFalsy();
+          expect(chunk5.uploadComplete).toBeFalsy();
+
+          expect(chunk6.uploading).toBeFalsy();
+          expect(chunk6.uploadComplete).toBeFalsy();
+        });
+      });
+    });
+
   });
 
 });
