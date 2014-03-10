@@ -8,6 +8,7 @@ var BasicS3Uploader = function(file, settings) {
   var uploader = this;
   uploader.file = file;
   uploader._XHRs = [];
+  uploader._chunkXHRs = {};
   uploader._chunkUploadsInProgress = 0;
   uploader._configureUploader(settings);
   uploader._notifyUploaderReady();
@@ -15,10 +16,10 @@ var BasicS3Uploader = function(file, settings) {
 };
 
 BasicS3Uploader.version = {
-  full: "1.0.0",
+  full: "1.0.1",
   major: "1",
   minor: "0",
-  patch: "0"
+  patch: "1"
 };
 
 // Configure the uploader using the provided settings or sensible defaults.
@@ -149,7 +150,12 @@ BasicS3Uploader.prototype.cancelUpload = function() {
     uploader._XHRs[index].abort();
   }
 
+  for (index in uploader._chunkXHRs) {
+    uploader._chunkXHRs[index].abort();
+  }
+
   uploader._XHRs = [];
+  uploader._chunkXHRs = {};
   uploader._notifyUploadCancelled();
   uploader._setCancelled();
 };
@@ -196,7 +202,7 @@ BasicS3Uploader.prototype._getInitSignature = function(retries) {
 
   uploader._log("Getting the init signature");
 
-  uploader._ajax({
+  var xhr = uploader._ajax({
     url: uploader.settings.signatureBackend + uploader.settings.initSignaturePath,
     method: "GET",
     params: {
@@ -243,6 +249,7 @@ BasicS3Uploader.prototype._getInitSignature = function(retries) {
       }
     }
   });
+  uploader._XHRs.push(xhr);
 };
 
 // Initiate a new upload to S3 using the init signature. This will return an UploadId
@@ -265,7 +272,7 @@ BasicS3Uploader.prototype._initiateUpload = function(retries) {
     headers["x-amz-server-side-encryption"] = "AES256";
   }
 
-  uploader._ajax({
+  var xhr = uploader._ajax({
     url: uploader.settings.host + "/" + uploader.settings.key + "?uploads",
     method: "POST",
     headers: headers,
@@ -302,6 +309,7 @@ BasicS3Uploader.prototype._initiateUpload = function(retries) {
       }
     }
   });
+  uploader._XHRs.push(xhr);
 };
 
 // Using the UploadId, retrieve the remaining signatures required for uploads
@@ -327,7 +335,7 @@ BasicS3Uploader.prototype._getRemainingSignatures = function(retries) {
 
   uploader._log("Attempting to get the remaining upload signatures");
 
-  uploader._ajax({
+  var xhr = uploader._ajax({
     url: uploader.settings.signatureBackend + uploader.settings.remainingSignaturesPath,
     params: {
       upload_id: uploader._uploadId,
@@ -375,6 +383,7 @@ BasicS3Uploader.prototype._getRemainingSignatures = function(retries) {
       }
     }
   });
+  uploader._XHRs.push(xhr);
 }
 
 // Iterate over all chunks and start all uploads simultaneously
@@ -387,8 +396,6 @@ BasicS3Uploader.prototype._uploadChunks = function() {
     if (!chunk.uploading && !chunk.uploadComplete && uploader._uploadSpotAvailable()) {
       uploader._log("Starting the XHR upload for chunk " + chunkNumber);
       uploader._uploadChunk(chunkNumber);
-    } else {
-      uploader._log("Will not start the XHR upload for chunk " + chunkNumber + " until an upload spot becomes available");
     }
   }
 };
@@ -420,7 +427,7 @@ BasicS3Uploader.prototype._uploadChunk = function(number, retries) {
   var authorization = "AWS " + uploader.settings.awsAccessKey + ":" + signature;
   var totalChunks = Object.keys(uploader._chunks).length;
 
-  uploader._ajax({
+  var xhr = uploader._ajax({
     url: uploader.settings.host + "/" + uploader.settings.key,
     method: "PUT",
     body: uploader.file.slice(chunk.startRange, chunk.endRange),
@@ -436,7 +443,6 @@ BasicS3Uploader.prototype._uploadChunk = function(number, retries) {
     },
     progress: function(response) {
       uploader._chunkProgress[number] = response.loaded;
-      uploader._log("Upload progress for chunk " + number, response.loaded);
       uploader._notifyUploadProgress();
     },
     success: function(response) {
@@ -444,6 +450,7 @@ BasicS3Uploader.prototype._uploadChunk = function(number, retries) {
       if (xhr.status == 200) {
         chunk.uploading = false;
         chunk.uploadComplete = true;
+        delete uploader._chunkXHRs[number];
         uploader._chunkUploadsInProgress -= 1;
         uploader._log("Chunk " + number +  " has finished uploading");
         uploader._notifyChunkUploaded(number, totalChunks);
@@ -467,27 +474,25 @@ BasicS3Uploader.prototype._uploadChunk = function(number, retries) {
     error: function(response) {
       var xhr = this;
       uploader._chunkUploadsInProgress -= 1;
-      if (uploader._retryAvailable(attempts)) {
-        attempts += 1;
-        uploader._log("Retrying to upload chunk " + number);
-        setTimeout(function() {
-          var data = {
-            action: "uploadChunk",
-            xhr: xhr,
-            chunkNumber: number,
-            chunk: uploader._chunks[number]
-          }
-          uploader._notifyUploadRetry(attempts, data);
-          uploader._uploadChunk(number, attempts);
-        }, 2000 * attempts)
-      } else {
-        var errorCode = 5;
-        uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
-        uploader._setFailed();
-        uploader._log("Uploader error!", uploader.errors[errorCode]);
-      }
+      chunk.uploading = false;
+      chunk.uploadComplete = false;
+      uploader._chunkXHRs[number].abort();
+      delete uploader._chunkXHRs[number];
+
+      uploader._log("Retrying to upload chunk " + number);
+      setTimeout(function() {
+        var data = {
+          action: "uploadChunk",
+          xhr: xhr,
+          chunkNumber: number,
+          chunk: uploader._chunks[number]
+        }
+        uploader._notifyUploadRetry(attempts, data);
+        uploader._retryChunk(number, attempts);
+      }, 2000 * attempts)
     }
   });
+  uploader._chunkXHRs[number] = xhr;
 };
 
 // Calls the S3 "List chunks" API and compares the result to the chunks the uploader
@@ -502,7 +507,7 @@ BasicS3Uploader.prototype._verifyAllChunksUploaded = function(retries) {
 
   uploader._log("Verifying all chunks have been uploaded");
 
-  uploader._ajax({
+  var xhr = uploader._ajax({
     url: uploader.settings.host + "/" + uploader.settings.key,
     method: "GET",
     params: {
@@ -575,6 +580,7 @@ BasicS3Uploader.prototype._verifyAllChunksUploaded = function(retries) {
       }
     }
   });
+  uploader._XHRs.push(xhr);
 };
 
 // Iterates over the list of invalid chunks and calls _retryChunk.
@@ -614,7 +620,36 @@ BasicS3Uploader.prototype._retryChunk = function(chunkNumber) {
   if (uploader._retryAvailable(chunkAttempts)) {
     chunkAttempts += 1;
     uploader._chunks[chunkNumber].attempts = chunkAttempts;
-    uploader._uploadChunk(chunkNumber, chunkAttempts);
+
+    // Signatures have might have gone stale, so retrieve the new signatures
+    // for the remaining chunks.
+    uploader._log("Fetching new signatures for chunk retry");
+    var xhr = uploader._ajax({
+      url: uploader.settings.signatureBackend + uploader.settings.remainingSignaturesPath,
+      params: {
+        upload_id: uploader._uploadId,
+        total_chunks: Object.keys(uploader._chunks).length,
+        mime_type: uploader.settings.contentType,
+        bucket: uploader.settings.bucket,
+        key: uploader.settings.key
+      },
+      customHeaders: uploader.settings.customHeaders,
+      success: function(response) {
+        uploader._log("New signatures acquired.");
+        var json = JSON.parse(response.target.responseText);
+        uploader._chunkSignatures = json['chunk_signatures'];
+        uploader._completeSignature = json['complete_signature'];
+        uploader._listSignature = json['list_signature'];
+        uploader._uploadChunk(chunkNumber, chunkAttempts);
+      },
+      error: function(response) {
+        // If we somehow fail to get the signature, go ahead and proceed with
+        // the upload anyways. It will likely fail and end up back in this retry
+        // logic again.
+        uploader._uploadChunk(chunkNumber, chunkAttempts);
+      }
+    });
+
   } else {
     var errorCode = 7;
     uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
@@ -649,7 +684,7 @@ BasicS3Uploader.prototype._completeUpload = function(retries) {
     body = new Blob([body]);
   }
 
-  uploader._ajax({
+  var xhr = uploader._ajax({
     url: uploader.settings.host + "/" + uploader.settings.key,
     method: "POST",
     body: body,
@@ -698,7 +733,7 @@ BasicS3Uploader.prototype._completeUpload = function(retries) {
       }
     }
   });
-
+  uploader._XHRs.push(xhr);
 };
 
 // Returns true if attemts is less than maxRetries. Note that the first attempt
@@ -897,7 +932,6 @@ BasicS3Uploader.prototype._ajax = function(data) {
   } else {
     xhr.send();
   }
-  uploader._XHRs.push(xhr);
   return xhr;
 };
 
