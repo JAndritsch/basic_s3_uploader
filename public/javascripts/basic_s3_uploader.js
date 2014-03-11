@@ -19,7 +19,7 @@ BasicS3Uploader.version = {
   full: "1.0.1",
   major: "1",
   minor: "0",
-  patch: "1"
+  patch: "2"
 };
 
 // Configure the uploader using the provided settings or sensible defaults.
@@ -120,6 +120,7 @@ BasicS3Uploader.prototype.startUpload = function() {
     var errorCode = 0;
     uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
     uploader._setFailed();
+    uploader._resetData();
     uploader._log("Uploader error: ", uploader.errors[errorCode]);
     return;
   }
@@ -134,6 +135,7 @@ BasicS3Uploader.prototype.startUpload = function() {
       var errorCode = 1;
       uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
       uploader._setFailed();
+      uploader._resetData();
       uploader._log("Uploader error: ", uploader.errors[errorCode]);
     }
   });
@@ -162,6 +164,7 @@ BasicS3Uploader.prototype.cancelUpload = function() {
   uploader._chunkXHRs = {};
   uploader._notifyUploadCancelled();
   uploader._setCancelled();
+  uploader._resetData();
 };
 
 // Slices up the file into chunks, storing the startRange and endRange of each chunk on the uploader
@@ -249,6 +252,7 @@ BasicS3Uploader.prototype._getInitSignature = function(retries) {
         var errorCode = 2;
         uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
         uploader._setFailed();
+        uploader._resetData();
         uploader._log("Uploader error!", uploader.errors[errorCode]);
       }
     }
@@ -309,6 +313,7 @@ BasicS3Uploader.prototype._initiateUpload = function(retries) {
         var errorCode = 3;
         uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
         uploader._setFailed();
+        uploader._resetData();
         uploader._log("Uploader error!", uploader.errors[errorCode]);
       }
     }
@@ -383,6 +388,7 @@ BasicS3Uploader.prototype._getRemainingSignatures = function(retries) {
         var errorCode = 4;
         uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
         uploader._setFailed();
+        uploader._resetData();
         uploader._log("Uploader error!", uploader.errors[errorCode]);
       }
     }
@@ -580,6 +586,7 @@ BasicS3Uploader.prototype._verifyAllChunksUploaded = function(retries) {
         var errorCode = 6;
         uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
         uploader._setFailed();
+        uploader._resetData();
         uploader._log("Uploader error!", uploader.errors[errorCode]);
       }
     }
@@ -658,6 +665,7 @@ BasicS3Uploader.prototype._retryChunk = function(chunkNumber) {
     var errorCode = 7;
     uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
     uploader._setFailed();
+    uploader._resetData();
     uploader._log("Uploader error! Cannot retry chunk " + chunkNumber, uploader.errors[errorCode]);
   }
 };
@@ -710,6 +718,7 @@ BasicS3Uploader.prototype._completeUpload = function(retries) {
           uploader._log("The upload has completed!");
           uploader._notifyUploadComplete(location);
           uploader._setComplete();
+          uploader._resetData();
         }
       } else {
         uploader._log("Unable to complete the uploader. Deferring to error handler");
@@ -733,6 +742,7 @@ BasicS3Uploader.prototype._completeUpload = function(retries) {
         var errorCode = 8;
         uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
         uploader._setFailed();
+        uploader._resetData();
         uploader._log("Uploader error!", uploader.errors[errorCode]);
       }
     }
@@ -754,6 +764,23 @@ BasicS3Uploader.prototype._retryAvailable = function(attempts) {
 BasicS3Uploader.prototype._allETagsAvailable = function() {
   var uploader = this;
   return Object.keys(uploader._eTags).length == Object.keys(uploader._chunks).length;
+};
+
+BasicS3Uploader.prototype._resetData = function() {
+  var uploader = this;
+  // Need to keep uploader.settings, uploader.file, and uploader._chunks around 
+  // in case any callbacks still need them. Everything else can go.
+  uploader._XHRs = [];
+  uploader._date = null;
+  uploader._eTags = {};
+  uploader._uploadId = null;
+  uploader._initSignature = null;
+  uploader._listSignature = null;
+  uploader._completeSignature = null;
+  uploader._chunkSignatures = {};
+  uploader._chunkXHRs = {};
+  uploader._chunkProgress = {};
+  uploader._chunkUploadsInProgress = 0;
 };
 
 // State-related methods
@@ -856,7 +883,11 @@ BasicS3Uploader.prototype._notifyUploadComplete = function(location) {
 // onError method, sending in the error code and description
 BasicS3Uploader.prototype._notifyUploadError = function(errorCode, description) {
   var uploader = this;
-  uploader.settings.onError.call(uploader, errorCode, description);
+  // If the uploader has already been set to failed, this message has already been
+  // sent so we will want to prevent duplicate publishes of this event.
+  if (!uploader._isFailed()) {
+    uploader.settings.onError.call(uploader, errorCode, description);
+  }
 };
 
 // Notifies that a retry is being attempted. Calls the user-defined onRetry
