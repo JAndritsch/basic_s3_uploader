@@ -488,7 +488,7 @@ BasicS3Uploader.prototype._uploadChunk = function(number, retries) {
           chunk: uploader._chunks[number]
         }
         uploader._notifyUploadRetry(attempts, data);
-        uploader._retryChunk(number, attempts);
+        uploader._retryChunk(number);
       }, 2000 * attempts)
     }
   });
