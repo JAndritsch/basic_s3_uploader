@@ -73,6 +73,10 @@ BasicS3Uploader.prototype._configureUploader = function(settings) {
   // XHR limitation built in. This means anything greater than that number will not have
   // any effect on upload performance.
   uploader.settings.maxConcurrentChunks     = settings.maxConcurrentChunks || 5;
+  // The number of milliseconds to wait for an XHR request to respond. If the XHR request
+  // does not respond within the configured time, it will fire the timeout callback, aborting
+  // the request and retrying it.
+  uploader.settings.xhrRequestTimeout       = settings.xhrRequestTimeout || 30000;
 
   // Generates a default key to use for the upload if none was provided.
   var defaultKey = "/" + uploader.settings.bucket + "/" + new Date().getTime() + "_" + uploader.file.name;
@@ -918,6 +922,7 @@ BasicS3Uploader.prototype._ajax = function(data) {
   }
 
   xhr.open(method, url);
+  xhr.timeout = uploader.settings.xhrRequestTimeout;
 
   for (var header in customHeaders) {
     xhr.setRequestHeader(header, customHeaders[header]);
