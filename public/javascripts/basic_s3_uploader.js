@@ -18,7 +18,7 @@ var BasicS3Uploader = function(file, settings) {
 };
 
 BasicS3Uploader.version = {
-  full: "1.0.1",
+  full: "1.0.3",
   major: "1",
   minor: "0",
   patch: "3"
