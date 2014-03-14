@@ -290,7 +290,13 @@ BasicS3Uploader.prototype._initiateUpload = function(retries) {
         uploader._log("Upload initiated.");
         var xml = response.target.responseXML;
         uploader._uploadId = xml.getElementsByTagName('UploadId')[0].textContent;
-        uploader._getRemainingSignatures();
+        uploader._eTags = {}
+        uploader._chunkProgress = {};
+
+        uploader._getRemainingSignatures(0, function() {
+          uploader._uploadChunks();
+        });
+
       } else {
         uploader._log("Initiate upload error. Deferring to error handler.");
         xhr._data.error();
@@ -338,7 +344,7 @@ BasicS3Uploader.prototype._initiateUpload = function(retries) {
 //
 // Note that for the chunk_signatures section, the key corresponds to the
 // part number (or chunk number).
-BasicS3Uploader.prototype._getRemainingSignatures = function(retries) {
+BasicS3Uploader.prototype._getRemainingSignatures = function(retries, successCallback) {
   var uploader = this;
   var attempts = retries || 0;
 
@@ -363,9 +369,9 @@ BasicS3Uploader.prototype._getRemainingSignatures = function(retries) {
         uploader._chunkSignatures = json['chunk_signatures'];
         uploader._completeSignature = json['complete_signature'];
         uploader._listSignature = json['list_signature'];
-        uploader._eTags = {}
-        uploader._chunkProgress = {};
-        uploader._uploadChunks();
+
+        if (successCallback) { successCallback(); }
+
       } else {
         uploader._log("Failed to get remaining signatures. Deferring to error handler");
         xhr._data.error();
@@ -382,7 +388,7 @@ BasicS3Uploader.prototype._getRemainingSignatures = function(retries) {
             xhr: xhr
           };
           uploader._notifyUploadRetry(attempts, data);
-          uploader._getRemainingSignatures(attempts);
+          uploader._getRemainingSignatures(attempts, successCallback);
         }, 2000 * attempts)
       } else {
         var errorCode = 4;
@@ -580,7 +586,11 @@ BasicS3Uploader.prototype._verifyAllChunksUploaded = function(retries) {
             xhr: xhr
           };
           uploader._notifyUploadRetry(attempts, data);
-          uploader._verifyAllChunksUploaded(attempts);
+
+          uploader._getRemainingSignatures(0, function() {
+            uploader._verifyAllChunksUploaded(attempts);
+          });
+
         }, 2000 * attempts)
       } else {
         var errorCode = 6;
@@ -635,30 +645,9 @@ BasicS3Uploader.prototype._retryChunk = function(chunkNumber) {
     // Signatures have might have gone stale, so retrieve the new signatures
     // for the remaining chunks.
     uploader._log("Fetching new signatures for chunk retry");
-    var xhr = uploader._ajax({
-      url: uploader.settings.signatureBackend + uploader.settings.remainingSignaturesPath,
-      params: {
-        upload_id: uploader._uploadId,
-        total_chunks: Object.keys(uploader._chunks).length,
-        mime_type: uploader.settings.contentType,
-        bucket: uploader.settings.bucket,
-        key: uploader.settings.key
-      },
-      customHeaders: uploader.settings.customHeaders,
-      success: function(response) {
-        uploader._log("New signatures acquired.");
-        var json = JSON.parse(response.target.responseText);
-        uploader._chunkSignatures = json['chunk_signatures'];
-        uploader._completeSignature = json['complete_signature'];
-        uploader._listSignature = json['list_signature'];
-        uploader._uploadChunk(chunkNumber, chunkAttempts);
-      },
-      error: function(response) {
-        // If we somehow fail to get the signature, go ahead and proceed with
-        // the upload anyways. It will likely fail and end up back in this retry
-        // logic again.
-        uploader._uploadChunk(chunkNumber, chunkAttempts);
-      }
+
+    uploader._getRemainingSignatures(0, function() {
+      uploader._uploadChunk(chunkNumber, chunkAttempts);
     });
 
   } else {
@@ -736,7 +725,11 @@ BasicS3Uploader.prototype._completeUpload = function(retries) {
             xhr: xhr
           };
           uploader._notifyUploadRetry(attempts, data);
-          uploader._completeUpload(attempts);
+
+          uploader._getRemainingSignatures(0, function() {
+            uploader._completeUpload(attempts);
+          });
+
         }, 2000 * attempts)
       } else {
         var errorCode = 8;
