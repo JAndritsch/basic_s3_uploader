@@ -9,6 +9,8 @@ var BasicS3Uploader = function(file, settings) {
   uploader.file = file;
   uploader._XHRs = [];
   uploader._chunkXHRs = {};
+  uploader._eTags = {}
+  uploader._chunkProgress = {};
   uploader._chunkUploadsInProgress = 0;
   uploader._configureUploader(settings);
   uploader._notifyUploaderReady();
@@ -19,7 +21,7 @@ BasicS3Uploader.version = {
   full: "1.0.1",
   major: "1",
   minor: "0",
-  patch: "2"
+  patch: "3"
 };
 
 // Configure the uploader using the provided settings or sensible defaults.
@@ -290,8 +292,6 @@ BasicS3Uploader.prototype._initiateUpload = function(retries) {
         uploader._log("Upload initiated.");
         var xml = response.target.responseXML;
         uploader._uploadId = xml.getElementsByTagName('UploadId')[0].textContent;
-        uploader._eTags = {}
-        uploader._chunkProgress = {};
 
         uploader._getRemainingSignatures(0, function() {
           uploader._uploadChunks();
