@@ -548,6 +548,13 @@ describe("BasicS3Uploader", function() {
       expect(ajaxSettings.params.encrypted).toEqual(mockSettings.encrypted);
     });
 
+    it("pushes the xhr request into the _XHRs array", function() {
+      spyOn(uploader, '_ajax').and.returnValue("XHR");
+      expect(uploader._XHRs.length).toEqual(0);
+      uploader._getInitSignature();
+      expect(uploader._XHRs[0]).toEqual("XHR");
+    });
+
     describe("a successful response", function() {
       var mockResponse;
 
@@ -615,6 +622,7 @@ describe("BasicS3Uploader", function() {
           spyOn(uploader, '_retryAvailable').and.returnValue(false);
           spyOn(uploader, '_notifyUploadError');
           spyOn(uploader, '_setFailed');
+          spyOn(uploader, '_resetData');
           uploader._getInitSignature();
         });
 
@@ -625,7 +633,169 @@ describe("BasicS3Uploader", function() {
         it("sets the uploader to a failed state", function() {
           expect(uploader._setFailed).toHaveBeenCalled();
         });
+
+        it("resets the uploader's data", function() {
+          expect(uploader._resetData).toHaveBeenCalled();
+        });
       });
+    });
+  });
+
+  describe("_initiateUpload", function() {
+    var mockFile, mockSettings, uploader;
+
+    beforeEach(function() {
+      mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
+      mockSettings = {
+        host: 'some-host',
+        key: "my-upload-key",
+        acl: "private",
+        encrypted: false,
+        maxRetries: 3,
+        awsAccessKey: 'my-access-key',
+
+      };
+      uploader = new BasicS3Uploader(mockFile, mockSettings);
+    });
+
+    it("adds the XHR object to the _XHRs array", function() {
+      spyOn(uploader, '_ajax').and.returnValue("XHR");
+      expect(uploader._XHRs.length).toEqual(0);
+      uploader._initiateUpload();
+      expect(uploader._XHRs[0]).toEqual("XHR");
+    });
+
+    describe("ajax settings", function() {
+      var ajaxSettings;
+
+      beforeEach(function() {
+        spyOn(uploader, '_ajax');
+        uploader._date = "today";
+        uploader._initSignature = "init-signature";
+      });
+
+      it("uses the following values for the call", function() {
+        uploader._initiateUpload();
+        ajaxSettings = uploader._ajax.calls.argsFor(0)[0];
+
+        expect(ajaxSettings.url).toEqual("some-host/my-upload-key?uploads");
+        expect(ajaxSettings.method).toEqual("POST");
+        expect(ajaxSettings.headers['x-amz-date']).toEqual('today');
+        expect(ajaxSettings.headers['x-amz-acl']).toEqual('private');
+        expect(ajaxSettings.headers['Authorization']).toEqual('AWS my-access-key:init-signature');
+        expect(ajaxSettings.headers['Content-Disposition']).toEqual('attachment; filename=myfile');
+      });
+
+      describe("non-encrypted upload", function() {
+        it("does not set the encryption header", function() {
+          uploader.settings.encrypted = false;
+          uploader._initiateUpload();
+          ajaxSettings = uploader._ajax.calls.argsFor(0)[0];
+          expect(ajaxSettings.headers['x-amz-server-side-encryption']).toBeUndefined();
+        });
+      });
+
+      describe("an encrypted upload", function() {
+        it("sets the encryption header", function() {
+          uploader.settings.encrypted = true;
+          uploader._initiateUpload();
+          ajaxSettings = uploader._ajax.calls.argsFor(0)[0];
+          expect(ajaxSettings.headers['x-amz-server-side-encryption']).toEqual("AES256");
+        });
+      });
+
+    });
+
+    describe("a successful response", function() {
+      var mockResponse, xml;
+
+      beforeEach(function() {
+        xml = new DOMParser().parseFromString("<SomeResponse><UploadId>the-upload-id</UploadId></SomeResponse>","text/xml");
+        mockResponse = {
+          target: {
+            responseXML: xml
+          }
+        };
+        spyOn(uploader, '_ajax').and.callFake(function(config) {
+          config.status = 200;
+          config.success(mockResponse);
+        });
+        spyOn(uploader, '_getRemainingSignatures').and.callFake(function(retries, callback) {
+          callback();
+        });
+        spyOn(uploader, '_uploadChunks');
+        uploader._initiateUpload();
+      });
+
+      it("stores the uploadId from the response xml", function() {
+        expect(uploader._uploadId).toEqual('the-upload-id');
+      });
+
+      it("fetches the remaining signatures", function() {
+        expect(uploader._getRemainingSignatures).toHaveBeenCalled();
+      });
+
+      it("begins uploading chunks once the remaining signatures are present", function() {
+        expect(uploader._uploadChunks).toHaveBeenCalled();
+      });
+
+    });
+
+    describe("a failed response", function() {
+      var mockResponse;
+
+      beforeEach(function() {
+        mockResponse = {};
+        spyOn(uploader, '_ajax').and.callFake(function(config) {
+          config.status = 400;
+          config.error(null);
+        });
+      });
+
+      describe("and no retries are available", function() {
+        beforeEach(function() {
+          spyOn(window, 'setTimeout').and.callFake(function(callback, interval) {
+            callback();
+          });
+
+          spyOn(uploader, '_notifyUploadRetry');
+          spyOn(uploader, '_initiateUpload').and.callThrough();
+
+          uploader._initiateUpload();
+        });
+
+        it("notifies about the next retry attempt", function() {
+          expect(uploader._notifyUploadRetry.calls.count()).toEqual(mockSettings.maxRetries);
+        });
+
+        it("retries the call, up to the maxRetries setting", function() {
+          // 3 retries and 1 inital call
+          expect(uploader._initiateUpload.calls.count()).toEqual(mockSettings.maxRetries + 1);
+        });
+      });
+
+      describe("and retries are available", function() {
+        beforeEach(function() {
+          spyOn(uploader, '_retryAvailable').and.returnValue(false);
+          spyOn(uploader, '_notifyUploadError');
+          spyOn(uploader, '_setFailed');
+          spyOn(uploader, '_resetData');
+          uploader._initiateUpload();
+        });
+
+        it("notifies that the upload has failed", function() {
+          expect(uploader._notifyUploadError).toHaveBeenCalledWith(3, uploader.errors[3]);
+        });
+
+        it("sets the uploader to a failed state", function() {
+          expect(uploader._setFailed).toHaveBeenCalled();
+        });
+
+        it("resets the uploader's data", function() {
+          expect(uploader._resetData).toHaveBeenCalled();
+        });
+      });
+
     });
   });
 
