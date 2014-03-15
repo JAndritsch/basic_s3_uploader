@@ -948,4 +948,45 @@ describe("BasicS3Uploader", function() {
     });
   });
 
+  describe("_uploadChunks", function() {
+    var mockFile, uploader;
+
+    beforeEach(function() {
+      mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
+      uploader = new BasicS3Uploader(mockFile, {});
+      uploader._chunks = {
+        1: { uploading: false, uploadComplete: false },
+        2: { uploading: true, uploadComplete: false },
+        3: { uploading: false, uploadComplete: true },
+        4: { uploading: false, uploadComplete: false },
+      };
+      spyOn(uploader, '_uploadChunk');
+    });
+
+    describe("when there is an upload spot available", function() {
+      beforeEach(function() {
+        spyOn(uploader, '_uploadSpotAvailable').and.returnValue(true);
+        uploader._uploadChunks();
+      });
+
+      it("uploads a chunk if its not already uploading and not already complete", function() {
+        expect(uploader._uploadChunk.calls.count()).toEqual(2);
+        expect(uploader._uploadChunk.calls.argsFor(0)[0]).toEqual(1);
+        expect(uploader._uploadChunk.calls.argsFor(1)[0]).toEqual(4);
+      });
+    });
+
+    describe("when there is not an upload spot available", function() {
+      beforeEach(function() {
+        spyOn(uploader, '_uploadSpotAvailable').and.returnValue(false);
+        uploader._uploadChunks();
+      });
+
+      it("won't upload any chunks", function() {
+        expect(uploader._uploadChunk.calls.count()).toEqual(0);
+      });
+    });
+
+  });
+
 });
