@@ -158,12 +158,10 @@ BasicS3Uploader.prototype.cancelUpload = function() {
     uploader._XHRs[index].abort();
   }
 
-  for (index in uploader._chunkXHRs) {
-    uploader._chunkXHRs[index].abort();
+  for (chunk in uploader._chunkXHRs) {
+    uploader._chunkXHRs[chunk].abort();
   }
 
-  uploader._XHRs = [];
-  uploader._chunkXHRs = {};
   uploader._notifyUploadCancelled();
   uploader._setCancelled();
   uploader._resetData();

@@ -18,8 +18,20 @@ describe("BasicS3Uploader", function() {
       expect(uploader.file).toEqual(mockFile);
     });
 
-    it("creates an array to hold all XHR requests", function() {
-      expect(uploader._XHRs).toBeDefined();
+    it("creates a hash to hold all chunk XHR requests", function() {
+      expect(uploader._chunkXHRs).toEqual({});
+    });
+
+    it("creates an array to hold all other XHR requests", function() {
+      expect(uploader._XHRs).toEqual([]);
+    });
+
+    it("creates a hash to hold all eTags", function() {
+      expect(uploader._eTags).toEqual({});
+    });
+
+    it("creates a hash to hold chunk upload progress", function() {
+      expect(uploader._chunkProgress).toEqual({});
     });
 
     it("sets _chunkUploadsInProgress to 0", function() {
@@ -61,6 +73,7 @@ describe("BasicS3Uploader", function() {
         log: true,
         customHeaders: { "X-Test-Header": "True" },
         maxConcurrentChunks: 5,
+        xhrRequestTimeout: 7000,
         key: "my-key-for-this-upload",
         onReady: function() {},
         onStart: function() {},
@@ -96,6 +109,7 @@ describe("BasicS3Uploader", function() {
       expect(uploader.settings.log).toEqual(mockSettings.log);
       expect(uploader.settings.customHeaders).toEqual(mockSettings.customHeaders);
       expect(uploader.settings.maxConcurrentChunks).toEqual(mockSettings.maxConcurrentChunks);
+      expect(uploader.settings.xhrRequestTimeout).toEqual(mockSettings.xhrRequestTimeout);
       expect(uploader.settings.key).toEqual(mockSettings.key);
       expect(uploader.settings.onReady).toEqual(mockSettings.onReady);
       expect(uploader.settings.onStart).toEqual(mockSettings.onStart);
@@ -125,6 +139,7 @@ describe("BasicS3Uploader", function() {
       expect(uploader.settings.log).toBeFalsy();
       expect(uploader.settings.customHeaders).toEqual({});
       expect(uploader.settings.maxConcurrentChunks).toEqual(5);
+      expect(uploader.settings.xhrRequestTimeout).toEqual(30000);
       expect(uploader.settings.key).toEqual("/" + uploader.settings.bucket + "/timestamp_" + uploader.file.name);
       expect(uploader.settings.onReady).toBeDefined();
       expect(uploader.settings.onStart).toBeDefined();
@@ -172,6 +187,7 @@ describe("BasicS3Uploader", function() {
           uploader.settings.maxFileSize = 100;
           spyOn(uploader, '_notifyUploadError');
           spyOn(uploader, '_setFailed');
+          spyOn(uploader, '_resetData');
           uploader.startUpload();
         });
 
@@ -185,6 +201,10 @@ describe("BasicS3Uploader", function() {
 
         it("sets the upload to a failed state", function() {
           expect(uploader._setFailed).toHaveBeenCalled();
+        });
+
+        it("resets the uploader's data", function() {
+          expect(uploader._resetData).toHaveBeenCalled();
         });
       });
 
@@ -202,6 +222,7 @@ describe("BasicS3Uploader", function() {
 
             spyOn(uploader, '_notifyUploadError');
             spyOn(uploader, '_setFailed');
+            spyOn(uploader, '_resetData');
 
             uploader.startUpload();
           });
@@ -216,6 +237,10 @@ describe("BasicS3Uploader", function() {
 
           it("sets the upload to a failed state", function() {
             expect(uploader._setFailed).toHaveBeenCalled();
+          });
+
+          it("resets the uploader's data", function() {
+            expect(uploader._resetData).toHaveBeenCalled();
           });
         });
 
@@ -272,7 +297,11 @@ describe("BasicS3Uploader", function() {
       spyOn(mockAjax3, 'abort');
 
       uploader = new BasicS3Uploader(mockFile, mockSettings);
-      uploader._XHRs = [mockAjax1, mockAjax2, mockAjax3];
+      uploader._XHRs = [mockAjax1];
+      uploader._chunkXHRs = {
+        1: mockAjax2,
+        2: mockAjax3,
+      };
     });
 
     describe("when the uploader is not uploading", function() {
@@ -294,6 +323,7 @@ describe("BasicS3Uploader", function() {
         spyOn(uploader, '_isUploading').and.returnValue(true);
         spyOn(uploader, '_notifyUploadCancelled');
         spyOn(uploader, '_setCancelled');
+        spyOn(uploader, '_resetData');
 
         uploader.cancelUpload();
       });
@@ -312,9 +342,10 @@ describe("BasicS3Uploader", function() {
         expect(uploader._setCancelled).toHaveBeenCalled();
       });
 
-      it("clears out the XHRs array", function() {
-        expect(uploader._XHRs).toEqual([]);
+      it("resets the uploader's data", function() {
+        expect(uploader._resetData).toHaveBeenCalled();
       });
+
     });
 
   });
