@@ -350,6 +350,7 @@ BasicS3Uploader.prototype._getRemainingSignatures = function(retries, successCal
 
   var xhr = uploader._ajax({
     url: uploader.settings.signatureBackend + uploader.settings.remainingSignaturesPath,
+    method: "GET",
     params: {
       upload_id: uploader._uploadId,
       total_chunks: Object.keys(uploader._chunks).length,

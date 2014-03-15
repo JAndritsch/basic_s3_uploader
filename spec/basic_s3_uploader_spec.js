@@ -154,7 +154,7 @@ describe("BasicS3Uploader", function() {
   });
 
   describe("startUpload", function() {
-    var uploader, mockSettings, mockFile; 
+    var uploader, mockSettings, mockFile;
 
     beforeEach(function() {
       mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
@@ -282,7 +282,7 @@ describe("BasicS3Uploader", function() {
 
   describe("cancelUpload", function() {
     var uploader, mockSettings, mockFile,
-    mockAjax1, mockAjax2, mockAjax3; 
+    mockAjax1, mockAjax2, mockAjax3;
 
     beforeEach(function() {
       mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
@@ -410,7 +410,7 @@ describe("BasicS3Uploader", function() {
         expect(chunk5.uploadComplete).toBeFalsy();
       });
     });
-    
+
     describe("when the file size is not evenly divisible by the chunk size", function() {
       describe("and the file size is smaller than the chunk size", function() {
         var chunk1;
@@ -785,6 +785,155 @@ describe("BasicS3Uploader", function() {
 
         it("notifies that the upload has failed", function() {
           expect(uploader._notifyUploadError).toHaveBeenCalledWith(3, uploader.errors[3]);
+        });
+
+        it("sets the uploader to a failed state", function() {
+          expect(uploader._setFailed).toHaveBeenCalled();
+        });
+
+        it("resets the uploader's data", function() {
+          expect(uploader._resetData).toHaveBeenCalled();
+        });
+      });
+
+    });
+  });
+
+  describe("_getRemainingSignatures", function() {
+    var mockFile, mockSettings, uploader;
+
+    beforeEach(function() {
+      mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
+      mockSettings = {
+        host: 'some-host',
+        key: "my-upload-key",
+        acl: "private",
+        encrypted: false,
+        maxRetries: 3,
+        awsAccessKey: 'my-access-key',
+        customHeaders: { "X-Custom-Header": "Stuff" },
+        contentType: "video/quicktime",
+        bucket: "my-bucket",
+        signatureBackend: "/signatures",
+        remainingSignaturesPath: "/remaining"
+
+      };
+      uploader = new BasicS3Uploader(mockFile, mockSettings);
+      uploader._uploadId = "upload-id";
+      uploader._chunks = {
+        1: "blah",
+        2: "blah",
+        3: "blah"
+      };
+    });
+
+    it("adds the XHR object to the _XHRs array", function() {
+      spyOn(uploader, '_ajax').and.returnValue("XHR");
+      expect(uploader._XHRs.length).toEqual(0);
+      uploader._getRemainingSignatures();
+      expect(uploader._XHRs[0]).toEqual("XHR");
+    });
+
+    describe("ajax settings", function() {
+      var ajaxSettings;
+
+      beforeEach(function() {
+        spyOn(uploader, '_ajax');
+      });
+
+      it("properly configures the url, method, params, and headers for the call", function() {
+        uploader._getRemainingSignatures();
+        ajaxSettings = uploader._ajax.calls.argsFor(0)[0];
+
+        expect(ajaxSettings.url).toEqual("/signatures/remaining");
+        expect(ajaxSettings.method).toEqual("GET");
+        expect(ajaxSettings.params.upload_id).toEqual("upload-id");
+        expect(ajaxSettings.params.total_chunks).toEqual(3);
+        expect(ajaxSettings.params.mime_type).toEqual("video/quicktime");
+        expect(ajaxSettings.params.bucket).toEqual("my-bucket");
+        expect(ajaxSettings.params.key).toEqual("my-upload-key");
+        expect(ajaxSettings.customHeaders['X-Custom-Header']).toEqual("Stuff");
+      });
+
+    });
+
+    describe("a successful response", function() {
+      var mockResponse, json, callback;
+
+      beforeEach(function() {
+        json = '{"chunk_signatures":{"1":{"signature":"signature","date":"date"},"2":{"signature":"signature","date":"date"},"3":{"signature":"signature","date":"date"}},"complete_signature":{"signature":"signature","date":"date"},"list_signature":{"signature":"signature","date":"date"}}';
+        mockResponse = {
+          target: {
+            responseText: json
+          }
+        };
+        spyOn(uploader, '_ajax').and.callFake(function(config) {
+          config.status = 200;
+          config.success(mockResponse);
+        });
+        callback = jasmine.createSpy();
+        uploader._getRemainingSignatures(0, callback);
+      });
+
+      it("stores the returned signatures", function() {
+        expect(uploader._chunkSignatures[1].signature).toEqual("signature");
+        expect(uploader._chunkSignatures[1].date).toEqual("date");
+        expect(uploader._chunkSignatures[2].signature).toEqual("signature");
+        expect(uploader._chunkSignatures[2].date).toEqual("date");
+        expect(uploader._chunkSignatures[3].signature).toEqual("signature");
+        expect(uploader._chunkSignatures[3].date).toEqual("date");
+      });
+
+      it("executes the provided callback, if defined", function() {
+        expect(callback).toHaveBeenCalled();
+      });
+
+    });
+
+    describe("a failed response", function() {
+      var mockResponse;
+
+      beforeEach(function() {
+        mockResponse = {};
+        spyOn(uploader, '_ajax').and.callFake(function(config) {
+          config.status = 400;
+          config.error(null);
+        });
+      });
+
+      describe("and retries are available", function() {
+        beforeEach(function() {
+          spyOn(window, 'setTimeout').and.callFake(function(callback, interval) {
+            callback();
+          });
+
+          spyOn(uploader, '_notifyUploadRetry');
+          spyOn(uploader, '_getRemainingSignatures').and.callThrough();
+
+          uploader._getRemainingSignatures(0);
+        });
+
+        it("notifies about the next retry attempt", function() {
+          expect(uploader._notifyUploadRetry.calls.count()).toEqual(mockSettings.maxRetries);
+        });
+
+        it("retries the call, up to the maxRetries setting", function() {
+          // 3 retries and 1 inital call
+          expect(uploader._getRemainingSignatures.calls.count()).toEqual(mockSettings.maxRetries + 1);
+        });
+      });
+
+      describe("and no retries are available", function() {
+        beforeEach(function() {
+          spyOn(uploader, '_retryAvailable').and.returnValue(false);
+          spyOn(uploader, '_notifyUploadError');
+          spyOn(uploader, '_setFailed');
+          spyOn(uploader, '_resetData');
+          uploader._getRemainingSignatures(0);
+        });
+
+        it("notifies that the upload has failed", function() {
+          expect(uploader._notifyUploadError).toHaveBeenCalledWith(4, uploader.errors[4]);
         });
 
         it("sets the uploader to a failed state", function() {
