@@ -674,7 +674,7 @@ describe("BasicS3Uploader", function() {
         uploader._initSignature = "init-signature";
       });
 
-      it("uses the following values for the call", function() {
+      it("properly configures the url, method, and headers for the call", function() {
         uploader._initiateUpload();
         ajaxSettings = uploader._ajax.calls.argsFor(0)[0];
 
@@ -752,7 +752,7 @@ describe("BasicS3Uploader", function() {
         });
       });
 
-      describe("and no retries are available", function() {
+      describe("and retries are available", function() {
         beforeEach(function() {
           spyOn(window, 'setTimeout').and.callFake(function(callback, interval) {
             callback();
@@ -774,7 +774,7 @@ describe("BasicS3Uploader", function() {
         });
       });
 
-      describe("and retries are available", function() {
+      describe("and no retries are available", function() {
         beforeEach(function() {
           spyOn(uploader, '_retryAvailable').and.returnValue(false);
           spyOn(uploader, '_notifyUploadError');
