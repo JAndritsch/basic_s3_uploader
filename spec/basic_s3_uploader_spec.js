@@ -989,4 +989,194 @@ describe("BasicS3Uploader", function() {
 
   });
 
+  describe("_uploadSpotAvailable", function() {
+    var mockFile, uploader;
+
+    beforeEach(function() {
+      mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
+      uploader = new BasicS3Uploader(mockFile, {});
+      uploader.settings.maxConcurrentChunks = 3;
+    });
+
+    it("returns true if the number of concurrent uploads is less than the max amount", function() {
+      uploader._chunkUploadsInProgress = 2;
+      expect(uploader._uploadSpotAvailable()).toBeTruthy();
+    });
+
+    it("returns false if the number of concurrent uploads is equal to the max amount", function() {
+      uploader._chunkUploadsInProgress = 3;
+      expect(uploader._uploadSpotAvailable()).toBeFalsy();
+    });
+  });
+
+  describe("_uploadChunk", function() {
+    var mockFile, mockSettings, uploader;
+
+    beforeEach(function() {
+      mockFile = { name: "myfile", type: "video/quicktime", size: 1000, slice: function(start, end) {} };
+      mockSettings = {
+        host: 'some-host',
+        key: "my-upload-key",
+        acl: "private",
+        encrypted: false,
+        maxRetries: 3,
+        awsAccessKey: 'my-access-key',
+        customHeaders: { "X-Custom-Header": "Stuff" },
+        contentType: "video/quicktime",
+        bucket: "my-bucket",
+        signatureBackend: "/signatures",
+        remainingSignaturesPath: "/remaining"
+
+      };
+      uploader = new BasicS3Uploader(mockFile, mockSettings);
+      uploader._uploadId = "upload-id";
+      uploader._chunks = {
+        1: { startRange: 0, endRange: 1000, uploading: false, uploadComplete: false }
+      };
+      uploader._chunkSignatures = {
+        1: { signature: 'chunk-signature', date: 'date' }
+      };
+    });
+
+    it("adds the XHR object to the _chunkXHRs map", function() {
+      spyOn(uploader, '_ajax').and.returnValue("XHR");
+      expect(Object.keys(uploader._chunkXHRs).length).toEqual(0);
+      uploader._uploadChunk(1);
+      expect(uploader._chunkXHRs[1]).toEqual("XHR");
+    });
+
+    describe("ajax settings", function() {
+      var ajaxSettings;
+
+      beforeEach(function() {
+        spyOn(uploader, '_ajax');
+      });
+
+      it("properly configures the url, method, params, and headers for the call", function() {
+        uploader._getRemainingSignatures();
+        ajaxSettings = uploader._ajax.calls.argsFor(0)[0];
+      });
+
+    });
+
+    describe("a successful response", function() {
+      var mocks;
+
+      beforeEach(function() {
+        mocks = {
+          getResponseHeader: function(header) {}
+        };
+        mockResponse = "";
+        spyOn(uploader, '_ajax').and.callFake(function(config) {
+          config.status = 200;
+          config.getResponseHeader = mocks.getResponseHeader;
+          config.success(null);
+        });
+        spyOn(uploader, '_notifyChunkUploaded');
+        spyOn(mocks, 'getResponseHeader').and.returnValue('eTag');
+        
+      });
+
+      describe("handles the chunk status and stores data about the upload", function() {
+        beforeEach(function() {
+          spyOn(uploader, '_allETagsAvailable').and.returnValue(false);
+          spyOn(uploader, '_uploadChunks');
+          uploader._uploadChunk(1);
+        });
+
+        it("flags the chunk as no longer uploading and that the upload is complete", function() {
+          expect(uploader._chunks[1].uploading).toBeFalsy();
+          expect(uploader._chunks[1].uploadComplete).toBeTruthy();
+        });
+
+        it("deletes the chunk XHR object", function() {
+          expect(uploader._chunkXHRs[1]).toBeUndefined();
+        });
+
+        it("decrements _chunkUploadsInProgress by 1", function() {
+          expect(uploader._chunkUploadsInProgress).toEqual(0);
+        });
+
+        it("notifies that the chunk has uploaded", function() {
+          var totalChunks = Object.keys(uploader._chunks).length;
+          expect(uploader._notifyChunkUploaded).toHaveBeenCalledWith(1, totalChunks);
+        });
+
+        it("gets the eTag from the responseHeaders and stores it", function() {
+          expect(mocks.getResponseHeader).toHaveBeenCalledWith("ETag");
+          expect(uploader._eTags[1]).toEqual("eTag");
+        });
+      });
+
+      describe("when all eTags are available", function() {
+        beforeEach(function() {
+          spyOn(uploader, '_allETagsAvailable').and.returnValue(true);
+          spyOn(uploader, '_verifyAllChunksUploaded');
+          uploader._uploadChunk(1);
+        });
+
+        it("calls to verify if all chunks have been uploaded", function() {
+          expect(uploader._verifyAllChunksUploaded).toHaveBeenCalled();
+        });
+      });
+
+      describe("when not all eTags are avaialble", function() {
+        beforeEach(function() {
+          spyOn(uploader, '_allETagsAvailable').and.returnValue(false);
+          spyOn(uploader, '_uploadChunks');
+          uploader._uploadChunk(1);
+        });
+
+        it("continues uploading the remaining chunks", function() {
+          expect(uploader._uploadChunks).toHaveBeenCalled();
+        });
+      });
+
+    });
+
+    describe("a failed response", function() {
+      var xhrAbortSpy;
+
+      beforeEach(function() {
+        xhrAbortSpy = jasmine.createSpy();
+        uploader._chunkXHRs[1] = { abort: xhrAbortSpy };
+        spyOn(uploader, '_ajax').and.callFake(function(config) {
+          config.status = 400;
+          config.error(null);
+        });
+        spyOn(window, 'setTimeout').and.callFake(function(callback, interval) {
+          callback();
+        });
+        spyOn(uploader, '_notifyUploadRetry');
+        spyOn(uploader, '_retryChunk');
+        uploader._uploadChunk(1);
+      });
+
+      it("decrements the _chunkUploadsInProgress by one", function() {
+        expect(uploader._chunkUploadsInProgress).toEqual(0);
+      });
+
+      it("sets uploading and uploadComplete to false for the chunk", function() {
+        expect(uploader._chunks[1].uploading).toBeFalsy();
+        expect(uploader._chunks[1].uploadComplete).toBeFalsy();
+      });
+
+      it("aborts the XHR for that chunk", function() {
+        expect(xhrAbortSpy).toHaveBeenCalled();
+      });
+
+      it("deletes the XHR for that chunk", function() {
+        expect(uploader._chunkXHRs[1]).toBeUndefined();
+      });
+
+      it("notfies that the chunk upload is going to retry another attempt", function() {
+        expect(uploader._notifyUploadRetry).toHaveBeenCalled();
+      });
+
+      it("retries uploading the chunk", function() {
+        expect(uploader._retryChunk).toHaveBeenCalledWith(1);
+      });
+    });
+  });
+
 });
