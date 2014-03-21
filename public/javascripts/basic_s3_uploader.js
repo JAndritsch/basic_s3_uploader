@@ -18,10 +18,10 @@ var BasicS3Uploader = function(file, settings) {
 };
 
 BasicS3Uploader.version = {
-  full: "1.0.3",
+  full: "1.0.4",
   major: "1",
   minor: "0",
-  patch: "3"
+  patch: "4"
 };
 
 // Configure the uploader using the provided settings or sensible defaults.
@@ -980,7 +980,11 @@ BasicS3Uploader.prototype._validateFileIsReadable = function(callback) {
     }
   }
 
-  fr.readAsBinaryString(blob);
+  try {
+    fr.readAsBinaryString(blob);
+  } catch(error) {
+    callback(false);
+  }
 };
 
 BasicS3Uploader.prototype.errors = {
