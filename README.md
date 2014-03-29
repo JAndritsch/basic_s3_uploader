@@ -197,7 +197,8 @@ Once you have the application set up and configured, you should be able to start
     ruby app.rb
 
 If you are running the app on your system ruby, you might need to prefix the command with
-`sudo`.
+`sudo`.  This generally is not necessary unless you change the port to one that needs root
+access.  The sample ruby app is setup to use port 8080, which does not need root access.
 
 #### Step 4: Verify it's up
 
