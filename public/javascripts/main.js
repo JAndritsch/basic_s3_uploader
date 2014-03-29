@@ -9,7 +9,7 @@ $(document).ready(function() {
 
     settings = {
       bucket: "your-bucket-name",
-      awsAccessKey: "your-aws-access-key", 
+      awsAccessKey: "your-aws-access-key",
       key: "a-key-for-the-upload",
       signatureBackend: "",
       initSignaturePath: "/get_init_signature",
@@ -56,7 +56,16 @@ $(document).ready(function() {
 
 
   $("#startUpload").on("click", function() {
-    uploader.startUpload();
+    // Here is an opportunity to make any changes about the uploader's configuration.
+    // For instance, if you wanted to dynamically supply an access key or bucket
+    // from the back end, you could do that here.
+    $.get('/someplace', function(data) {
+      uploader.settings.bucket       = data.bucket;
+      uploader.settings.awsAccessKey = data.awsAccessKey;
+      uploader.startUpload();
+    });
+    // It should also be noted that if you dynamically modify the 'bucket', you will also need to
+    // modify the 'host', as it is derived from the bucket at the time an uploader is created.
   });
 
   $("#cancelUpload").on("click", function() {
