@@ -13,7 +13,7 @@ class MyApp < Sinatra::Base
 
   # Returns a hash of multiple signatures, including one for the "list parts"
   # call, the "complete upload" call, and a signature for every chunk in the upload.
-  
+
   # To calculate the chunk signatures, BasicS3Uploader sends the "total_chunks"
   # value to this method. From there, we can iterate of each value within the
   # range of 0..total_chunks and generate a signature for each chunk.
@@ -61,5 +61,5 @@ end
 
 
 if __FILE__ == $0
-  MyApp.run! :port => 80
+  MyApp.run! :port => 8080
 end
