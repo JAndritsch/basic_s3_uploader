@@ -2,19 +2,19 @@
 
 ### What is it?
 
-BasicS3Uploader is a generic Javascript S3 uploader that provides you with the means necessary 
-to send files from your machine to an AWS S3 bucket all from the client side. It was designed 
-to be very generic, providing only a simple library that can be wrapped in order to facilitate 
-chunked uploads from a web browser to the cloud. There is no UI and no additional plugins 
-required. You simply instantiate it, give it a file and some settings, then tell 
+BasicS3Uploader is a generic Javascript S3 uploader that provides you with the means necessary
+to send files from your machine to an AWS S3 bucket all from the client side. It was designed
+to be very generic, providing only a simple library that can be wrapped in order to facilitate
+chunked uploads from a web browser to the cloud. There is no UI and no additional plugins
+required. You simply instantiate it, give it a file and some settings, then tell
 it to start uploading when you want.
 
 ### Why no UI?
 
 There are many great Javascript uploaders out there already, and several of them
 include fancy UI or behaviors such as progress bars and automatic file uploads
-on file selection. While these features may be interesting, they tend to make 
-assumptions about how you're supposed to use them. In some cases, these assumptions 
+on file selection. While these features may be interesting, they tend to make
+assumptions about how you're supposed to use them. In some cases, these assumptions
 may make it more difficult to use these tools in different ways.
 
 Rather than make decisions for you, BasicS3Uploader provides you with the functionality
@@ -23,14 +23,14 @@ behavior.
 
 ### How does it work?
 
-BasicS3Uploader is based off of the [Mule Uploader](https://github.com/cinely/mule-uploader) 
+BasicS3Uploader is based off of the [Mule Uploader](https://github.com/cinely/mule-uploader)
 and uses a similar method for gathering the required upload signatures for S3's multipart API.
 Because generating signatures requires the use of your AWS secret access key, this uploader
 requires that you set up a server-side web application that can generate the proper signatures
-for each request. 
+for each request.
 
-Similar to Mule, BasicS3Uploader requires you to provide it with the path to your signature 
-backend application. You must also configure the backend application so that it defines two different 
+Similar to Mule, BasicS3Uploader requires you to provide it with the path to your signature
+backend application. You must also configure the backend application so that it defines two different
 routes to access the necessary signatures. These specific paths can be configured for the uploader,
 but default to the following paths:
 
@@ -53,10 +53,10 @@ the "list parts" signature, and the "complete upload" signature.
 - Step 5: Once all chunk uploads have completed, check to make sure that S3 has all the
 correct chunks that it was sent.
 
-- Step 6: Call the S3 API to complete the upload using the "complete" signature once all 
+- Step 6: Call the S3 API to complete the upload using the "complete" signature once all
 chunks have been verified.
 
-For more information about how to generate signatures or how to use the uploader, 
+For more information about how to generate signatures or how to use the uploader,
 please check out the documentation page.
 
 ## Features
@@ -101,10 +101,10 @@ The following browsers have been known to work with this uploader:
 - Safari 6+
 - Internet Explorer 10+
 
-BasicS3Uploader relies on the HTML5 File, Blob, and FileReader APIs. As a result, 
+BasicS3Uploader relies on the HTML5 File, Blob, and FileReader APIs. As a result,
 this uploader will not work in browsers that do not fully support them. Unlike some
 uploaders that gracefully degrade and use iframe hacks for older browsers, there's
-no fallback strategy with BasicS3Uploader. 
+no fallback strategy with BasicS3Uploader.
 
 ### S3 Bucket CORS config
 
@@ -112,17 +112,19 @@ In order for BasicS3Uploader to upload to your S3 bucket, you must have the prop
 CORS config in place for that bucket. Below is a sample of what that configuration
 should look like.
 
-    <CORSRule>
-      <AllowedOrigin>[your domain]</AllowedOrigin>
-      <AllowedMethod>PUT</AllowedMethod>
-      <AllowedMethod>POST</AllowedMethod>
-      <AllowedMethod>DELETE</AllowedMethod>
-      <AllowedMethod>GET</AllowedMethod>
-      <AllowedMethod>HEAD</AllowedMethod>
-      <MaxAgeSeconds>3000</MaxAgeSeconds>
-      <AllowedHeader>*</AllowedHeader>
-      <ExposeHeader>ETag</ExposeHeader>
-    </CORSRule>
+    <CORSConfiguration>
+      <CORSRule>
+        <AllowedOrigin>[your domain]</AllowedOrigin>
+        <AllowedMethod>PUT</AllowedMethod>
+        <AllowedMethod>POST</AllowedMethod>
+        <AllowedMethod>DELETE</AllowedMethod>
+        <AllowedMethod>GET</AllowedMethod>
+        <AllowedMethod>HEAD</AllowedMethod>
+        <MaxAgeSeconds>3000</MaxAgeSeconds>
+        <AllowedHeader>*</AllowedHeader>
+        <ExposeHeader>ETag</ExposeHeader>
+      </CORSRule>
+    </CORSConfiguration>
 
 The only thing that should be modified is the `<AllowedOrigin>` configuration. Everything
 else should be the way you see it.
@@ -176,7 +178,7 @@ file.
 
 Next, you will need to edit `public/javascripts/main.js` and provide the uploader settings with
 your bucket name, AWS access key, and a key for your upload (the key is going to be used for the
-file name when it is uploaded, and may also include subfolders). 
+file name when it is uploaded, and may also include subfolders).
 Example:
 
     $("#fileinput").on("change", function(element) {
@@ -184,7 +186,7 @@ Example:
 
       settings = {
         bucket: "your-bucket-name",
-        awsAccessKey: "your-aws-access-key", 
+        awsAccessKey: "your-aws-access-key",
         key: "a-key-for-the-upload",
         ...
 
@@ -195,9 +197,10 @@ Once you have the application set up and configured, you should be able to start
     ruby app.rb
 
 If you are running the app on your system ruby, you might need to prefix the command with
-`sudo`.
+`sudo`.  This generally is not necessary unless you change the port to one that needs root
+access.  The sample ruby app is setup to use port 8080, which does not need root access.
 
 #### Step 4: Verify it's up
 
-Open a web browser and navigate to http://localhost:4567
-  
+Open a web browser and navigate to http://localhost:8080
+
