@@ -1401,4 +1401,117 @@ describe("BasicS3Uploader", function() {
     });
   });
 
+  describe("_handleInvalidChunks", function() {
+    var mockFile, mockSettings, uploader;
+
+    beforeEach(function() {
+      mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
+      mockSettings = {};
+      uploader = new BasicS3Uploader(mockFile, mockSettings);
+      spyOn(uploader, '_retryChunk');
+
+      uploader._handleInvalidChunks([1, 3, 5]);
+    });
+
+    it('calls _retryChunk for each invalid chunk number given', function() {
+      expect(uploader._retryChunk.calls.count()).toEqual(3);
+      expect(uploader._retryChunk.calls.argsFor(0)[0]).toEqual(1);
+      expect(uploader._retryChunk.calls.argsFor(1)[0]).toEqual(3);
+      expect(uploader._retryChunk.calls.argsFor(2)[0]).toEqual(5);
+    });
+  });
+
+  describe("_handleMissingChunks", function() {
+    var mockFile, mockSettings, uploader, xml, xmlString;
+
+    beforeEach(function() {
+      mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
+      mockSettings = {};
+      uploader = new BasicS3Uploader(mockFile, mockSettings);
+      spyOn(uploader, '_retryChunk');
+
+      // The uploader has kept track of 4 chunks
+      uploader._chunks = {
+        1: { startRange: 0, endRange: 1000, uploading: false, uploadComplete: true },
+        2: { startRange: 1000, endRange: 2000, uploading: false, uploadComplete: true },
+        3: { startRange: 2000, endRange: 3000, uploading: false, uploadComplete: true },
+        4: { startRange: 3000, endRange: 4000, uploading: false, uploadComplete: true }
+      };
+
+      // But Amazon reported only getting 2 of them
+      xmlString = "<Parts>";
+      xmlString += "<Part><PartNumber>1</PartNumber><ETag>\"chunk-1-eTag\"</ETag><Size>1000</Size></Part>";
+      xmlString += "<Part><PartNumber>3</PartNumber><ETag>\"chunk-3-eTag\"</ETag><Size>1000</Size></Part>";
+      xmlString += "</Parts>";
+      xml = new DOMParser().parseFromString(xmlString, "text/xml");
+
+      var responseParts = xml.getElementsByTagName("Part");
+
+      uploader._handleMissingChunks(responseParts);
+    });
+
+    it("calls _retryChunk for each chunk that was not listed in Amazon's response", function() {
+      expect(uploader._retryChunk.calls.count()).toEqual(2);
+      expect(uploader._retryChunk.calls.argsFor(0)[0]).toEqual('2');
+      expect(uploader._retryChunk.calls.argsFor(1)[0]).toEqual('4');
+    });
+  });
+
+  describe("_retryChunk", function() {
+    var mockFile, mockSettings, uploader;
+
+    beforeEach(function() {
+      mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
+      mockSettings = {};
+      uploader = new BasicS3Uploader(mockFile, mockSettings);
+      uploader._chunks = {
+        1: { startRange: 0, endRange: 1000, uploading: false, uploadComplete: true },
+      };
+    });
+
+    describe('when there are retries available', function() {
+      beforeEach(function() {
+        spyOn(uploader, '_retryAvailable').and.returnValue(true);
+        spyOn(uploader, '_getRemainingSignatures').and.callFake(function(attempt, callback) {
+          callback();
+        });
+        spyOn(uploader, '_uploadChunk');
+
+        uploader._retryChunk(1);
+      });
+
+      it("fetches new upload signatures", function() {
+        expect(uploader._getRemainingSignatures).toHaveBeenCalled();
+      });
+
+      it("uploads the chunk", function() {
+        expect(uploader._uploadChunk).toHaveBeenCalledWith(1, 1);
+      });
+    });
+
+    describe('when there are no retries available', function() {
+      beforeEach(function() {
+        spyOn(uploader, '_retryAvailable').and.returnValue(false);
+        spyOn(uploader, '_notifyUploadError');
+        spyOn(uploader, '_setFailed');
+        spyOn(uploader, '_resetData');
+        uploader._retryChunk(1);
+
+      });
+
+      it("notifies there was an upload error", function() {
+        expect(uploader._notifyUploadError).toHaveBeenCalledWith(7, uploader.errors[7]);
+      });
+
+      it("sets the upload to a failed state", function() {
+        expect(uploader._setFailed).toHaveBeenCalled();
+      });
+
+      it("resets the uploader's data", function() {
+        expect(uploader._resetData).toHaveBeenCalled();
+      });
+    });
+
+  });
+
 });
