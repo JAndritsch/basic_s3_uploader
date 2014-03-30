@@ -1083,7 +1083,7 @@ describe("BasicS3Uploader", function() {
         });
         spyOn(uploader, '_notifyChunkUploaded');
         spyOn(mocks, 'getResponseHeader').and.returnValue('eTag');
-        
+
       });
 
       describe("handles the chunk status and stores data about the upload", function() {
@@ -1511,7 +1511,175 @@ describe("BasicS3Uploader", function() {
         expect(uploader._resetData).toHaveBeenCalled();
       });
     });
+  });
 
+  describe("_completeUpload", function() {
+    var mockFile, mockSettings, uploader;
+
+    beforeEach(function() {
+      mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
+      mockSettings = {
+        host: 'some-host',
+        key: "my-upload-key",
+        acl: "private",
+        encrypted: false,
+        maxRetries: 3,
+        awsAccessKey: 'my-access-key',
+        customHeaders: { "X-Custom-Header": "Stuff" },
+        contentType: "video/quicktime",
+        bucket: "my-bucket",
+        signatureBackend: "/signatures",
+        remainingSignaturesPath: "/remaining"
+
+      };
+      uploader = new BasicS3Uploader(mockFile, mockSettings);
+      uploader._uploadId = "upload-id";
+      uploader._chunks = {
+        1: { startRange: 0, endRange: 1000, uploading: false, uploadComplete: false },
+        2: { startRange: 1000, endRange: 2000, uploading: false, uploadComplete: false }
+      };
+      uploader._completeSignature = { signature: 'complete-signature', date: 'date' };
+      uploader._eTags = {
+        1: '"chunk-1-eTag"',
+        2: '"chunk-2-eTag"',
+      }
+      spyOn(uploader, '_requiresFirefoxHack').and.returnValue(false);
+    });
+
+    it("adds the XHR object to the _chunkXHRs map", function() {
+      spyOn(uploader, '_ajax').and.returnValue("XHR");
+      expect(uploader._XHRs.length).toEqual(0);
+      uploader._completeUpload();
+      expect(uploader._XHRs[0]).toEqual("XHR");
+    });
+
+    describe("ajax settings", function() {
+      var ajaxSettings;
+
+      beforeEach(function() {
+        spyOn(uploader, '_ajax');
+      });
+
+      it("properly configures the url, method, params, and headers for the call", function() {
+        uploader._completeUpload();
+        var body;
+
+        body = "<CompleteMultipartUpload>";
+        body +=   "<Part>";
+        body +=     "<PartNumber>1</PartNumber>";
+        body +=     "<ETag>\"chunk-1-eTag\"</ETag>";
+        body +=   "</Part>";
+        body +=   "<Part>";
+        body +=     "<PartNumber>2</PartNumber>";
+        body +=     "<ETag>\"chunk-2-eTag\"</ETag>";
+        body +=   "</Part>";
+        body += "</CompleteMultipartUpload>";
+
+        ajaxSettings = uploader._ajax.calls.argsFor(0)[0];
+        expect(ajaxSettings.url).toEqual('some-host/my-upload-key');
+        expect(ajaxSettings.method).toEqual('POST');
+        expect(ajaxSettings.params.uploadId).toEqual('upload-id');
+        expect(ajaxSettings.headers['x-amz-date']).toEqual('date');
+        expect(ajaxSettings.headers['Authorization']).toEqual('AWS my-access-key:complete-signature');
+        expect(ajaxSettings.headers['Content-Type']).toEqual('video/quicktime');
+        expect(ajaxSettings.headers['Content-Disposition']).toEqual('attachment; filename=myfile');
+        expect(ajaxSettings.body).toEqual(body);
+      });
+
+    });
+
+    describe("a successful response", function() {
+      var xml;
+      beforeEach(function() {
+        xml = new DOMParser().parseFromString("<SomeResponse><Location>the-upload-location</Location></SomeResponse>","text/xml");
+        mockResponse = {
+          target: {
+            responseXML: xml
+          }
+        };
+        spyOn(uploader, '_ajax').and.callFake(function(config) {
+          config.status = 200;
+          config.success(mockResponse);
+        });
+        spyOn(uploader, "_notifyUploadComplete");
+        spyOn(uploader, "_setComplete");
+        spyOn(uploader, "_resetData");
+        uploader._completeUpload();
+      });
+
+      it("notifies that the upload is complete, passing in the location from the response xml", function() {
+        expect(uploader._notifyUploadComplete).toHaveBeenCalledWith("the-upload-location");
+      });
+
+      it("sets the uploader to complete", function() {
+        expect(uploader._setComplete).toHaveBeenCalled();
+      });
+
+      it("resets the uploader data", function() {
+        expect(uploader._resetData).toHaveBeenCalled();
+      });
+    });
+
+    describe("a failed response", function() {
+
+      beforeEach(function() {
+        spyOn(uploader, '_ajax').and.callFake(function(config) {
+          config.status = 400;
+          config.error(null);
+        });
+        spyOn(window, 'setTimeout').and.callFake(function(callback, interval) {
+          callback();
+        });
+      });
+
+      describe("and retries are available", function() {
+        beforeEach(function() {
+          spyOn(uploader, '_notifyUploadRetry');
+          spyOn(uploader, '_getRemainingSignatures').and.callFake(function(attempt, callback) {
+            callback();
+          });
+          spyOn(uploader, '_completeUpload').and.callThrough();
+
+          uploader._completeUpload();
+        });
+
+        it("notifies about the next retry attempt", function() {
+          expect(uploader._notifyUploadRetry.calls.count()).toEqual(mockSettings.maxRetries);
+        });
+
+        it("refreshes upload signatures", function() {
+          expect(uploader._getRemainingSignatures).toHaveBeenCalled();
+        });
+
+        it("retries the call, up to the maxRetries setting", function() {
+          // 3 retries and 1 inital call
+          expect(uploader._completeUpload.calls.count()).toEqual(mockSettings.maxRetries + 1);
+        });
+      });
+
+      describe("and no retries are available", function() {
+        beforeEach(function() {
+          spyOn(uploader, '_retryAvailable').and.returnValue(false);
+          spyOn(uploader, '_notifyUploadError');
+          spyOn(uploader, '_setFailed');
+          spyOn(uploader, '_resetData');
+          uploader._completeUpload();
+        });
+
+        it("notifies that the upload has failed", function() {
+          expect(uploader._notifyUploadError).toHaveBeenCalledWith(8, uploader.errors[8]);
+        });
+
+        it("sets the uploader to a failed state", function() {
+          expect(uploader._setFailed).toHaveBeenCalled();
+        });
+
+        it("resets the uploader's data", function() {
+          expect(uploader._resetData).toHaveBeenCalled();
+        });
+      });
+
+    });
   });
 
 });

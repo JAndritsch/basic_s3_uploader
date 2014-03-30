@@ -679,8 +679,8 @@ BasicS3Uploader.prototype._completeUpload = function(retries) {
 
   body += "</CompleteMultipartUpload>";
 
-  //Hack: Firefox requires the data in the form of a blob
-  if(navigator.userAgent.indexOf("Firefox") !== -1) {
+  // Hack: Firefox requires the data in the form of a blob
+  if(uploader._requiresFirefoxHack()) {
     body = new Blob([body]);
   }
 
@@ -760,7 +760,7 @@ BasicS3Uploader.prototype._allETagsAvailable = function() {
 
 BasicS3Uploader.prototype._resetData = function() {
   var uploader = this;
-  // Need to keep uploader.settings, uploader.file, and uploader._chunks around 
+  // Need to keep uploader.settings, uploader.file, and uploader._chunks around
   // in case any callbacks still need them. Everything else can go.
   uploader._XHRs = [];
   uploader._date = null;
@@ -985,6 +985,10 @@ BasicS3Uploader.prototype._validateFileIsReadable = function(callback) {
   } catch(error) {
     callback(false);
   }
+};
+
+BasicS3Uploader.prototype._requiresFirefoxHack = function() {
+  return navigator.userAgent.indexOf("Firefox") !== -1;
 };
 
 BasicS3Uploader.prototype.errors = {
