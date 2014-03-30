@@ -57,7 +57,7 @@ correct chunks that it was sent.
 chunks have been verified.
 
 For more information about how to generate signatures or how to use the uploader,
-please check out the documentation page.
+please check out the documentation page (coming soon).
 
 ## Features
 
@@ -204,3 +204,14 @@ access.  The sample ruby app is setup to use port 8080, which does not need root
 
 Open a web browser and navigate to http://localhost:8080
 
+
+## Contributing
+
+Want to help make this better? Please perform the following steps to contribute:
+
+- Fork the project
+- Create a new branch with your changes
+- Be sure if adding/removing/changing logic to update the tests in spec/basic_s3_uploader_spec.js
+- Make sure all specs are passing. You can run the tests by simply opening the standalone HTML file
+found in spec/SpecRunner.html. The tests are written using Jasmine (v2.0)
+- Send me a pull request
