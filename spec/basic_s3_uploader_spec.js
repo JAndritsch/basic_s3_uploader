@@ -1013,7 +1013,7 @@ describe("BasicS3Uploader", function() {
     var mockFile, mockSettings, uploader;
 
     beforeEach(function() {
-      mockFile = { name: "myfile", type: "video/quicktime", size: 1000, slice: function(start, end) {} };
+      mockFile = { name: "myfile", type: "video/quicktime", size: 1000, slice: function(start, end) { return "file-blob"; } };
       mockSettings = {
         host: 'some-host',
         key: "my-upload-key",
@@ -1053,8 +1053,17 @@ describe("BasicS3Uploader", function() {
       });
 
       it("properly configures the url, method, params, and headers for the call", function() {
-        uploader._getRemainingSignatures();
+        uploader._uploadChunk(1);
         ajaxSettings = uploader._ajax.calls.argsFor(0)[0];
+        expect(ajaxSettings.url).toEqual('some-host/my-upload-key');
+        expect(ajaxSettings.method).toEqual('PUT');
+        expect(ajaxSettings.body).toEqual('file-blob');
+        expect(ajaxSettings.params.uploadId).toEqual('upload-id');
+        expect(ajaxSettings.params.partNumber).toEqual(1);
+        expect(ajaxSettings.headers['x-amz-date']).toEqual('date');
+        expect(ajaxSettings.headers['Authorization']).toEqual('AWS my-access-key:chunk-signature');
+        expect(ajaxSettings.headers['Content-Disposition']).toEqual('attachment; filename=myfile');
+        expect(ajaxSettings.headers['Content-Type']).toEqual('video/quicktime');
       });
 
     });
@@ -1176,6 +1185,219 @@ describe("BasicS3Uploader", function() {
       it("retries uploading the chunk", function() {
         expect(uploader._retryChunk).toHaveBeenCalledWith(1);
       });
+    });
+  });
+
+  describe("_verifyAllChunksUploaded", function() {
+    var mockFile, mockSettings, uploader;
+
+    beforeEach(function() {
+      mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
+      mockSettings = {
+        host: 'some-host',
+        key: "my-upload-key",
+        acl: "private",
+        encrypted: false,
+        maxRetries: 3,
+        awsAccessKey: 'my-access-key',
+        customHeaders: { "X-Custom-Header": "Stuff" },
+        contentType: "video/quicktime",
+        bucket: "my-bucket",
+        signatureBackend: "/signatures",
+        remainingSignaturesPath: "/remaining"
+
+      };
+      uploader = new BasicS3Uploader(mockFile, mockSettings);
+      uploader._uploadId = "upload-id";
+      uploader._chunks = {
+        1: { startRange: 0, endRange: 1000, uploading: false, uploadComplete: false },
+        2: { startRange: 1000, endRange: 2000, uploading: false, uploadComplete: false }
+      };
+      uploader._listSignature = { signature: 'list-signature', date: 'date' };
+      uploader._eTags = {
+        1: '"chunk-1-eTag"',
+        2: '"chunk-2-eTag"',
+      }
+    });
+
+    it("adds the XHR object to the _chunkXHRs map", function() {
+      spyOn(uploader, '_ajax').and.returnValue("XHR");
+      expect(uploader._XHRs.length).toEqual(0);
+      uploader._verifyAllChunksUploaded();
+      expect(uploader._XHRs[0]).toEqual("XHR");
+    });
+
+    describe("ajax settings", function() {
+      var ajaxSettings;
+
+      beforeEach(function() {
+        spyOn(uploader, '_ajax');
+      });
+
+      it("properly configures the url, method, params, and headers for the call", function() {
+        uploader._verifyAllChunksUploaded();
+        ajaxSettings = uploader._ajax.calls.argsFor(0)[0];
+        expect(ajaxSettings.url).toEqual('some-host/my-upload-key');
+        expect(ajaxSettings.method).toEqual('GET');
+        expect(ajaxSettings.params.uploadId).toEqual('upload-id');
+        expect(ajaxSettings.headers['x-amz-date']).toEqual('date');
+        expect(ajaxSettings.headers['Authorization']).toEqual('AWS my-access-key:list-signature');
+      });
+
+    });
+
+    describe("a successful response", function() {
+      describe('when the total parts uploaded does not equal the number of parts sent', function() {
+        var mockResponse, xml, xmlString;
+
+        // One part is missing from the response
+        xmlString = "<Parts>";
+        xmlString += "<Part><PartNumber>1</PartNumber><ETag>\"chunk-1-eTag\"</ETag><Size>1000</Size></Part>";
+        xmlString += "</Parts>";
+        xml = new DOMParser().parseFromString(xmlString, "text/xml");
+
+        beforeEach(function() {
+          mockResponse = {
+            target: {
+              responseXML: xml
+            }
+          };
+          spyOn(uploader, '_ajax').and.callFake(function(config) {
+            config.status = 200;
+            config.success(mockResponse);
+          });
+          spyOn(uploader, '_handleMissingChunks');
+          uploader._verifyAllChunksUploaded();
+        });
+
+        it("calls _handleMissingChunks with the list of parts returned from Amazon", function() {
+          var parts = xml.getElementsByTagName("Part");
+          expect(uploader._handleMissingChunks).toHaveBeenCalledWith(parts);
+        });
+
+      });
+
+      describe('when there are invalid parts', function() {
+        var mockResponse, xml, xmlString;
+
+        // Part 1 has an invalid eTag, Part 2 has an invalid size
+        xmlString = "<Parts>";
+        xmlString += "<Part><PartNumber>1</PartNumber><ETag>\"invalid-eTag\"</ETag><Size>1000</Size></Part>";
+        xmlString += "<Part><PartNumber>2</PartNumber><ETag>\"chunk-2-eTag\"</ETag><Size>0</Size></Part>";
+        xmlString += "</Parts>";
+        xml = new DOMParser().parseFromString(xmlString, "text/xml");
+
+        beforeEach(function() {
+          mockResponse = {
+            target: {
+              responseXML: xml
+            }
+          };
+          spyOn(uploader, '_ajax').and.callFake(function(config) {
+            config.status = 200;
+            config.success(mockResponse);
+          });
+          spyOn(uploader, '_handleInvalidChunks');
+          uploader._verifyAllChunksUploaded();
+        });
+
+        it("calls _handleInvalidChunks with the list of part numbers that are invalid", function() {
+          var invalidChunks = [1, 2];
+          expect(uploader._handleInvalidChunks).toHaveBeenCalledWith(invalidChunks);
+        });
+
+      });
+
+      describe('when all parts have been uploaded and are valid', function() {
+        var mockResponse, xml, xmlString;
+
+        // All Parts are uploaded and valid
+        xmlString = "<Parts>";
+        xmlString += "<Part><PartNumber>1</PartNumber><ETag>\"chunk-1-eTag\"</ETag><Size>1000</Size></Part>";
+        xmlString += "<Part><PartNumber>2</PartNumber><ETag>\"chunk-2-eTag\"</ETag><Size>1000</Size></Part>";
+        xmlString += "</Parts>";
+        xml = new DOMParser().parseFromString(xmlString, "text/xml");
+
+        beforeEach(function() {
+          mockResponse = {
+            target: {
+              responseXML: xml
+            }
+          };
+          spyOn(uploader, '_ajax').and.callFake(function(config) {
+            config.status = 200;
+            config.success(mockResponse);
+          });
+          spyOn(uploader, '_completeUpload');
+          uploader._verifyAllChunksUploaded();
+        });
+
+        it("calls _completeUpload", function() {
+          expect(uploader._completeUpload).toHaveBeenCalled();
+        });
+      });
+
+    });
+
+    describe("a failed response", function() {
+
+      beforeEach(function() {
+        spyOn(uploader, '_ajax').and.callFake(function(config) {
+          config.status = 400;
+          config.error(null);
+        });
+        spyOn(window, 'setTimeout').and.callFake(function(callback, interval) {
+          callback();
+        });
+      });
+
+      describe("and retries are available", function() {
+        beforeEach(function() {
+          spyOn(uploader, '_notifyUploadRetry');
+          spyOn(uploader, '_getRemainingSignatures').and.callFake(function(attempt, callback) {
+            callback();
+          });
+          spyOn(uploader, '_verifyAllChunksUploaded').and.callThrough();
+
+          uploader._verifyAllChunksUploaded();
+        });
+
+        it("notifies about the next retry attempt", function() {
+          expect(uploader._notifyUploadRetry.calls.count()).toEqual(mockSettings.maxRetries);
+        });
+
+        it("refreshes upload signatures", function() {
+          expect(uploader._getRemainingSignatures).toHaveBeenCalled();
+        });
+
+        it("retries the call, up to the maxRetries setting", function() {
+          // 3 retries and 1 inital call
+          expect(uploader._verifyAllChunksUploaded.calls.count()).toEqual(mockSettings.maxRetries + 1);
+        });
+      });
+
+      describe("and no retries are available", function() {
+        beforeEach(function() {
+          spyOn(uploader, '_retryAvailable').and.returnValue(false);
+          spyOn(uploader, '_notifyUploadError');
+          spyOn(uploader, '_setFailed');
+          spyOn(uploader, '_resetData');
+          uploader._verifyAllChunksUploaded();
+        });
+
+        it("notifies that the upload has failed", function() {
+          expect(uploader._notifyUploadError).toHaveBeenCalledWith(6, uploader.errors[6]);
+        });
+
+        it("sets the uploader to a failed state", function() {
+          expect(uploader._setFailed).toHaveBeenCalled();
+        });
+
+        it("resets the uploader's data", function() {
+          expect(uploader._resetData).toHaveBeenCalled();
+        });
+      });
+
     });
   });
 
