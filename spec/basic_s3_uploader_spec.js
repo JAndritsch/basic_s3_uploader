@@ -1682,4 +1682,116 @@ describe("BasicS3Uploader", function() {
     });
   });
 
+  describe("_retryAvailable", function() {
+    var mockFile, mockSettings, uploader;
+
+    beforeEach(function() {
+      mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
+      mockSettings = {
+        host: 'some-host',
+        key: "my-upload-key",
+        maxRetries: 3,
+        awsAccessKey: 'my-access-key',
+        bucket: "my-bucket"
+      };
+      uploader = new BasicS3Uploader(mockFile, mockSettings);
+    });
+
+    it("returns false when the uploader has been cancelled", function() {
+      spyOn(uploader, '_isCancelled').and.returnValue(true);
+      expect(uploader._retryAvailable(0)).toBeFalsy();
+    });
+
+    it("returns false when the uploader has failed", function() {
+      spyOn(uploader, '_isFailed').and.returnValue(true);
+      expect(uploader._retryAvailable(0)).toBeFalsy();
+    });
+
+    it("returns false when the retry number will exceed or equal the maxRetries setting", function() {
+      expect(uploader._retryAvailable(3)).toBeFalsy();
+    });
+
+    it("returns false when the retry number will be less than the maxRetries setting", function() {
+      expect(uploader._retryAvailable(2)).toBeTruthy();
+    });
+  });
+
+  describe("_allETagsAvailable", function() {
+    var mockFile, mockSettings, uploader;
+
+    beforeEach(function() {
+      mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
+      mockSettings = {
+        host: 'some-host',
+        key: "my-upload-key",
+        maxRetries: 3,
+        awsAccessKey: 'my-access-key',
+        bucket: "my-bucket"
+      };
+      uploader = new BasicS3Uploader(mockFile, mockSettings);
+      uploader._chunks = {
+        1: {},
+        2: {}
+      };
+    });
+
+    it('returns true if each chunk has an eTag', function() {
+      uploader._eTags = {
+        1: '"chunk-1-eTag"',
+        2: '"chunk-2-eTag"',
+      };
+      expect(uploader._allETagsAvailable()).toBeTruthy();
+    });
+
+    it('returns false if at least 1 eTag is missing', function() {
+      uploader._eTags = {
+        1: '"chunk-1-eTag"'
+      };
+      expect(uploader._allETagsAvailable()).toBeFalsy();
+    });
+  });
+
+  describe("_resetData", function() {
+    var mockFile, mockSettings, uploader;
+
+    beforeEach(function() {
+      mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
+      mockSettings = {
+        host: 'some-host',
+        key: "my-upload-key",
+        maxRetries: 3,
+        awsAccessKey: 'my-access-key',
+        bucket: "my-bucket"
+      };
+      uploader = new BasicS3Uploader(mockFile, mockSettings);
+      uploader._XHRs = ["someXHR"];
+      uploader._date = "someDate";
+      uploader._eTags = {1: "etag"};
+      uploader._uploadId = "upload-id";
+      uploader._initSignature = "init-sig";
+      uploader._listSignature = "list-sig";
+      uploader._completeSignature = "complete-sig";
+      uploader._chunkSignatures = {1: "chunk-sig"};
+      uploader._chunkXHRs = {1: "chunkXHR"};
+      uploader._chunkProgress = {1: "chunkProgress"};
+      uploader._chunkUploadsInProgress = 2;
+    });
+
+    it('clears out any attributes that are no longer needed ', function() {
+      uploader._resetData();
+      expect(uploader._XHRs).toEqual([]);
+      expect(uploader._date).toBeNull();
+      expect(uploader._eTags).toEqual({});
+      expect(uploader._uploadId).toBeNull();
+      expect(uploader._initSignature).toBeNull();
+      expect(uploader._listSignature).toBeNull();
+      expect(uploader._completeSignature).toBeNull();
+      expect(uploader._chunkSignatures).toEqual({});
+      expect(uploader._chunkXHRs).toEqual({});
+      expect(uploader._chunkProgress).toEqual({});
+      expect(uploader._chunkUploadsInProgress).toEqual(0);
+    });
+
+  });
+
 });
