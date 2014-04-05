@@ -13,7 +13,7 @@ var BasicS3UploaderMock = function(file, settings) {
   uploader._configureUploader(settings);
   uploader._notifyUploaderReady();
   uploader._setReady();
-}
+};
 
 // Configure the uploader using the provided settings or sensible defaults.
 BasicS3UploaderMock.prototype._configureUploader = function(settings) {
@@ -57,17 +57,17 @@ BasicS3UploaderMock.prototype.startUpload = function() {
   uploader._notifyUploadStarted();
   uploader._setUploading();
   uploader._getInitSignature();
-}
+};
 
 BasicS3UploaderMock.prototype.cancelUpload = function() {
   var uploader = this;
   uploader._notifyUploadCancelled();
   uploader._setCancelled();
-}
+};
 
 BasicS3UploaderMock.prototype._createChunks = function() {
   var uploader = this;
-  var chunks = {}
+  var chunks = {};
 
   var chunkSize = Math.min(uploader.settings.chunkSize, uploader.file.size);
   var totalChunks = Math.ceil(uploader.file.size / chunkSize);
@@ -91,20 +91,20 @@ BasicS3UploaderMock.prototype._createChunks = function() {
     }
   }
   uploader._chunks = chunks;
-}
+};
 
 BasicS3UploaderMock.prototype._getInitSignature = function() {
   var uploader = this;
   uploader._initSignature = "Mock-init-signature";
   uploader._date = "Mock-init-date";
   uploader._initiateUpload();
-}
+};
 
 BasicS3UploaderMock.prototype._initiateUpload = function() {
   var uploader = this;
   uploader._uploadId = "Mock-upload-id";
   uploader._getRemainingSignatures();
-}
+};
 
 BasicS3UploaderMock.prototype._getRemainingSignatures = function() {
   var uploader = this;
@@ -112,9 +112,9 @@ BasicS3UploaderMock.prototype._getRemainingSignatures = function() {
   uploader._completeSignature = "Mock-complete-signature";
   uploader._listSignature = "Mock-list-signature";
   uploader._chunkProgress = {};
-  uploader._eTags = {}
+  uploader._eTags = {};
   uploader._uploadChunks();
-}
+};
 
 BasicS3UploaderMock.prototype._uploadChunks = function() {
   var uploader = this;
@@ -124,7 +124,7 @@ BasicS3UploaderMock.prototype._uploadChunks = function() {
     var chunk = uploader._chunks[chunkNumber];
     uploader._uploadChunk(chunkNumber);
   }
-}
+};
 
 BasicS3UploaderMock.prototype._uploadChunk = function(number) {
   var uploader = this;
@@ -144,108 +144,108 @@ BasicS3UploaderMock.prototype._uploadChunk = function(number) {
     uploader._completeUpload();
   }
 
-}
+};
 
 BasicS3UploaderMock.prototype._completeUpload = function(retries) {
   var uploader = this;
   uploader._notifyUploadComplete("mock-location");
   uploader._setComplete();
-}
+};
 
 BasicS3UploaderMock.prototype._allETagsAvailable = function() {
   var uploader = this;
   return Object.keys(uploader._eTags).length == Object.keys(uploader._chunks).length;
-}
+};
 
 BasicS3UploaderMock.prototype._setReady = function() {
   var uploader = this;
   uploader._status = "ready";
-}
+};
 
 BasicS3UploaderMock.prototype._isReady = function() {
   var uploader = this;
   return uploader._status == "ready";
-}
+};
 
 BasicS3UploaderMock.prototype._setUploading = function() {
   var uploader = this;
   uploader._status = "uploading";
-}
+};
 
 BasicS3UploaderMock.prototype._isUploading = function() {
   var uploader = this;
   return uploader._status == "uploading";
-}
+};
 
 BasicS3UploaderMock.prototype._setComplete = function() {
   var uploader = this;
   uploader._status = "complete";
-}
+};
 
 BasicS3UploaderMock.prototype._isComplete = function() {
   var uploader = this;
   return uploader._status == "complete";
-}
+};
 
 BasicS3UploaderMock.prototype._setCancelled = function() {
   var uploader = this;
   uploader._status = "cancelled";
-}
+};
 
 BasicS3UploaderMock.prototype._isCancelled = function() {
   var uploader = this;
   return uploader._status == "cancelled";
-}
+};
 
 BasicS3UploaderMock.prototype._setFailed = function() {
   var uploader = this;
   uploader._status = "failed";
-}
+};
 
 BasicS3UploaderMock.prototype._isFailed = function() {
   var uploader = this;
   return uploader._status == "failed";
-}
+};
 
 BasicS3UploaderMock.prototype._notifyUploaderReady = function() {
   var uploader = this;
   uploader.settings.onReady.call(uploader);
-}
+};
 
 BasicS3UploaderMock.prototype._notifyUploadStarted = function() {
   var uploader = this;
   uploader.settings.onStart.call(uploader);
-}
+};
 
 BasicS3UploaderMock.prototype._notifyUploadProgress = function() {
   var uploader = this;
   var loaded = 0;
 
-  for (chunkNumber in uploader._chunkProgress) {
+  for (var chunkNumber in uploader._chunkProgress) {
     loaded += uploader._chunkProgress[chunkNumber];
   }
 
   var total = uploader.file.size;
 
   uploader.settings.onProgress.call(uploader, loaded, total);
-}
+};
 
 BasicS3UploaderMock.prototype._notifyUploadComplete = function(location) {
   var uploader = this;
   uploader.settings.onComplete.call(uploader, location);
-}
+};
 
 BasicS3UploaderMock.prototype._notifyUploadError = function(errorCode, description) {
   var uploader = this;
   uploader.settings.onError.call(uploader, errorCode, description);
-}
+};
 
 BasicS3UploaderMock.prototype._notifyUploadRetry = function(attempt) {
   var uploader = this;
   uploader.settings.onRetry.call(uploader, attempt);
-}
+};
 
 BasicS3UploaderMock.prototype._notifyUploadCancelled = function() {
   var uploader = this;
   uploader.settings.onCancel.call(uploader);
-}
+};

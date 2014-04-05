@@ -11,6 +11,7 @@ module.exports = function(grunt) {
   grunt.config('jshint', {
     all: [
       'src/basic_s3_uploader.js', 
+      'src/basic_s3_uploader_mock.js', 
       'spec/basic_s3_uploader_spec.js'
     ]
   });
@@ -37,5 +38,7 @@ module.exports = function(grunt) {
 
   grunt.registerTask('test', ['jshint', 'karma']);
   grunt.registerTask('build', ['test', 'copy']);
+
+  grunt.registerTask('default', ['test']);
 
 };
