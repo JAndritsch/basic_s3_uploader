@@ -227,6 +227,6 @@ Want to help make this better? Please perform the following steps to contribute:
       * `npm install`
       * `grunt`, `grunt test`, or even `grunt watch`
 - Make sure you update the sample app (it has its own copy of the uploader):
-  * grunt build (copies the files from src/* to sample_app/public/javascripts)
+  * `grunt build` (copies the files from src/* to sample_app/public/javascripts)
 - Use the sample app provided to "smoke test" your changes.
 - Send me a pull request
