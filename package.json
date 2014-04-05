@@ -1,6 +1,6 @@
 {
   "name": "basic_s3_uploader",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "A basic S3 uploader",
   "dependencies": {
     "grunt": "~0.4.4"
