@@ -148,14 +148,14 @@ changes in order for it to work.
 
 First, here is the list of files and description of each file used for the sample app:
 
-- __public/javascripts/basic_s3_uploader.js__: The uploader
-- __public/javascripts/basic_s3_uploader_mock.js__: A mock uploader that can be used for testing
-- __public/javascripts/main.js__: An example of how one might use the uploader
-- __public/stylesheets/main.css__: Some simple styling for the app
-- __views/layout.erb__: The application layout
-- __views/index.erb__: The index view
-- __app.rb__: Simple Sinatra app that provides routes for both the front end and signature backend
-- __s3_upload_request.rb__: A simple class used to generate signatures
+- __sample_app/public/javascripts/src/basic_s3_uploader.js__: The uploader
+- __sample_app/public/javascripts/src/basic_s3_uploader_mock.js__: A mock uploader that can be used for testing
+- __sample_app/public/javascripts/main.js__: An example of how one might use the uploader
+- __sample_app/public/stylesheets/main.css__: Some simple styling for the app
+- __sample_app/views/layout.erb__: The application layout
+- __sample_app/views/index.erb__: The index view
+- __sample_app/app.rb__: Simple Sinatra app that provides routes for both the front end and signature backend
+- __sample_app/s3_upload_request.rb__: A simple class used to generate signatures
 
 ### How to start it
 
@@ -164,7 +164,7 @@ In order to run the application, you must have Ruby installed.
 
 #### Step 1: Set up the application
 
-    cd project_directory
+    cd basic_s3_uploader/sample_app
     gem install bundler
     bundle install
 
