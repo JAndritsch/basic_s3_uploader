@@ -18,10 +18,10 @@ var BasicS3Uploader = function(file, settings) {
 };
 
 BasicS3Uploader.version = {
-  full: "1.0.4",
+  full: "1.0.5",
   major: "1",
   minor: "0",
-  patch: "4"
+  patch: "5"
 };
 
 // Configure the uploader using the provided settings or sensible defaults.
