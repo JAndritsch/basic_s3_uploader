@@ -9,7 +9,8 @@
     "karma": "~0.12.3",
     "grunt-karma": "~0.8.2",
     "karma-jasmine": "~0.2.0",
-    "karma-phantomjs-launcher": "~0.1.4"
+    "karma-phantomjs-launcher": "~0.1.4",
+    "grunt-contrib-jshint": "~0.10.0"
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"

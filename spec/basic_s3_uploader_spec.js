@@ -5,7 +5,7 @@ describe("BasicS3Uploader", function() {
 
     beforeEach(function() {
       mockFile = {name: "testfile", size: 1000};
-      mockSettings = {}
+      mockSettings = {};
 
       spyOn(BasicS3Uploader.prototype, '_configureUploader').and.callThrough();
       spyOn(BasicS3Uploader.prototype, '_notifyUploaderReady').and.callThrough();
@@ -682,7 +682,7 @@ describe("BasicS3Uploader", function() {
         expect(ajaxSettings.method).toEqual("POST");
         expect(ajaxSettings.headers['x-amz-date']).toEqual('today');
         expect(ajaxSettings.headers['x-amz-acl']).toEqual('private');
-        expect(ajaxSettings.headers['Authorization']).toEqual('AWS my-access-key:init-signature');
+        expect(ajaxSettings.headers.Authorization).toEqual('AWS my-access-key:init-signature');
         expect(ajaxSettings.headers['Content-Disposition']).toEqual('attachment; filename=myfile');
       });
 
@@ -1061,7 +1061,7 @@ describe("BasicS3Uploader", function() {
         expect(ajaxSettings.params.uploadId).toEqual('upload-id');
         expect(ajaxSettings.params.partNumber).toEqual(1);
         expect(ajaxSettings.headers['x-amz-date']).toEqual('date');
-        expect(ajaxSettings.headers['Authorization']).toEqual('AWS my-access-key:chunk-signature');
+        expect(ajaxSettings.headers.Authorization).toEqual('AWS my-access-key:chunk-signature');
         expect(ajaxSettings.headers['Content-Disposition']).toEqual('attachment; filename=myfile');
         expect(ajaxSettings.headers['Content-Type']).toEqual('video/quicktime');
       });
@@ -1217,7 +1217,7 @@ describe("BasicS3Uploader", function() {
       uploader._eTags = {
         1: '"chunk-1-eTag"',
         2: '"chunk-2-eTag"',
-      }
+      };
     });
 
     it("adds the XHR object to the _chunkXHRs map", function() {
@@ -1241,7 +1241,7 @@ describe("BasicS3Uploader", function() {
         expect(ajaxSettings.method).toEqual('GET');
         expect(ajaxSettings.params.uploadId).toEqual('upload-id');
         expect(ajaxSettings.headers['x-amz-date']).toEqual('date');
-        expect(ajaxSettings.headers['Authorization']).toEqual('AWS my-access-key:list-signature');
+        expect(ajaxSettings.headers.Authorization).toEqual('AWS my-access-key:list-signature');
       });
 
     });
@@ -1542,7 +1542,7 @@ describe("BasicS3Uploader", function() {
       uploader._eTags = {
         1: '"chunk-1-eTag"',
         2: '"chunk-2-eTag"',
-      }
+      };
       spyOn(uploader, '_requiresFirefoxHack').and.returnValue(false);
     });
 
@@ -1580,7 +1580,7 @@ describe("BasicS3Uploader", function() {
         expect(ajaxSettings.method).toEqual('POST');
         expect(ajaxSettings.params.uploadId).toEqual('upload-id');
         expect(ajaxSettings.headers['x-amz-date']).toEqual('date');
-        expect(ajaxSettings.headers['Authorization']).toEqual('AWS my-access-key:complete-signature');
+        expect(ajaxSettings.headers.Authorization).toEqual('AWS my-access-key:complete-signature');
         expect(ajaxSettings.headers['Content-Type']).toEqual('video/quicktime');
         expect(ajaxSettings.headers['Content-Disposition']).toEqual('attachment; filename=myfile');
         expect(ajaxSettings.body).toEqual(body);
@@ -2169,27 +2169,27 @@ describe("BasicS3Uploader", function() {
     it("configures the XHR 'load' event with the provided 'success' callback", function() {
       mockXHR.events.load();
       expect(successSpy).toHaveBeenCalled();
-    })
+    });
 
     it("configures the XHR 'error' event with the provided 'error' callback", function() {
       mockXHR.events.error();
       expect(errorSpy).toHaveBeenCalled();
-    })
+    });
 
     it("configures the XHR 'timeout' event with the provided 'error' callback", function() {
       mockXHR.events.timeout();
       expect(errorSpy).toHaveBeenCalled();
-    })
+    });
 
     it("configures the XHR 'readystatechange' event with the provided 'stateChange' callback", function() {
       mockXHR.events.readystatechange();
       expect(stateChangeSpy).toHaveBeenCalled();
-    })
+    });
 
     it("configures the XHR upload 'progress' event with the provided 'progress' callback", function() {
       mockXHR.uploadEvents.progress();
       expect(progressSpy).toHaveBeenCalled();
-    })
+    });
 
     it("opens the connection to the provided URL, including any provided query params", function() {
       var expectedURL = "http://www.somesite.com?customParam1=value1&customParam2=value2";

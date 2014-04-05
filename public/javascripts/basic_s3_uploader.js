@@ -9,7 +9,7 @@ var BasicS3Uploader = function(file, settings) {
   uploader.file = file;
   uploader._XHRs = [];
   uploader._chunkXHRs = {};
-  uploader._eTags = {}
+  uploader._eTags = {};
   uploader._chunkProgress = {};
   uploader._chunkUploadsInProgress = 0;
   uploader._configureUploader(settings);
@@ -154,11 +154,11 @@ BasicS3Uploader.prototype.cancelUpload = function() {
   }
 
   uploader._log("Aborting upload");
-  for (index in uploader._XHRs) {
+  for (var index in uploader._XHRs) {
     uploader._XHRs[index].abort();
   }
 
-  for (chunk in uploader._chunkXHRs) {
+  for (var chunk in uploader._chunkXHRs) {
     uploader._chunkXHRs[chunk].abort();
   }
 
@@ -227,8 +227,8 @@ BasicS3Uploader.prototype._getInitSignature = function(retries) {
       if (xhr.status == 200) {
         uploader._log("Init signature retrieved");
         var json = JSON.parse(response.target.responseText);
-        uploader._initSignature = json['signature'];
-        uploader._date = json['date'];
+        uploader._initSignature = json.signature;
+        uploader._date = json.date;
         uploader._initiateUpload();
       } else {
         uploader._log("Server returned a non-200. Deferring to error handler!");
@@ -247,7 +247,7 @@ BasicS3Uploader.prototype._getInitSignature = function(retries) {
           };
           uploader._notifyUploadRetry(attempts, data);
           uploader._getInitSignature(attempts);
-        }, 2000 * attempts)
+        }, 2000 * attempts);
       } else {
         var errorCode = 2;
         uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
@@ -312,7 +312,7 @@ BasicS3Uploader.prototype._initiateUpload = function(retries) {
           };
           uploader._notifyUploadRetry(attempts, data);
           uploader._initiateUpload(attempts);
-        }, 2000 * attempts)
+        }, 2000 * attempts);
       } else {
         var errorCode = 3;
         uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
@@ -365,9 +365,9 @@ BasicS3Uploader.prototype._getRemainingSignatures = function(retries, successCal
         uploader._log("Remaining signatures have been retrieved");
         var json = JSON.parse(response.target.responseText);
 
-        uploader._chunkSignatures = json['chunk_signatures'];
-        uploader._completeSignature = json['complete_signature'];
-        uploader._listSignature = json['list_signature'];
+        uploader._chunkSignatures = json.chunk_signatures;
+        uploader._completeSignature = json.complete_signature;
+        uploader._listSignature = json.list_signature;
 
         if (successCallback) { successCallback(); }
 
@@ -388,7 +388,7 @@ BasicS3Uploader.prototype._getRemainingSignatures = function(retries, successCal
           };
           uploader._notifyUploadRetry(attempts, data);
           uploader._getRemainingSignatures(attempts, successCallback);
-        }, 2000 * attempts)
+        }, 2000 * attempts);
       } else {
         var errorCode = 4;
         uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
@@ -399,7 +399,7 @@ BasicS3Uploader.prototype._getRemainingSignatures = function(retries, successCal
     }
   });
   uploader._XHRs.push(xhr);
-}
+};
 
 // Iterate over all chunks and start all uploads simultaneously
 BasicS3Uploader.prototype._uploadChunks = function() {
@@ -420,7 +420,7 @@ BasicS3Uploader.prototype._uploadChunks = function() {
 BasicS3Uploader.prototype._uploadSpotAvailable = function() {
   var uploader = this;
   return uploader._chunkUploadsInProgress < uploader.settings.maxConcurrentChunks;
-}
+};
 
 // Uploads a single chunk to S3. Because multiple chunks can be uploading at
 // the same time, the "success" callback for this request checks to see if all
@@ -501,10 +501,10 @@ BasicS3Uploader.prototype._uploadChunk = function(number, retries) {
           xhr: xhr,
           chunkNumber: number,
           chunk: uploader._chunks[number]
-        }
+        };
         uploader._notifyUploadRetry(attempts, data);
         uploader._retryChunk(number);
-      }, 2000 * attempts)
+      }, 2000 * attempts);
     }
   });
   uploader._chunkXHRs[number] = xhr;
@@ -590,7 +590,7 @@ BasicS3Uploader.prototype._verifyAllChunksUploaded = function(retries) {
             uploader._verifyAllChunksUploaded(attempts);
           });
 
-        }, 2000 * attempts)
+        }, 2000 * attempts);
       } else {
         var errorCode = 6;
         uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
@@ -670,7 +670,7 @@ BasicS3Uploader.prototype._completeUpload = function(retries) {
   var authorization = "AWS " + uploader.settings.awsAccessKey + ":" + signature;
   var body = "<CompleteMultipartUpload>";
 
-  for (chunkNumber in uploader._eTags) {
+  for (var chunkNumber in uploader._eTags) {
     body += "<Part>";
     body += "<PartNumber>" + chunkNumber + "</PartNumber>";
     body += "<ETag>" + uploader._eTags[chunkNumber] + "</ETag>";
@@ -729,7 +729,7 @@ BasicS3Uploader.prototype._completeUpload = function(retries) {
             uploader._completeUpload(attempts);
           });
 
-        }, 2000 * attempts)
+        }, 2000 * attempts);
       } else {
         var errorCode = 8;
         uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
@@ -848,7 +848,7 @@ BasicS3Uploader.prototype._notifyUploadProgress = function() {
   var uploader = this;
   var loaded = 0;
 
-  for (chunkNumber in uploader._chunkProgress) {
+  for (var chunkNumber in uploader._chunkProgress) {
     loaded += uploader._chunkProgress[chunkNumber];
   }
 
@@ -911,7 +911,7 @@ BasicS3Uploader.prototype._validateFileIsReadable = function(callback) {
     } else {
       callback(true);
     }
-  }
+  };
 
   try {
     fr.readAsBinaryString(blob);
@@ -946,7 +946,7 @@ BasicS3Uploader.prototype._ajax = function(data) {
   xhr.upload.addEventListener("progress", progress);
 
   if (params) {
-    for (name in params) {
+    for (var name in params) {
       if (url.indexOf('?') !== -1) {
         url += "&";
       } else {
@@ -961,8 +961,8 @@ BasicS3Uploader.prototype._ajax = function(data) {
   xhr.open(method, url);
   xhr.timeout = uploader.settings.xhrRequestTimeout;
 
-  for (var header in customHeaders) {
-    xhr.setRequestHeader(header, customHeaders[header]);
+  for (var customHeader in customHeaders) {
+    xhr.setRequestHeader(customHeader, customHeaders[customHeader]);
   }
 
   for (var header in headers) {
