@@ -1791,7 +1791,427 @@ describe("BasicS3Uploader", function() {
       expect(uploader._chunkProgress).toEqual({});
       expect(uploader._chunkUploadsInProgress).toEqual(0);
     });
+  });
 
+  describe("_setReady", function() {
+    var mockFile, mockSettings, uploader;
+
+    beforeEach(function() {
+      mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
+      mockSettings = {};
+      uploader = new BasicS3Uploader(mockFile, mockSettings);
+      uploader._setReady();
+    });
+
+    it("sets the uploader status to 'ready'", function() {
+      expect(uploader._status).toEqual('ready');
+    });
+  });
+
+  describe("_isReady", function() {
+    var mockFile, mockSettings, uploader;
+
+    beforeEach(function() {
+      mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
+      mockSettings = {};
+      uploader = new BasicS3Uploader(mockFile, mockSettings);
+    });
+
+    it("returns true if the uploader status is 'ready'", function() {
+      uploader._status = "something";
+      expect(uploader._isReady()).toBeFalsy();
+      uploader._status = "ready";
+      expect(uploader._isReady()).toBeTruthy();
+    });
+  });
+
+  describe("_setUploading", function() {
+    var mockFile, mockSettings, uploader;
+
+    beforeEach(function() {
+      mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
+      mockSettings = {};
+      uploader = new BasicS3Uploader(mockFile, mockSettings);
+      uploader._setUploading();
+    });
+
+    it("sets the uploader status to 'uploading'", function() {
+      expect(uploader._status).toEqual('uploading');
+    });
+  });
+
+  describe("_isUploading", function() {
+    var mockFile, mockSettings, uploader;
+
+    beforeEach(function() {
+      mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
+      mockSettings = {};
+      uploader = new BasicS3Uploader(mockFile, mockSettings);
+    });
+
+    it("returns true if the uploader status is 'uploading'", function() {
+      uploader._status = "something";
+      expect(uploader._isUploading()).toBeFalsy();
+      uploader._status = "uploading";
+      expect(uploader._isUploading()).toBeTruthy();
+    });
+  });
+
+  describe("_setComplete", function() {
+    var mockFile, mockSettings, uploader;
+
+    beforeEach(function() {
+      mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
+      mockSettings = {};
+      uploader = new BasicS3Uploader(mockFile, mockSettings);
+      uploader._setComplete();
+    });
+
+    it("sets the uploader status to 'complete'", function() {
+      expect(uploader._status).toEqual('complete');
+    });
+  });
+
+  describe("_isComplete", function() {
+    var mockFile, mockSettings, uploader;
+
+    beforeEach(function() {
+      mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
+      mockSettings = {};
+      uploader = new BasicS3Uploader(mockFile, mockSettings);
+    });
+
+    it("returns true if the uploader status is 'uploading'", function() {
+      uploader._status = "something";
+      expect(uploader._isComplete()).toBeFalsy();
+      uploader._status = "complete";
+      expect(uploader._isComplete()).toBeTruthy();
+    });
+  });
+
+  describe("_setCancelled", function() {
+    var mockFile, mockSettings, uploader;
+
+    beforeEach(function() {
+      mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
+      mockSettings = {};
+      uploader = new BasicS3Uploader(mockFile, mockSettings);
+      uploader._setCancelled();
+    });
+
+    it("sets the uploader status to 'cancelled'", function() {
+      expect(uploader._status).toEqual('cancelled');
+    });
+  });
+
+  describe("_isCancelled", function() {
+    var mockFile, mockSettings, uploader;
+
+    beforeEach(function() {
+      mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
+      mockSettings = {};
+      uploader = new BasicS3Uploader(mockFile, mockSettings);
+    });
+
+    it("returns true if the uploader status is 'cancelled'", function() {
+      uploader._status = "something";
+      expect(uploader._isCancelled()).toBeFalsy();
+      uploader._status = "cancelled";
+      expect(uploader._isCancelled()).toBeTruthy();
+    });
+  });
+
+  describe("_setFailed", function() {
+    var mockFile, mockSettings, uploader;
+
+    beforeEach(function() {
+      mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
+      mockSettings = {};
+      uploader = new BasicS3Uploader(mockFile, mockSettings);
+      uploader._setFailed();
+    });
+
+    it("sets the uploader status to 'failed'", function() {
+      expect(uploader._status).toEqual('failed');
+    });
+  });
+
+  describe("_isFailed", function() {
+    var mockFile, mockSettings, uploader;
+
+    beforeEach(function() {
+      mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
+      mockSettings = {};
+      uploader = new BasicS3Uploader(mockFile, mockSettings);
+    });
+
+    it("returns true if the uploader status is 'failed'", function() {
+      uploader._status = "something";
+      expect(uploader._isFailed()).toBeFalsy();
+      uploader._status = "failed";
+      expect(uploader._isFailed()).toBeTruthy();
+    });
+  });
+
+  describe("_notifyUploaderReady", function() {
+    var mockFile, mockSettings, uploader, spy;
+
+    beforeEach(function() {
+      spy = jasmine.createSpy();
+      mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
+      mockSettings = {
+        onReady: spy
+      };
+      uploader = new BasicS3Uploader(mockFile, mockSettings);
+    });
+
+    it("calls the 'onReady' callback provided via upload settings", function() {
+      uploader._notifyUploaderReady();
+      expect(spy).toHaveBeenCalled();
+    });
+  });
+
+  describe("_notifyUploadStarted", function() {
+    var mockFile, mockSettings, uploader, spy;
+
+    beforeEach(function() {
+      spy = jasmine.createSpy();
+      mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
+      mockSettings = {
+        onStart: spy
+      };
+      uploader = new BasicS3Uploader(mockFile, mockSettings);
+    });
+
+    it("calls the 'onStart' callback provided via upload settings", function() {
+      uploader._notifyUploadStarted();
+      expect(spy).toHaveBeenCalled();
+    });
+  });
+
+  describe("_notifyUploadProgress", function() {
+    var mockFile, mockSettings, uploader, spy;
+
+    beforeEach(function() {
+      spy = jasmine.createSpy();
+      mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
+      mockSettings = {
+        onProgress: spy
+      };
+      uploader = new BasicS3Uploader(mockFile, mockSettings);
+      uploader._chunkProgress = {
+        1: 500
+      };
+
+    });
+
+    it("calls the 'onProgress' callback provided via upload settings, passing in bytes loaded and total bytes", function() {
+      uploader._notifyUploadProgress();
+      expect(spy).toHaveBeenCalledWith(500, 1000);
+    });
+  });
+
+  describe("_notifyChunkUploaded", function() {
+    var mockFile, mockSettings, uploader, spy;
+
+    beforeEach(function() {
+      spy = jasmine.createSpy();
+      mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
+      mockSettings = {
+        onChunkUploaded: spy
+      };
+      uploader = new BasicS3Uploader(mockFile, mockSettings);
+    });
+
+    it("calls the 'onChunkUploaded' callback provided via upload settings, passing in the chunk number and total chunks", function() {
+      uploader._notifyChunkUploaded(1, 3);
+      expect(spy).toHaveBeenCalledWith(1, 3);
+    });
+  });
+
+  describe("_notifyUploadComplete", function() {
+    var mockFile, mockSettings, uploader, spy;
+
+    beforeEach(function() {
+      spy = jasmine.createSpy();
+      mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
+      mockSettings = {
+        onComplete: spy
+      };
+      uploader = new BasicS3Uploader(mockFile, mockSettings);
+    });
+
+    it("calls the 'onComplete' callback provided via upload settings, passing in the upload location", function() {
+      uploader._notifyUploadComplete('some/location');
+      expect(spy).toHaveBeenCalledWith('some/location');
+    });
+  });
+
+  describe("_validateFileIsReadable", function() {
+    var mockFile, mockSettings, uploader, mockFileReader, spy;
+
+    beforeEach(function() {
+      mockFileReader = {
+        readAsBinaryString: function() {
+          this.onloadend();
+        }
+      };
+      spy = jasmine.createSpy();
+      mockFile = { name: "myfile", type: "video/quicktime", size: 1000, slice: function(start, end) { return "blob"; } };
+      mockSettings = {};
+      spyOn(window, 'FileReader').and.returnValue(mockFileReader);
+      uploader = new BasicS3Uploader(mockFile, mockSettings);
+    });
+
+    describe("set up", function() {
+      beforeEach(function() {
+        spyOn(mockFile, 'slice').and.callThrough();
+        spyOn(mockFileReader, 'readAsBinaryString');
+      });
+
+      it("slices the file into a 1024 byte blob", function() {
+        uploader._validateFileIsReadable();
+        expect(mockFile.slice).toHaveBeenCalledWith(0, 1024);
+      });
+
+      it("attempts to read a blob of the file", function() {
+        uploader._validateFileIsReadable();
+        expect(mockFileReader.readAsBinaryString).toHaveBeenCalledWith('blob');
+      });
+    });
+
+    describe("when the file is deemed readable", function() {
+      it("executes the provided callback, passing in false", function() {
+        mockFileReader.error = "some error";
+        uploader._validateFileIsReadable(spy);
+        expect(spy).toHaveBeenCalledWith(false);
+      });
+    });
+
+    describe("when the file cannot be read", function() {
+      it("executes the provided callback, passing in true", function() {
+        mockFileReader.error = undefined;
+        uploader._validateFileIsReadable(spy);
+        expect(spy).toHaveBeenCalledWith(true);
+      });
+    });
+  });
+
+  describe("_ajax", function() {
+    var mockFile, mockSettings, uploader, mockXHR, xhrData, successSpy, errorSpy,
+      stateChangeSpy, progressSpy;
+
+    beforeEach(function() {
+      mockXHR = {
+        events: {},
+        uploadEvents: {},
+        headers: {},
+        upload: {},
+        open: function(method, url) {},
+        send: function(body) {},
+      };
+
+      mockXHR.addEventListener = function(event, callback, async) {
+        mockXHR.events[event] = callback;
+      };
+
+      mockXHR.upload.addEventListener = function(event, callback, async) {
+        mockXHR.uploadEvents[event] = callback;
+      };
+
+      mockXHR.setRequestHeader = function(header, value) {
+        mockXHR.headers[header] = value;
+      };
+
+      successSpy = jasmine.createSpy();
+      errorSpy = jasmine.createSpy();
+      stateChangeSpy = jasmine.createSpy();
+      progressSpy = jasmine.createSpy();
+
+      mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
+      mockSettings = {
+        xhrRequestTimeout: 5000
+      };
+      spyOn(window, "XMLHttpRequest").and.returnValue(mockXHR);
+
+      spyOn(mockXHR, 'open');
+      spyOn(mockXHR, 'send');
+
+      xhrData = {
+        url: "http://www.somesite.com",
+        method: "PUT",
+        body: "some request body",
+        params: {
+          customParam1: "value1",
+          customParam2: "value2",
+        },
+        headers: {
+          header1: "value1",
+          header2: "value2",
+        },
+        customHeaders: {
+          customHeader: "customHeaderValue"
+        },
+        success: successSpy,
+        error: errorSpy,
+        stateChange: stateChangeSpy,
+        progress: progressSpy
+      };
+
+      uploader = new BasicS3Uploader(mockFile, mockSettings);
+      uploader._ajax(xhrData);
+    });
+
+    it("sets the entire data object on the XHR", function() {
+      expect(mockXHR._data).toEqual(xhrData);
+    });
+
+    it("configures the XHR 'load' event with the provided 'success' callback", function() {
+      mockXHR.events.load();
+      expect(successSpy).toHaveBeenCalled();
+    })
+
+    it("configures the XHR 'error' event with the provided 'error' callback", function() {
+      mockXHR.events.error();
+      expect(errorSpy).toHaveBeenCalled();
+    })
+
+    it("configures the XHR 'timeout' event with the provided 'error' callback", function() {
+      mockXHR.events.timeout();
+      expect(errorSpy).toHaveBeenCalled();
+    })
+
+    it("configures the XHR 'readystatechange' event with the provided 'stateChange' callback", function() {
+      mockXHR.events.readystatechange();
+      expect(stateChangeSpy).toHaveBeenCalled();
+    })
+
+    it("configures the XHR upload 'progress' event with the provided 'progress' callback", function() {
+      mockXHR.uploadEvents.progress();
+      expect(progressSpy).toHaveBeenCalled();
+    })
+
+    it("opens the connection to the provided URL, including any provided query params", function() {
+      var expectedURL = "http://www.somesite.com?customParam1=value1&customParam2=value2";
+      expect(mockXHR.open).toHaveBeenCalledWith("PUT", expectedURL);
+    });
+
+    it("sets a timeout for the connection, using the 'xhrRequestTimeout' setting", function() {
+      expect(mockXHR.timeout).toEqual(5000);
+    });
+
+    it("sets request headers", function() {
+      expect(mockXHR.headers.header1).toEqual("value1");
+      expect(mockXHR.headers.header2).toEqual("value2");
+    });
+
+    it("sets any custom headers", function() {
+      expect(mockXHR.headers.customHeader).toEqual("customHeaderValue");
+    });
+
+    it("sends the request, providing the request body if defined", function() {
+      expect(mockXHR.send).toHaveBeenCalledWith("some request body");
+    });
   });
 
 });

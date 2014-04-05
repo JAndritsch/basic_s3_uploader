@@ -896,16 +896,30 @@ BasicS3Uploader.prototype._notifyUploadCancelled = function() {
   uploader.settings.onCancel.call(uploader);
 };
 
-BasicS3Uploader.prototype._log = function(msg, object) {
-  msg = "[BasicS3Uploader] " + msg;
-  if (this.settings.log) {
-    if (object) {
-      console.log(msg, object);
+// Using the FileReader API, this method attempts to open the file and read the
+// first few bytes. This method accepts a callback and then calls it with the result
+// of the check.
+BasicS3Uploader.prototype._validateFileIsReadable = function(callback) {
+  var uploader = this;
+  var file = uploader.file;
+  var blob = file.slice(0, 1024);
+  var fr = new FileReader();
+
+  fr.onloadend = function() {
+    if (fr.error) {
+      callback(false);
     } else {
-      console.log(msg);
+      callback(true);
     }
   }
+
+  try {
+    fr.readAsBinaryString(blob);
+  } catch(error) {
+    callback(false);
+  }
 };
+
 
 // A convenient and uniform way for creating and sending XHR requests.
 BasicS3Uploader.prototype._ajax = function(data) {
@@ -963,32 +977,19 @@ BasicS3Uploader.prototype._ajax = function(data) {
   return xhr;
 };
 
-// Using the FileReader API, this method attempts to open the file and read the
-// first few bytes. This method accepts a callback and then calls it with the result
-// of the check.
-BasicS3Uploader.prototype._validateFileIsReadable = function(callback) {
-  var uploader = this;
-  var file = uploader.file;
-  var blob = file.slice(0, 1024);
-  var fr = new FileReader();
-
-  fr.onloadend = function() {
-    if (fr.error) {
-      callback(false);
-    } else {
-      callback(true);
-    }
-  }
-
-  try {
-    fr.readAsBinaryString(blob);
-  } catch(error) {
-    callback(false);
-  }
-};
-
 BasicS3Uploader.prototype._requiresFirefoxHack = function() {
   return navigator.userAgent.indexOf("Firefox") !== -1;
+};
+
+BasicS3Uploader.prototype._log = function(msg, object) {
+  msg = "[BasicS3Uploader] " + msg;
+  if (this.settings.log) {
+    if (object) {
+      console.log(msg, object);
+    } else {
+      console.log(msg);
+    }
+  }
 };
 
 BasicS3Uploader.prototype.errors = {
