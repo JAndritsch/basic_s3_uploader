@@ -212,6 +212,9 @@ Want to help make this better? Please perform the following steps to contribute:
 - Fork the project
 - Create a new branch with your changes
 - Be sure if adding/removing/changing logic to update the tests in spec/basic_s3_uploader_spec.js
-- Make sure all specs are passing. You can run the tests by simply opening the standalone HTML file
-found in spec/SpecRunner.html. The tests are written using Jasmine (v2.0)
+- Make sure all specs are passing. You can run the tests in two ways:
+  * Open the standalone HTML file found in spec/SpecRunner.html.
+  * Run them through grunt and karma:
+      * npm install
+      * grunt test
 - Send me a pull request
