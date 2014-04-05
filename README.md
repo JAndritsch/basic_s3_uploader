@@ -224,8 +224,8 @@ Want to help make this better? Please perform the following steps to contribute:
 - Make sure all specs are passing. You can run the tests in two ways:
   * Open the standalone HTML file found in spec/SpecRunner.html.
   * Run them through grunt and karma:
-      * npm install
-      * grunt test (or just grunt)
+      * `npm install`
+      * `grunt`, `grunt test`, or even `grunt watch`
 - Make sure you update the sample app (it has its own copy of the uploader):
   * grunt build (copies the files from src/* to sample_app/public/javascripts)
 - Use the sample app provided to "smoke test" your changes.
