@@ -148,14 +148,23 @@ changes in order for it to work.
 
 First, here is the list of files and description of each file used for the sample app:
 
-- __sample_app/public/javascripts/src/basic_s3_uploader.js__: The uploader
-- __sample_app/public/javascripts/src/basic_s3_uploader_mock.js__: A mock uploader that can be used for testing
-- __sample_app/public/javascripts/main.js__: An example of how one might use the uploader
-- __sample_app/public/stylesheets/main.css__: Some simple styling for the app
-- __sample_app/views/layout.erb__: The application layout
-- __sample_app/views/index.erb__: The index view
-- __sample_app/app.rb__: Simple Sinatra app that provides routes for both the front end and signature backend
-- __sample_app/s3_upload_request.rb__: A simple class used to generate signatures
+    - sample_app/
+      - app.rb: Simple Sinatra app that provides routes for both the front end and signature backend
+      - s3_upload_request.rb: A simple class used to generate signatures
+      - Gemfile 
+      - Gemfile.lock
+      - public/
+        - javascripts/
+          - src/
+            - basic_s3_uploader.js: The uploader
+            - basic_s3_uploader_mock.js: A mock uploader that can be used for testing
+          - main.js: An example of how one might use the uploader
+          - jquery-2.0.3.min.js: Not necessary for the uploader, but nice to use for main.js
+        - stylesheets/
+          - main.css
+      - views/
+        - layout.erb: The application layout
+        - index.erb: The index view
 
 ### How to start it
 
