@@ -225,5 +225,8 @@ Want to help make this better? Please perform the following steps to contribute:
   * Open the standalone HTML file found in spec/SpecRunner.html.
   * Run them through grunt and karma:
       * npm install
-      * grunt test
+      * grunt test (or just grunt)
+- Make sure you update the sample app (it has its own copy of the uploader):
+  * grunt build (copies the files from src/* to sample_app/public/javascripts)
+- Use the sample app provided to "smoke test" your changes.
 - Send me a pull request
