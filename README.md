@@ -57,7 +57,7 @@ correct chunks that it was sent.
 chunks have been verified.
 
 For more information about how to generate signatures or how to use the uploader,
-please check out the documentation page (coming soon).
+please check out the [documentation page](https://github.com/jandritsch/basic_s3_uploader/wiki/Documentation).
 
 ## Features
 
@@ -213,6 +213,9 @@ access.  The sample ruby app is setup to use port 8080, which does not need root
 
 Open a web browser and navigate to http://localhost:8080
 
+## Documentation
+
+All links to documentation for this uploader can be found [on this page](https://github.com/jandritsch/basic_s3_uploader/wiki/Documentation).
 
 ## Contributing
 

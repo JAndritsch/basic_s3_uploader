@@ -145,9 +145,22 @@ Below are all the upload settings that can be configured.
 
 Below are a list of upload events that you can hook into. These can be used to
 add custom logic around upload progress (such as generating a progress bar) or 
-when an upload finishes/fails/retries.
+when an upload finishes/fails/retries. 
 
-Each event defaults to a noop function.
+For convenience, each of these methods you provide will have access to the entire
+uploader through "this".
+
+Example:
+
+    var uploadSettings = {
+      onReady: function() {
+        // 'this' is the BasicS3Uploader instance
+        console.log("uploader is ready!", this);
+      }
+    };
+
+__Note__: none of these events are required and will default to a noop function
+if not provided.
 
 <table>
   <thead>
