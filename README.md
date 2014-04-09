@@ -37,25 +37,6 @@ but default to the following paths:
 - /get_init_signature
 - /get_remaining_signatures
 
-The process for uploading a file to S3 is as follows:
-
-- Step 1: Get an "upload init" signature from the user-defined backend
-
-- Step 2: Using the init signature, call to S3 API to initiate a multipart upload request.
-If successful, an UploadId is returned.
-
-- Step 3: Using the UploadId, get the remaining signatures from the user-defined
-backend in a single call. The signatures returned include all chunk/part signatures,
-the "list parts" signature, and the "complete upload" signature.
-
-- Step 4: Start uploading each chunk to S3, using the appropriate signature for each chunk.
-
-- Step 5: Once all chunk uploads have completed, check to make sure that S3 has all the
-correct chunks that it was sent.
-
-- Step 6: Call the S3 API to complete the upload using the "complete" signature once all
-chunks have been verified.
-
 For more information about how to generate signatures or how to use the uploader,
 please check out the [documentation page](https://github.com/jandritsch/basic_s3_uploader/wiki/Documentation).
 

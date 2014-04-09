@@ -8,6 +8,25 @@ uploader only relies on the following:
 - [GET] List uploaded parts 
 - [POST] Complete Upload
 
+The process for uploading a file to S3 is as follows:
+
+- Step 1: Get an "upload init" signature from the user-defined backend
+
+- Step 2: Using the init signature, call to S3 API to initiate a multipart upload request.
+If successful, an UploadId is returned.
+
+- Step 3: Using the UploadId, get the remaining signatures from the user-defined
+backend in a single call. The signatures returned include all chunk/part signatures,
+the "list parts" signature, and the "complete upload" signature.
+
+- Step 4: Start uploading each chunk to S3, using the appropriate signature for each chunk.
+
+- Step 5: Once all chunk uploads have completed, check to make sure that S3 has all the
+correct chunks that it was sent.
+
+- Step 6: Call the S3 API to complete the upload using the "complete" signature once all
+chunks have been verified.
+
 For more information on the different types of operations AWS exposes, check out
 [this link](http://docs.aws.amazon.com/AmazonS3/latest/dev/auth-request-sig-v2.html)
 and [this link too](http://docs.aws.amazon.com/AmazonS3/latest/dev/RESTAuthentication.html).
