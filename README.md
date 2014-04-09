@@ -117,7 +117,7 @@ in order to retrieve upload signatures. This application can be written in any l
 and use any framework. The only requirement is that it responds to the necessary routes,
 accepts the required data, and can properly generate and return a signature.
 
-Check out the sample app and documentation for more info.
+Check out the sample app and [documentation](https://github.com/JAndritsch/basic_s3_uploader/wiki/Documentation) for more info.
 
 ## The sample app
 
