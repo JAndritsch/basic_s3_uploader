@@ -64,5 +64,6 @@ Here are the steps required to use BasicS3Uploader:
         uploader.cancelUpload()
 
 All of these steps are also illustrated in the sample app provided, so check
-that out for more information.
+that out for more information. For more information about what configuration 
+options exist, check out the [upload configuration page](https://github.com/jandritsch/basic_s3_uploader/wiki/Configuration).
 
