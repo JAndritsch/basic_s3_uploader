@@ -1,4 +1,4 @@
-describe("BasicS3Uploader", function() {
+describe("bs3u.Uploader", function() {
   var mockAjaxClass;
   beforeEach(function() {
     mockAjaxClass = {};
@@ -11,7 +11,7 @@ describe("BasicS3Uploader", function() {
     spyOn(mockAjaxClass, 'onSuccess');
     spyOn(mockAjaxClass, 'onError');
     spyOn(mockAjaxClass, 'onTimeout');
-    spyOn(window, 'Ajax').and.returnValue(mockAjaxClass);
+    spyOn(bs3u, 'Ajax').and.returnValue(mockAjaxClass);
   });
 
   describe("constructor", function() {
@@ -21,11 +21,11 @@ describe("BasicS3Uploader", function() {
       mockFile = {name: "testfile", size: 1000};
       mockSettings = {};
 
-      spyOn(BasicS3Uploader.prototype, '_configureUploader').and.callThrough();
-      spyOn(BasicS3Uploader.prototype, '_notifyUploaderReady').and.callThrough();
-      spyOn(BasicS3Uploader.prototype, '_setReady').and.callThrough();
+      spyOn(bs3u.Uploader.prototype, '_configureUploader').and.callThrough();
+      spyOn(bs3u.Uploader.prototype, '_notifyUploaderReady').and.callThrough();
+      spyOn(bs3u.Uploader.prototype, '_setReady').and.callThrough();
 
-      uploader = new BasicS3Uploader(mockFile, mockSettings);
+      uploader = new bs3u.Uploader(mockFile, mockSettings);
     });
 
     it("stores the provided file on the uploader", function() {
@@ -53,15 +53,15 @@ describe("BasicS3Uploader", function() {
     });
 
     it("configures the uploader using the provided settings", function() {
-      expect(BasicS3Uploader.prototype._configureUploader).toHaveBeenCalled();
+      expect(bs3u.Uploader.prototype._configureUploader).toHaveBeenCalled();
     });
 
     it("notifies that the uploader is ready", function() {
-      expect(BasicS3Uploader.prototype._notifyUploaderReady).toHaveBeenCalled();
+      expect(bs3u.Uploader.prototype._notifyUploaderReady).toHaveBeenCalled();
     });
 
     it("sets the uploader status to ready", function() {
-      expect(BasicS3Uploader.prototype._setReady).toHaveBeenCalled();
+      expect(bs3u.Uploader.prototype._setReady).toHaveBeenCalled();
     });
 
   });
@@ -105,7 +105,7 @@ describe("BasicS3Uploader", function() {
     });
 
     it("accepts settings from the user and merges them onto the uploader's settings", function() {
-      uploader = new BasicS3Uploader(mockFile, mockSettings);
+      uploader = new bs3u.Uploader(mockFile, mockSettings);
 
       expect(uploader.settings.contentType).toEqual(mockSettings.contentType);
       expect(uploader.settings.chunkSize).toEqual(mockSettings.chunkSize);
@@ -134,7 +134,7 @@ describe("BasicS3Uploader", function() {
     });
 
     it("provides a default for every option if no value was provided", function() {
-      uploader = new BasicS3Uploader(mockFile, {});
+      uploader = new bs3u.Uploader(mockFile, {});
 
       expect(uploader.settings.contentType).toEqual(mockFile.type);
       expect(uploader.settings.chunkSize).toEqual(1024 * 1024 * 10);
@@ -170,7 +170,7 @@ describe("BasicS3Uploader", function() {
     beforeEach(function() {
       mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
       mockSettings = {};
-      uploader = new BasicS3Uploader(mockFile, mockSettings);
+      uploader = new bs3u.Uploader(mockFile, mockSettings);
 
       spyOn(uploader, '_getInitSignature');
     });
@@ -307,7 +307,7 @@ describe("BasicS3Uploader", function() {
       spyOn(mockAjax2, 'abort');
       spyOn(mockAjax3, 'abort');
 
-      uploader = new BasicS3Uploader(mockFile, mockSettings);
+      uploader = new bs3u.Uploader(mockFile, mockSettings);
       uploader._XHRs = [mockAjax1];
       uploader._chunkXHRs = {
         1: mockAjax2,
@@ -373,7 +373,7 @@ describe("BasicS3Uploader", function() {
         mockFile = { name: "myfile", type: "video/quicktime", size: fileSize };
         mockSettings = { maxChunkSize: tenMB };
 
-        uploader = new BasicS3Uploader(mockFile, mockSettings);
+        uploader = new bs3u.Uploader(mockFile, mockSettings);
         uploader._createChunks();
 
         chunk1 = uploader._chunks[1];
@@ -432,7 +432,7 @@ describe("BasicS3Uploader", function() {
           mockFile = { name: "myfile", type: "video/quicktime", size: fileSize };
           mockSettings = { maxChunkSize: tenMB };
 
-          uploader = new BasicS3Uploader(mockFile, mockSettings);
+          uploader = new bs3u.Uploader(mockFile, mockSettings);
           uploader._createChunks();
 
           chunk1 = uploader._chunks[1];
@@ -462,7 +462,7 @@ describe("BasicS3Uploader", function() {
           mockFile = { name: "myfile", type: "video/quicktime", size: fileSize };
           mockSettings = { maxChunkSize: tenMB };
 
-          uploader = new BasicS3Uploader(mockFile, mockSettings);
+          uploader = new bs3u.Uploader(mockFile, mockSettings);
           uploader._createChunks();
 
           chunk1 = uploader._chunks[1];
@@ -538,14 +538,14 @@ describe("BasicS3Uploader", function() {
         customHeaders: { "X-Derp": "Yes" },
         maxRetries: 3
       };
-      uploader = new BasicS3Uploader(mockFile, mockSettings);
+      uploader = new bs3u.Uploader(mockFile, mockSettings);
     });
 
     it("creates and configures a new Ajax request", function() {
       uploader._getInitSignature();
-      expect(window.Ajax).toHaveBeenCalled();
+      expect(bs3u.Ajax).toHaveBeenCalled();
 
-      ajaxSettings = window.Ajax.calls.argsFor(0)[0];
+      ajaxSettings = bs3u.Ajax.calls.argsFor(0)[0];
 
       expect(ajaxSettings.url).toEqual(mockSettings.signatureBackend + mockSettings.initSignaturePath);
       expect(ajaxSettings.method).toEqual("GET");
@@ -615,7 +615,7 @@ describe("BasicS3Uploader", function() {
         customHeaders: { "X-Derp": "Yes" },
         maxRetries: 3
       };
-      uploader = new BasicS3Uploader(mockFile, mockSettings);
+      uploader = new bs3u.Uploader(mockFile, mockSettings);
     });
 
     describe("a 200 response", function() {
@@ -679,7 +679,7 @@ describe("BasicS3Uploader", function() {
         callback();
       });
 
-      uploader = new BasicS3Uploader(mockFile, mockSettings);
+      uploader = new bs3u.Uploader(mockFile, mockSettings);
     });
 
     describe("when a retry is available", function() {
@@ -736,7 +736,7 @@ describe("BasicS3Uploader", function() {
         awsAccessKey: 'my-access-key',
 
       };
-      uploader = new BasicS3Uploader(mockFile, mockSettings);
+      uploader = new bs3u.Uploader(mockFile, mockSettings);
     });
 
     it("adds the XHR object to the _XHRs array", function() {
@@ -909,7 +909,7 @@ describe("BasicS3Uploader", function() {
         remainingSignaturesPath: "/remaining"
 
       };
-      uploader = new BasicS3Uploader(mockFile, mockSettings);
+      uploader = new bs3u.Uploader(mockFile, mockSettings);
       uploader._uploadId = "upload-id";
       uploader._chunks = {
         1: "blah",
@@ -1044,7 +1044,7 @@ describe("BasicS3Uploader", function() {
 
     beforeEach(function() {
       mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
-      uploader = new BasicS3Uploader(mockFile, {});
+      uploader = new bs3u.Uploader(mockFile, {});
       uploader._chunks = {
         1: { uploading: false, uploadComplete: false },
         2: { uploading: true, uploadComplete: false },
@@ -1085,7 +1085,7 @@ describe("BasicS3Uploader", function() {
 
     beforeEach(function() {
       mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
-      uploader = new BasicS3Uploader(mockFile, {});
+      uploader = new bs3u.Uploader(mockFile, {});
       uploader.settings.maxConcurrentChunks = 3;
     });
 
@@ -1119,7 +1119,7 @@ describe("BasicS3Uploader", function() {
         remainingSignaturesPath: "/remaining"
 
       };
-      uploader = new BasicS3Uploader(mockFile, mockSettings);
+      uploader = new bs3u.Uploader(mockFile, mockSettings);
       uploader._uploadId = "upload-id";
       uploader._chunks = {
         1: { startRange: 0, endRange: 1000, uploading: false, uploadComplete: false }
@@ -1333,7 +1333,7 @@ describe("BasicS3Uploader", function() {
         remainingSignaturesPath: "/remaining"
 
       };
-      uploader = new BasicS3Uploader(mockFile, mockSettings);
+      uploader = new bs3u.Uploader(mockFile, mockSettings);
       uploader._uploadId = "upload-id";
       uploader._chunks = {
         1: { startRange: 0, endRange: 1000, uploading: false, uploadComplete: false },
@@ -1533,7 +1533,7 @@ describe("BasicS3Uploader", function() {
     beforeEach(function() {
       mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
       mockSettings = {};
-      uploader = new BasicS3Uploader(mockFile, mockSettings);
+      uploader = new bs3u.Uploader(mockFile, mockSettings);
       spyOn(uploader, '_retryChunk');
 
       uploader._handleInvalidChunks([1, 3, 5]);
@@ -1553,7 +1553,7 @@ describe("BasicS3Uploader", function() {
     beforeEach(function() {
       mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
       mockSettings = {};
-      uploader = new BasicS3Uploader(mockFile, mockSettings);
+      uploader = new bs3u.Uploader(mockFile, mockSettings);
       spyOn(uploader, '_retryChunk');
 
       // The uploader has kept track of 4 chunks
@@ -1589,7 +1589,7 @@ describe("BasicS3Uploader", function() {
     beforeEach(function() {
       mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
       mockSettings = {};
-      uploader = new BasicS3Uploader(mockFile, mockSettings);
+      uploader = new bs3u.Uploader(mockFile, mockSettings);
       uploader._chunks = {
         1: { startRange: 0, endRange: 1000, uploading: false, uploadComplete: true },
       };
@@ -1683,7 +1683,7 @@ describe("BasicS3Uploader", function() {
         remainingSignaturesPath: "/remaining"
 
       };
-      uploader = new BasicS3Uploader(mockFile, mockSettings);
+      uploader = new bs3u.Uploader(mockFile, mockSettings);
       uploader._uploadId = "upload-id";
       uploader._chunks = {
         1: { startRange: 0, endRange: 1000, uploading: false, uploadComplete: false },
@@ -1845,7 +1845,7 @@ describe("BasicS3Uploader", function() {
         awsAccessKey: 'my-access-key',
         bucket: "my-bucket"
       };
-      uploader = new BasicS3Uploader(mockFile, mockSettings);
+      uploader = new bs3u.Uploader(mockFile, mockSettings);
     });
 
     it("returns false when the uploader has been cancelled", function() {
@@ -1879,7 +1879,7 @@ describe("BasicS3Uploader", function() {
         awsAccessKey: 'my-access-key',
         bucket: "my-bucket"
       };
-      uploader = new BasicS3Uploader(mockFile, mockSettings);
+      uploader = new bs3u.Uploader(mockFile, mockSettings);
       uploader._chunks = {
         1: {},
         2: {}
@@ -1914,7 +1914,7 @@ describe("BasicS3Uploader", function() {
         awsAccessKey: 'my-access-key',
         bucket: "my-bucket"
       };
-      uploader = new BasicS3Uploader(mockFile, mockSettings);
+      uploader = new bs3u.Uploader(mockFile, mockSettings);
       uploader._XHRs = ["someXHR"];
       uploader._date = "someDate";
       uploader._eTags = {1: "etag"};
@@ -2235,7 +2235,7 @@ describe("BasicS3Uploader", function() {
     beforeEach(function() {
       mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
       mockSettings = {};
-      uploader = new BasicS3Uploader(mockFile, mockSettings);
+      uploader = new bs3u.Uploader(mockFile, mockSettings);
       uploader._setReady();
     });
 
@@ -2250,7 +2250,7 @@ describe("BasicS3Uploader", function() {
     beforeEach(function() {
       mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
       mockSettings = {};
-      uploader = new BasicS3Uploader(mockFile, mockSettings);
+      uploader = new bs3u.Uploader(mockFile, mockSettings);
     });
 
     it("returns true if the uploader status is 'ready'", function() {
@@ -2267,7 +2267,7 @@ describe("BasicS3Uploader", function() {
     beforeEach(function() {
       mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
       mockSettings = {};
-      uploader = new BasicS3Uploader(mockFile, mockSettings);
+      uploader = new bs3u.Uploader(mockFile, mockSettings);
       uploader._setUploading();
     });
 
@@ -2282,7 +2282,7 @@ describe("BasicS3Uploader", function() {
     beforeEach(function() {
       mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
       mockSettings = {};
-      uploader = new BasicS3Uploader(mockFile, mockSettings);
+      uploader = new bs3u.Uploader(mockFile, mockSettings);
     });
 
     it("returns true if the uploader status is 'uploading'", function() {
@@ -2299,7 +2299,7 @@ describe("BasicS3Uploader", function() {
     beforeEach(function() {
       mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
       mockSettings = {};
-      uploader = new BasicS3Uploader(mockFile, mockSettings);
+      uploader = new bs3u.Uploader(mockFile, mockSettings);
       uploader._setComplete();
     });
 
@@ -2314,7 +2314,7 @@ describe("BasicS3Uploader", function() {
     beforeEach(function() {
       mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
       mockSettings = {};
-      uploader = new BasicS3Uploader(mockFile, mockSettings);
+      uploader = new bs3u.Uploader(mockFile, mockSettings);
     });
 
     it("returns true if the uploader status is 'uploading'", function() {
@@ -2331,7 +2331,7 @@ describe("BasicS3Uploader", function() {
     beforeEach(function() {
       mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
       mockSettings = {};
-      uploader = new BasicS3Uploader(mockFile, mockSettings);
+      uploader = new bs3u.Uploader(mockFile, mockSettings);
       uploader._setCancelled();
     });
 
@@ -2346,7 +2346,7 @@ describe("BasicS3Uploader", function() {
     beforeEach(function() {
       mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
       mockSettings = {};
-      uploader = new BasicS3Uploader(mockFile, mockSettings);
+      uploader = new bs3u.Uploader(mockFile, mockSettings);
     });
 
     it("returns true if the uploader status is 'cancelled'", function() {
@@ -2363,7 +2363,7 @@ describe("BasicS3Uploader", function() {
     beforeEach(function() {
       mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
       mockSettings = {};
-      uploader = new BasicS3Uploader(mockFile, mockSettings);
+      uploader = new bs3u.Uploader(mockFile, mockSettings);
       uploader._setFailed();
     });
 
@@ -2378,7 +2378,7 @@ describe("BasicS3Uploader", function() {
     beforeEach(function() {
       mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
       mockSettings = {};
-      uploader = new BasicS3Uploader(mockFile, mockSettings);
+      uploader = new bs3u.Uploader(mockFile, mockSettings);
     });
 
     it("returns true if the uploader status is 'failed'", function() {
@@ -2398,7 +2398,7 @@ describe("BasicS3Uploader", function() {
       mockSettings = {
         onReady: spy
       };
-      uploader = new BasicS3Uploader(mockFile, mockSettings);
+      uploader = new bs3u.Uploader(mockFile, mockSettings);
     });
 
     it("calls the 'onReady' callback provided via upload settings", function() {
@@ -2416,7 +2416,7 @@ describe("BasicS3Uploader", function() {
       mockSettings = {
         onStart: spy
       };
-      uploader = new BasicS3Uploader(mockFile, mockSettings);
+      uploader = new bs3u.Uploader(mockFile, mockSettings);
     });
 
     it("calls the 'onStart' callback provided via upload settings", function() {
@@ -2434,7 +2434,7 @@ describe("BasicS3Uploader", function() {
       mockSettings = {
         onProgress: spy
       };
-      uploader = new BasicS3Uploader(mockFile, mockSettings);
+      uploader = new bs3u.Uploader(mockFile, mockSettings);
       uploader._chunkProgress = {
         1: 500
       };
@@ -2456,7 +2456,7 @@ describe("BasicS3Uploader", function() {
       mockSettings = {
         onChunkUploaded: spy
       };
-      uploader = new BasicS3Uploader(mockFile, mockSettings);
+      uploader = new bs3u.Uploader(mockFile, mockSettings);
     });
 
     it("calls the 'onChunkUploaded' callback provided via upload settings, passing in the chunk number and total chunks", function() {
@@ -2474,7 +2474,7 @@ describe("BasicS3Uploader", function() {
       mockSettings = {
         onComplete: spy
       };
-      uploader = new BasicS3Uploader(mockFile, mockSettings);
+      uploader = new bs3u.Uploader(mockFile, mockSettings);
     });
 
     it("calls the 'onComplete' callback provided via upload settings, passing in the upload location", function() {
@@ -2496,7 +2496,7 @@ describe("BasicS3Uploader", function() {
       mockFile = { name: "myfile", type: "video/quicktime", size: 1000, slice: function(start, end) { return "blob"; } };
       mockSettings = {};
       spyOn(window, 'FileReader').and.returnValue(mockFileReader);
-      uploader = new BasicS3Uploader(mockFile, mockSettings);
+      uploader = new bs3u.Uploader(mockFile, mockSettings);
     });
 
     describe("set up", function() {

@@ -30,7 +30,7 @@ describe("Ajax", function() {
     };
     spyOn(window, 'XMLHttpRequest').and.returnValue(mockXHR);
 
-    ajax = new Ajax(config);
+    ajax = new bs3u.Ajax(config);
   });
 
   describe("constructor", function() {

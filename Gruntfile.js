@@ -10,10 +10,11 @@ module.exports = function(grunt) {
 
   grunt.config('jshint', {
     all: [
-      'src/basic_s3_uploader.js',
-      'src/basic_s3_uploader_mock.js',
+      'src/bs3u.js',
+      'src/uploader.js',
+      'src/mock_uploader.js',
       'src/ajax.js',
-      'spec/basic_s3_uploader_spec.js',
+      'spec/uploader_spec.js',
       'spec/ajax_spec.js',
     ]
   });
@@ -36,9 +37,10 @@ module.exports = function(grunt) {
 
   grunt.config('watch', {
     files: [
-      'src/basic_s3_uploader.js',
+      'src/bs3u.js',
+      'src/uploader.js',
       'src/ajax.js',
-      'spec/basic_s3_uploader_spec.js',
+      'spec/uploader_spec.js',
       'spec/ajax_spec.js',
     ],
     tasks: ['test']

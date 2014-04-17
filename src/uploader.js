@@ -4,7 +4,7 @@
 */
 
 // Simple constructor. Accepts a file object and some settings.
-var BasicS3Uploader = function(file, settings) {
+bs3u.Uploader = function(file, settings) {
   var uploader = this;
   uploader.file = file;
   uploader._XHRs = [];
@@ -18,15 +18,8 @@ var BasicS3Uploader = function(file, settings) {
   uploader._setReady();
 };
 
-BasicS3Uploader.version = {
-  full: "1.0.6",
-  major: "1",
-  minor: "0",
-  patch: "6"
-};
-
 // Configure the uploader using the provided settings or sensible defaults.
-BasicS3Uploader.prototype._configureUploader = function(settings) {
+bs3u.Uploader.prototype._configureUploader = function(settings) {
   var uploader = this;
 
   uploader.settings = {};
@@ -110,7 +103,7 @@ BasicS3Uploader.prototype._configureUploader = function(settings) {
 };
 
 // Start the upload, but only if the file is deemed "readable".
-BasicS3Uploader.prototype.startUpload = function() {
+bs3u.Uploader.prototype.startUpload = function() {
   var uploader = this;
 
   uploader._log("startUpload called");
@@ -147,7 +140,7 @@ BasicS3Uploader.prototype.startUpload = function() {
 };
 
 // Cancels all XHR requests.
-BasicS3Uploader.prototype.cancelUpload = function() {
+bs3u.Uploader.prototype.cancelUpload = function() {
   var uploader = this;
   var xhr;
 
@@ -171,7 +164,7 @@ BasicS3Uploader.prototype.cancelUpload = function() {
 
 // Slices up the file into chunks, storing the startRange and endRange of each chunk on the uploader
 // so the blobs can be created when needed.
-BasicS3Uploader.prototype._createChunks = function() {
+bs3u.Uploader.prototype._createChunks = function() {
   var uploader = this;
   var chunks = {};
 
@@ -205,12 +198,12 @@ BasicS3Uploader.prototype._createChunks = function() {
 // Call to the provided signature backend to get the init signature.
 // The response should look something like:
 //    { signature: "some-signature", date: "the date for this request" }
-BasicS3Uploader.prototype._getInitSignature = function(retries) {
+bs3u.Uploader.prototype._getInitSignature = function(retries) {
   var uploader = this;
   var attempts = retries || 0;
 
   uploader._log("Getting the init signature");
-  var ajax = new Ajax({
+  var ajax = new bs3u.Ajax({
     url: uploader.settings.signatureBackend + uploader.settings.initSignaturePath,
     method: "GET",
     params: {
@@ -241,7 +234,7 @@ BasicS3Uploader.prototype._getInitSignature = function(retries) {
   uploader._XHRs.push(ajax);
 };
 
-BasicS3Uploader.prototype._getInitSignatureSuccess = function(response) {
+bs3u.Uploader.prototype._getInitSignatureSuccess = function(response) {
   var uploader = this;
   if (response.status == 200) {
     uploader._log("Init signature retrieved");
@@ -255,7 +248,7 @@ BasicS3Uploader.prototype._getInitSignatureSuccess = function(response) {
   }
 };
 
-BasicS3Uploader.prototype._getInitSignatureError = function(attempts, response) {
+bs3u.Uploader.prototype._getInitSignatureError = function(attempts, response) {
   var uploader = this;
   if (uploader._retryAvailable(attempts)) {
     attempts += 1;
@@ -279,7 +272,7 @@ BasicS3Uploader.prototype._getInitSignatureError = function(attempts, response) 
 
 // Initiate a new upload to S3 using the init signature. This will return an UploadId
 // when successful.
-BasicS3Uploader.prototype._initiateUpload = function(retries) {
+bs3u.Uploader.prototype._initiateUpload = function(retries) {
   var uploader = this;
   var attempts = retries || 0;
   var authorization = "AWS " + uploader.settings.awsAccessKey + ":" + uploader._initSignature;
@@ -361,7 +354,7 @@ BasicS3Uploader.prototype._initiateUpload = function(retries) {
 //
 // Note that for the chunk_signatures section, the key corresponds to the
 // part number (or chunk number).
-BasicS3Uploader.prototype._getRemainingSignatures = function(retries, successCallback) {
+bs3u.Uploader.prototype._getRemainingSignatures = function(retries, successCallback) {
   var uploader = this;
   var attempts = retries || 0;
 
@@ -421,7 +414,7 @@ BasicS3Uploader.prototype._getRemainingSignatures = function(retries, successCal
 };
 
 // Iterate over all chunks and start all uploads simultaneously
-BasicS3Uploader.prototype._uploadChunks = function() {
+bs3u.Uploader.prototype._uploadChunks = function() {
   var uploader = this;
   var totalChunks = Object.keys(uploader._chunks).length;
 
@@ -436,7 +429,7 @@ BasicS3Uploader.prototype._uploadChunks = function() {
 
 // This checks to see which chunks are uploading and returns true if there is room
 // for another chunk upload.
-BasicS3Uploader.prototype._uploadSpotAvailable = function() {
+bs3u.Uploader.prototype._uploadSpotAvailable = function() {
   var uploader = this;
   return uploader._chunkUploadsInProgress < uploader.settings.maxConcurrentChunks;
 };
@@ -445,7 +438,7 @@ BasicS3Uploader.prototype._uploadSpotAvailable = function() {
 // the same time, the "success" callback for this request checks to see if all
 // chunks have been uploaded. If they have, the uploader will try to complete
 // the upload.
-BasicS3Uploader.prototype._uploadChunk = function(number, retries) {
+bs3u.Uploader.prototype._uploadChunk = function(number, retries) {
   var uploader = this;
   var attempts = retries || 0;
 
@@ -527,7 +520,7 @@ BasicS3Uploader.prototype._uploadChunk = function(number, retries) {
 // Calls the S3 "List chunks" API and compares the result to the chunks the uploader
 // sent. If any chunk is invalid (missing eTag, invalid size, different number of chunks)
 // then the uploader attempts to re-upload that chunk.
-BasicS3Uploader.prototype._verifyAllChunksUploaded = function(retries) {
+bs3u.Uploader.prototype._verifyAllChunksUploaded = function(retries) {
   var uploader = this;
   var attempts = retries || 0;
   var signature = uploader._listSignature.signature;
@@ -618,7 +611,7 @@ BasicS3Uploader.prototype._verifyAllChunksUploaded = function(retries) {
 };
 
 // Iterates over the list of invalid chunks and calls _retryChunk.
-BasicS3Uploader.prototype._handleInvalidChunks = function(invalidParts) {
+bs3u.Uploader.prototype._handleInvalidChunks = function(invalidParts) {
   var uploader = this;
   for (var i = 0; i < invalidParts.length; i++) {
     var chunkNumber = invalidParts[i];
@@ -628,7 +621,7 @@ BasicS3Uploader.prototype._handleInvalidChunks = function(invalidParts) {
 
 // Determines if S3 is missing any chunks that were sent, then retries uploading
 // the missing chunks via _retryChunk.
-BasicS3Uploader.prototype._handleMissingChunks = function(chunksFromS3) {
+bs3u.Uploader.prototype._handleMissingChunks = function(chunksFromS3) {
   var uploader = this;
   var chunkNumbersFromS3 = [];
 
@@ -647,7 +640,7 @@ BasicS3Uploader.prototype._handleMissingChunks = function(chunksFromS3) {
 };
 
 // Attempts to retry a chunk upload, if a retry is available.
-BasicS3Uploader.prototype._retryChunk = function(chunkNumber) {
+bs3u.Uploader.prototype._retryChunk = function(chunkNumber) {
   var uploader = this;
   var chunkAttempts = uploader._chunks[chunkNumber].attempts || 0;
 
@@ -676,7 +669,7 @@ BasicS3Uploader.prototype._retryChunk = function(chunkNumber) {
 
 // Completes the multipart upload, effectively assembling all chunks together
 // into one file.
-BasicS3Uploader.prototype._completeUpload = function(retries) {
+bs3u.Uploader.prototype._completeUpload = function(retries) {
   var uploader = this;
   var attempts = retries || 0;
   var signature = uploader._completeSignature.signature;
@@ -760,7 +753,7 @@ BasicS3Uploader.prototype._completeUpload = function(retries) {
 
 // Returns true if attemts is less than maxRetries. Note that the first attempt
 // (a non-retry attempt) is not counted.
-BasicS3Uploader.prototype._retryAvailable = function(attempts) {
+bs3u.Uploader.prototype._retryAvailable = function(attempts) {
   var uploader = this;
   if (uploader._isCancelled() || uploader._isFailed()) {
     return false;
@@ -769,12 +762,12 @@ BasicS3Uploader.prototype._retryAvailable = function(attempts) {
 };
 
 // Returns true if we have an eTag for every chunk
-BasicS3Uploader.prototype._allETagsAvailable = function() {
+bs3u.Uploader.prototype._allETagsAvailable = function() {
   var uploader = this;
   return Object.keys(uploader._eTags).length == Object.keys(uploader._chunks).length;
 };
 
-BasicS3Uploader.prototype._resetData = function() {
+bs3u.Uploader.prototype._resetData = function() {
   var uploader = this;
   // Need to keep uploader.settings, uploader.file, and uploader._chunks around
   // in case any callbacks still need them. Everything else can go.
@@ -909,66 +902,66 @@ BasicS3Uploader.prototype._calculateUploadProgress = function() {
 };
 
 // State-related methods
-BasicS3Uploader.prototype._setReady = function() {
+bs3u.Uploader.prototype._setReady = function() {
   var uploader = this;
   uploader._status = "ready";
 };
 
-BasicS3Uploader.prototype._isReady = function() {
+bs3u.Uploader.prototype._isReady = function() {
   var uploader = this;
   return uploader._status == "ready";
 };
 
-BasicS3Uploader.prototype._setUploading = function() {
+bs3u.Uploader.prototype._setUploading = function() {
   var uploader = this;
   uploader._status = "uploading";
 };
 
-BasicS3Uploader.prototype._isUploading = function() {
+bs3u.Uploader.prototype._isUploading = function() {
   var uploader = this;
   return uploader._status == "uploading";
 };
 
-BasicS3Uploader.prototype._setComplete = function() {
+bs3u.Uploader.prototype._setComplete = function() {
   var uploader = this;
   uploader._status = "complete";
 };
 
-BasicS3Uploader.prototype._isComplete = function() {
+bs3u.Uploader.prototype._isComplete = function() {
   var uploader = this;
   return uploader._status == "complete";
 };
 
-BasicS3Uploader.prototype._setCancelled = function() {
+bs3u.Uploader.prototype._setCancelled = function() {
   var uploader = this;
   uploader._status = "cancelled";
 };
 
-BasicS3Uploader.prototype._isCancelled = function() {
+bs3u.Uploader.prototype._isCancelled = function() {
   var uploader = this;
   return uploader._status == "cancelled";
 };
 
-BasicS3Uploader.prototype._setFailed = function() {
+bs3u.Uploader.prototype._setFailed = function() {
   var uploader = this;
   uploader._status = "failed";
 };
 
-BasicS3Uploader.prototype._isFailed = function() {
+bs3u.Uploader.prototype._isFailed = function() {
   var uploader = this;
   return uploader._status == "failed";
 };
 
 // Notification that the uploader is initialized. Calls the user-defined "onReady"
 // method.
-BasicS3Uploader.prototype._notifyUploaderReady = function() {
+bs3u.Uploader.prototype._notifyUploaderReady = function() {
   var uploader = this;
   uploader.settings.onReady.call(uploader);
 };
 
 // Notification that the uploader has started uploading chunks. Calls the user-defined
 // onStart method.
-BasicS3Uploader.prototype._notifyUploadStarted = function() {
+bs3u.Uploader.prototype._notifyUploadStarted = function() {
   var uploader = this;
   uploader.settings.onStart.call(uploader);
 };
@@ -977,7 +970,7 @@ BasicS3Uploader.prototype._notifyUploadStarted = function() {
 // up the bytes loaded. Calls the user-defined onProgress method, sending in the
 // total loaded and the total file size remaining. From this data, overall upload
 // progress can be determined.
-BasicS3Uploader.prototype._notifyUploadProgress = function() {
+bs3u.Uploader.prototype._notifyUploadProgress = function() {
   var uploader = this;
 
   var loaded = uploader._calculateUploadProgress();
@@ -987,21 +980,21 @@ BasicS3Uploader.prototype._notifyUploadProgress = function() {
 
 // Notifies when a chunk has finished uploading and calls the user-defined
 // onChunkUploaded method.
-BasicS3Uploader.prototype._notifyChunkUploaded = function(chunkNumber, totalChunks) {
+bs3u.Uploader.prototype._notifyChunkUploaded = function(chunkNumber, totalChunks) {
   var uploader = this;
   uploader.settings.onChunkUploaded.call(uploader, chunkNumber, totalChunks);
 };
 
 // Notifies when the upload has finished and the parts have been assembled. Calls
 // the user-defined onComplete method.
-BasicS3Uploader.prototype._notifyUploadComplete = function(location) {
+bs3u.Uploader.prototype._notifyUploadComplete = function(location) {
   var uploader = this;
   uploader.settings.onComplete.call(uploader, location);
 };
 
 // Notifies that an error has occurred with the uploader. Calls the user-defined
 // onError method, sending in the error code and description
-BasicS3Uploader.prototype._notifyUploadError = function(errorCode, description) {
+bs3u.Uploader.prototype._notifyUploadError = function(errorCode, description) {
   var uploader = this;
   // If the uploader has already been set to failed, this message has already been
   // sent so we will want to prevent duplicate publishes of this event.
@@ -1012,14 +1005,14 @@ BasicS3Uploader.prototype._notifyUploadError = function(errorCode, description) 
 
 // Notifies that a retry is being attempted. Calls the user-defined onRetry
 // method, sending the attempt number.
-BasicS3Uploader.prototype._notifyUploadRetry = function(attempt, data) {
+bs3u.Uploader.prototype._notifyUploadRetry = function(attempt, data) {
   var uploader = this;
   uploader.settings.onRetry.call(uploader, attempt, data);
 };
 
 // Notifies that the upload has been cancelled. Calls the user-defined onCancel
 // method.
-BasicS3Uploader.prototype._notifyUploadCancelled = function() {
+bs3u.Uploader.prototype._notifyUploadCancelled = function() {
   var uploader = this;
   uploader.settings.onCancel.call(uploader);
 };
@@ -1027,7 +1020,7 @@ BasicS3Uploader.prototype._notifyUploadCancelled = function() {
 // Using the FileReader API, this method attempts to open the file and read the
 // first few bytes. This method accepts a callback and then calls it with the result
 // of the check.
-BasicS3Uploader.prototype._validateFileIsReadable = function(callback) {
+bs3u.Uploader.prototype._validateFileIsReadable = function(callback) {
   var uploader = this;
   var file = uploader.file;
   var blob = file.slice(0, 1024);
@@ -1048,12 +1041,12 @@ BasicS3Uploader.prototype._validateFileIsReadable = function(callback) {
   }
 };
 
-BasicS3Uploader.prototype._requiresFirefoxHack = function() {
+bs3u.Uploader.prototype._requiresFirefoxHack = function() {
   return navigator.userAgent.indexOf("Firefox") !== -1;
 };
 
-BasicS3Uploader.prototype._log = function(msg, object) {
-  msg = "[BasicS3Uploader] " + msg;
+bs3u.Uploader.prototype._log = function(msg, object) {
+  msg = "[bs3u.Uploader] " + msg;
   if (this.settings.log) {
     if (object) {
       console.debug(msg, object);
@@ -1063,7 +1056,7 @@ BasicS3Uploader.prototype._log = function(msg, object) {
   }
 };
 
-BasicS3Uploader.prototype.errors = {
+bs3u.Uploader.prototype.errors = {
   // code: description
   0: "The file could not be uploaded because it exceeds the maximum file size allowed.",
   1: "The file could not be uploaded because it cannot be read",

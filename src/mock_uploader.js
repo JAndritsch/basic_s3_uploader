@@ -6,7 +6,7 @@
 * any files to get uploaded (such as running tests).
 */
 
-var BasicS3UploaderMock = function(file, settings) {
+bs3u.MockUploader = function(file, settings) {
   var uploader = this; 
   uploader.file = file;
   uploader._XHRs = [];
@@ -16,7 +16,7 @@ var BasicS3UploaderMock = function(file, settings) {
 };
 
 // Configure the uploader using the provided settings or sensible defaults.
-BasicS3UploaderMock.prototype._configureUploader = function(settings) {
+bs3u.MockUploader.prototype._configureUploader = function(settings) {
   var uploader = this;
 
   uploader.settings = {};
@@ -51,7 +51,7 @@ BasicS3UploaderMock.prototype._configureUploader = function(settings) {
 
 };
 
-BasicS3UploaderMock.prototype.startUpload = function() {
+bs3u.MockUploader.prototype.startUpload = function() {
   var uploader = this; 
   uploader._createChunks();
   uploader._notifyUploadStarted();
@@ -59,13 +59,13 @@ BasicS3UploaderMock.prototype.startUpload = function() {
   uploader._getInitSignature();
 };
 
-BasicS3UploaderMock.prototype.cancelUpload = function() {
+bs3u.MockUploader.prototype.cancelUpload = function() {
   var uploader = this;
   uploader._notifyUploadCancelled();
   uploader._setCancelled();
 };
 
-BasicS3UploaderMock.prototype._createChunks = function() {
+bs3u.MockUploader.prototype._createChunks = function() {
   var uploader = this;
   var chunks = {};
 
@@ -93,20 +93,20 @@ BasicS3UploaderMock.prototype._createChunks = function() {
   uploader._chunks = chunks;
 };
 
-BasicS3UploaderMock.prototype._getInitSignature = function() {
+bs3u.MockUploader.prototype._getInitSignature = function() {
   var uploader = this;
   uploader._initSignature = "Mock-init-signature";
   uploader._date = "Mock-init-date";
   uploader._initiateUpload();
 };
 
-BasicS3UploaderMock.prototype._initiateUpload = function() {
+bs3u.MockUploader.prototype._initiateUpload = function() {
   var uploader = this;
   uploader._uploadId = "Mock-upload-id";
   uploader._getRemainingSignatures();
 };
 
-BasicS3UploaderMock.prototype._getRemainingSignatures = function() {
+bs3u.MockUploader.prototype._getRemainingSignatures = function() {
   var uploader = this;
   uploader._chunkSignatures = "Mock-chunk-signatures";
   uploader._completeSignature = "Mock-complete-signature";
@@ -116,7 +116,7 @@ BasicS3UploaderMock.prototype._getRemainingSignatures = function() {
   uploader._uploadChunks();
 };
 
-BasicS3UploaderMock.prototype._uploadChunks = function() {
+bs3u.MockUploader.prototype._uploadChunks = function() {
   var uploader = this;
   var totalChunks = Object.keys(uploader._chunks).length;
 
@@ -126,7 +126,7 @@ BasicS3UploaderMock.prototype._uploadChunks = function() {
   }
 };
 
-BasicS3UploaderMock.prototype._uploadChunk = function(number) {
+bs3u.MockUploader.prototype._uploadChunk = function(number) {
   var uploader = this;
 
   var loaded = 0;
@@ -146,78 +146,78 @@ BasicS3UploaderMock.prototype._uploadChunk = function(number) {
 
 };
 
-BasicS3UploaderMock.prototype._completeUpload = function(retries) {
+bs3u.MockUploader.prototype._completeUpload = function(retries) {
   var uploader = this;
   uploader._notifyUploadComplete("mock-location");
   uploader._setComplete();
 };
 
-BasicS3UploaderMock.prototype._allETagsAvailable = function() {
+bs3u.MockUploader.prototype._allETagsAvailable = function() {
   var uploader = this;
   return Object.keys(uploader._eTags).length == Object.keys(uploader._chunks).length;
 };
 
-BasicS3UploaderMock.prototype._setReady = function() {
+bs3u.MockUploader.prototype._setReady = function() {
   var uploader = this;
   uploader._status = "ready";
 };
 
-BasicS3UploaderMock.prototype._isReady = function() {
+bs3u.MockUploader.prototype._isReady = function() {
   var uploader = this;
   return uploader._status == "ready";
 };
 
-BasicS3UploaderMock.prototype._setUploading = function() {
+bs3u.MockUploader.prototype._setUploading = function() {
   var uploader = this;
   uploader._status = "uploading";
 };
 
-BasicS3UploaderMock.prototype._isUploading = function() {
+bs3u.MockUploader.prototype._isUploading = function() {
   var uploader = this;
   return uploader._status == "uploading";
 };
 
-BasicS3UploaderMock.prototype._setComplete = function() {
+bs3u.MockUploader.prototype._setComplete = function() {
   var uploader = this;
   uploader._status = "complete";
 };
 
-BasicS3UploaderMock.prototype._isComplete = function() {
+bs3u.MockUploader.prototype._isComplete = function() {
   var uploader = this;
   return uploader._status == "complete";
 };
 
-BasicS3UploaderMock.prototype._setCancelled = function() {
+bs3u.MockUploader.prototype._setCancelled = function() {
   var uploader = this;
   uploader._status = "cancelled";
 };
 
-BasicS3UploaderMock.prototype._isCancelled = function() {
+bs3u.MockUploader.prototype._isCancelled = function() {
   var uploader = this;
   return uploader._status == "cancelled";
 };
 
-BasicS3UploaderMock.prototype._setFailed = function() {
+bs3u.MockUploader.prototype._setFailed = function() {
   var uploader = this;
   uploader._status = "failed";
 };
 
-BasicS3UploaderMock.prototype._isFailed = function() {
+bs3u.MockUploader.prototype._isFailed = function() {
   var uploader = this;
   return uploader._status == "failed";
 };
 
-BasicS3UploaderMock.prototype._notifyUploaderReady = function() {
+bs3u.MockUploader.prototype._notifyUploaderReady = function() {
   var uploader = this;
   uploader.settings.onReady.call(uploader);
 };
 
-BasicS3UploaderMock.prototype._notifyUploadStarted = function() {
+bs3u.MockUploader.prototype._notifyUploadStarted = function() {
   var uploader = this;
   uploader.settings.onStart.call(uploader);
 };
 
-BasicS3UploaderMock.prototype._notifyUploadProgress = function() {
+bs3u.MockUploader.prototype._notifyUploadProgress = function() {
   var uploader = this;
   var loaded = 0;
 
@@ -230,22 +230,22 @@ BasicS3UploaderMock.prototype._notifyUploadProgress = function() {
   uploader.settings.onProgress.call(uploader, loaded, total);
 };
 
-BasicS3UploaderMock.prototype._notifyUploadComplete = function(location) {
+bs3u.MockUploader.prototype._notifyUploadComplete = function(location) {
   var uploader = this;
   uploader.settings.onComplete.call(uploader, location);
 };
 
-BasicS3UploaderMock.prototype._notifyUploadError = function(errorCode, description) {
+bs3u.MockUploader.prototype._notifyUploadError = function(errorCode, description) {
   var uploader = this;
   uploader.settings.onError.call(uploader, errorCode, description);
 };
 
-BasicS3UploaderMock.prototype._notifyUploadRetry = function(attempt) {
+bs3u.MockUploader.prototype._notifyUploadRetry = function(attempt) {
   var uploader = this;
   uploader.settings.onRetry.call(uploader, attempt);
 };
 
-BasicS3UploaderMock.prototype._notifyUploadCancelled = function() {
+bs3u.MockUploader.prototype._notifyUploadCancelled = function() {
   var uploader = this;
   uploader.settings.onCancel.call(uploader);
 };

@@ -1,38 +1,38 @@
-var Ajax = function(config) {
+bs3u.Ajax = function(config) {
   this.config     = config;
   this.xhr        = new XMLHttpRequest();
 };
 
-Ajax.prototype.onError = function(callback) {
+bs3u.Ajax.prototype.onError = function(callback) {
   callback = callback || function() {};
   this.xhr.addEventListener("error", callback, true);
 };
 
-Ajax.prototype.onTimeout = function(callback) {
+bs3u.Ajax.prototype.onTimeout = function(callback) {
   callback = callback || function() {};
   this.xhr.addEventListener("timeout", callback, true);
 };
 
-Ajax.prototype.onLoad = function(callback) {
+bs3u.Ajax.prototype.onLoad = function(callback) {
   callback = callback || function() {};
   this.xhr.addEventListener("load", callback, true);
 };
 
-Ajax.prototype.onReadyStateChange = function(callback) {
+bs3u.Ajax.prototype.onReadyStateChange = function(callback) {
   callback = callback || function() {};
   this.xhr.addEventListener("readystatechange", callback);
 };
 
-Ajax.prototype.onProgress = function(callback) {
+bs3u.Ajax.prototype.onProgress = function(callback) {
   callback = callback || function() {};
   this.xhr.upload.addEventListener("progress", callback);
 };
 
-Ajax.prototype.setTimeout = function(timeout) {
+bs3u.Ajax.prototype.setTimeout = function(timeout) {
   this.xhr.timeout = timeout;
 };
 
-Ajax.prototype.buildURL = function(url, params) {
+bs3u.Ajax.prototype.buildURL = function(url, params) {
   if (params) {
     for (var name in params) {
 
@@ -49,14 +49,14 @@ Ajax.prototype.buildURL = function(url, params) {
   return url;
 };
 
-Ajax.prototype.setHeaders = function(headers) {
+bs3u.Ajax.prototype.setHeaders = function(headers) {
   var ajax = this;
   for (var header in headers) {
     ajax.xhr.setRequestHeader(header, headers[header]);
   }
 };
 
-Ajax.prototype.open = function() {
+bs3u.Ajax.prototype.open = function() {
   var url = this.config.url;
   var method = this.config.method || "GET";
   var params = this.config.params || {};
@@ -66,7 +66,7 @@ Ajax.prototype.open = function() {
   this.xhr.open(method, url);
 };
 
-Ajax.prototype.send = function(body) {
+bs3u.Ajax.prototype.send = function(body) {
   var headers = this.config.headers || {};
   var timeout = this.config.timeout || 0;
 
@@ -81,6 +81,6 @@ Ajax.prototype.send = function(body) {
  }
 };
 
-Ajax.prototype.abort = function() {
+bs3u.Ajax.prototype.abort = function() {
   this.xhr.abort();
 };
