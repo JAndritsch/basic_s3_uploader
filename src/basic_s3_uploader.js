@@ -226,7 +226,7 @@ BasicS3Uploader.prototype._getInitSignature = function(retries) {
     headers: uploader.settings.customHeaders,
   };
   
-  var ajax = new Ajax(config);
+  var ajax = new Ajax(xhrConfig);
   ajax.onSuccess(uploader._getInitSignatureSuccess);
   ajax.onError(uploader._getInitSignatureError);
   ajax.onTimeout(uploader._getInitSignatureError);
