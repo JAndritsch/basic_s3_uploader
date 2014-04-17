@@ -141,11 +141,19 @@ describe("Ajax", function() {
   describe("open", function() {
     beforeEach(function() {
       spyOn(ajax.xhr, 'open');
+      spyOn(ajax, 'buildURL').and.returnValue("some/url?p=1");
+      ajax.config.params = {
+        p: "1"
+      };
       ajax.open();
     });
 
+    it("builds the URL", function() {
+      expect(ajax.buildURL).toHaveBeenCalledWith("some/url", ajax.config.params);
+    });
+
     it("opens the XHR connection", function() {
-      expect(ajax.xhr.open).toHaveBeenCalledWith("get", "some/url");
+      expect(ajax.xhr.open).toHaveBeenCalledWith("get", "some/url?p=1");
     });
   });
 

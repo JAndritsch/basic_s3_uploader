@@ -58,7 +58,11 @@ Ajax.prototype.setHeaders = function(headers) {
 
 Ajax.prototype.open = function() {
   var url = this.config.url;
-  var method = this.config.method;
+  var method = this.config.method || "GET";
+  var params = this.config.params || {};
+
+  url = this.buildURL(url, params);
+  
   this.xhr.open(method, url);
 };
 

@@ -211,7 +211,7 @@ BasicS3Uploader.prototype._getInitSignature = function(retries) {
 
   uploader._log("Getting the init signature");
 
-  var xhr = uploader._ajax({
+  var xhrConfig = {
     url: uploader.settings.signatureBackend + uploader.settings.initSignaturePath,
     method: "GET",
     params: {
@@ -223,43 +223,52 @@ BasicS3Uploader.prototype._getInitSignature = function(retries) {
       acl: uploader.settings.acl,
       encrypted: uploader.settings.encrypted
     },
-    customHeaders: uploader.settings.customHeaders,
-    success: function(response) {
-      var xhr = this;
-      if (xhr.status == 200) {
-        uploader._log("Init signature retrieved");
-        var json = JSON.parse(response.target.responseText);
-        uploader._initSignature = json.signature;
-        uploader._date = json.date;
-        uploader._initiateUpload();
-      } else {
-        uploader._log("Server returned a non-200. Deferring to error handler!");
-        xhr._data.error();
-      }
-    },
-    error: function(response) {
-      var xhr = this;
-      if (uploader._retryAvailable(attempts)) {
-        attempts += 1;
-        uploader._log("Attempting to retry retrieval of init signature.");
-        setTimeout(function() {
-          var data = {
-            action: "getInitSignature",
-            xhr: xhr
-          };
-          uploader._notifyUploadRetry(attempts, data);
-          uploader._getInitSignature(attempts);
-        }, 2000 * attempts);
-      } else {
-        var errorCode = 2;
-        uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
-        uploader._setFailed();
-        uploader._resetData();
-        uploader._log("Uploader error!", uploader.errors[errorCode]);
-      }
-    }
-  });
-  uploader._XHRs.push(xhr);
+    headers: uploader.settings.customHeaders,
+  };
+  
+  var ajax = new Ajax(config);
+  ajax.onSuccess(uploader._getInitSignatureSuccess);
+  ajax.onError(uploader._getInitSignatureError);
+  ajax.onTimeout(uploader._getInitSignatureError);
+
+  ajax.send();
+  uploader._XHRs.push(ajax.xhr);
+};
+
+BasicS3Uploader.prototype._getInitSignatureSuccess = function(response) {
+  var uploader = this;
+  if (response.status == 200) {
+    uploader._log("Init signature retrieved");
+    var json = JSON.parse(response.target.responseText);
+    uploader._initSignature = json.signature;
+    uploader._date = json.date;
+    uploader._initiateUpload();
+  } else {
+    uploader._log("Server returned a non-200. Deferring to error handler!");
+    uploader._getInitSignatureError(response);
+  }
+};
+
+BasicS3Uploader.prototype._getInitSignatureError = function(response) {
+  var uploader = this;
+  if (uploader._retryAvailable(attempts)) {
+    attempts += 1;
+    uploader._log("Attempting to retry retrieval of init signature.");
+    setTimeout(function() {
+      var data = {
+        action: "getInitSignature",
+        xhr: xhr
+      };
+      uploader._notifyUploadRetry(attempts, data);
+      uploader._getInitSignature(attempts);
+    }, 2000 * attempts);
+  } else {
+    var errorCode = 2;
+    uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
+    uploader._setFailed();
+    uploader._resetData();
+    uploader._log("Uploader error!", uploader.errors[errorCode]);
+  }
 };
 
 // Initiate a new upload to S3 using the init signature. This will return an UploadId
