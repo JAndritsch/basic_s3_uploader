@@ -80,3 +80,7 @@ Ajax.prototype.send = function(body) {
     this.xhr.send();
  }
 };
+
+Ajax.prototype.abort = function() {
+  this.xhr.abort();
+};

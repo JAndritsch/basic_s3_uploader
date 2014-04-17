@@ -539,10 +539,10 @@ describe("BasicS3Uploader", function() {
         maxRetries: 3
       };
       uploader = new BasicS3Uploader(mockFile, mockSettings);
-      uploader._getInitSignature();
     });
 
     it("creates and configures a new Ajax request", function() {
+      uploader._getInitSignature();
       expect(window.Ajax).toHaveBeenCalled();
 
       ajaxSettings = window.Ajax.calls.argsFor(0)[0];
@@ -560,36 +560,165 @@ describe("BasicS3Uploader", function() {
     });
 
     it("registers the success callback", function() {
-      expect(mockAjaxClass.onSuccess).toHaveBeenCalledWith(uploader._getInitSignatureSuccess);
+      spyOn(uploader, '_getInitSignatureSuccess');
+      uploader._getInitSignature();
+      var callback = mockAjaxClass.onSuccess.calls.argsFor(0)[0];
+      var mockResponse = { status: 200 };
+      callback(mockResponse);
+      expect(uploader._getInitSignatureSuccess).toHaveBeenCalledWith(mockResponse);
     });
 
     it("registers the error callback", function() {
-      expect(mockAjaxClass.onError).toHaveBeenCalledWith(uploader._getInitSignatureError);
+      spyOn(uploader, '_getInitSignatureError');
+      var attempts = 1;
+      uploader._getInitSignature(attempts);
+      var callback = mockAjaxClass.onError.calls.argsFor(0)[0];
+      var mockResponse = { status: 500 };
+      callback(mockResponse);
+      expect(uploader._getInitSignatureError).toHaveBeenCalledWith(attempts, mockResponse);
     });
 
     it("registers the timeout callback", function() {
-      expect(mockAjaxClass.onTimeout).toHaveBeenCalledWith(uploader._getInitSignatureError);
+      spyOn(uploader, '_getInitSignatureError');
+      var attempts = 1;
+      uploader._getInitSignature(attempts);
+      var callback = mockAjaxClass.onTimeout.calls.argsFor(0)[0];
+      var mockResponse = { status: 500 };
+      callback(mockResponse);
+      expect(uploader._getInitSignatureError).toHaveBeenCalledWith(attempts, mockResponse);
     });
 
     it("sends the request", function() {
+      uploader._getInitSignature();
       expect(mockAjaxClass.send).toHaveBeenCalled();
     });
 
     it("pushes the xhr request into the _XHRs array", function() {
       uploader._getInitSignature();
-      expect(uploader._XHRs[0]).toEqual(mockAjaxClass.xhr);
+      expect(uploader._XHRs[0]).toEqual(mockAjaxClass);
     });
   });
 
   describe("_getInitSignatureSuccess", function() {
-    it("fails", function() {
-      expect(true).toBeFalsy();
+    var uploader, mockFile, mockSettings, mockResponse;
+
+    beforeEach(function() {
+      mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
+      mockSettings = {
+        signatureBackend: "/signatures",
+        initSignaturePath: "/get_init_signature",
+        key: "my-upload-key",
+        contentType: "video/quicktime",
+        bucket: "some-bucket",
+        acl: "private",
+        encrypted: false,
+        customHeaders: { "X-Derp": "Yes" },
+        maxRetries: 3
+      };
+      uploader = new BasicS3Uploader(mockFile, mockSettings);
+    });
+
+    describe("a 200 response", function() {
+      beforeEach(function() {
+        mockResponse = {
+          status: 200,
+          target: {
+            responseText: "{\"signature\": \"init-signature\", \"date\": \"signature-date\"}"
+          }
+        };
+        spyOn(uploader, '_initiateUpload');
+        uploader._getInitSignatureSuccess(mockResponse);
+      });
+
+      it("parses and stores the init signature and date from the response body", function() {
+        expect(uploader._initSignature).toEqual("init-signature");
+        expect(uploader._date).toEqual("signature-date");
+      });
+
+      it("initiates the upload", function() {
+        expect(uploader._initiateUpload).toHaveBeenCalled();
+      });
+    });
+
+    describe("a non-200 response", function() {
+      beforeEach(function() {
+        mockResponse = {
+          status: 500
+        };
+        spyOn(uploader, '_getInitSignatureError');
+        uploader._getInitSignatureSuccess(mockResponse);
+      });
+
+      it("calls the error handler", function() {
+        expect(uploader._getInitSignatureError).toHaveBeenCalledWith(mockResponse);
+      });
     });
   });
 
   describe("_getInitSignatureError", function() {
-    it("fails", function() {
-      expect(true).toBeFalsy();
+    var uploader, mockFile, mockSettings, mockResponse, attempts;
+
+    beforeEach(function() {
+      attempts = 2;
+      mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
+      mockResponse = {
+        status: 500
+      };
+      mockSettings = {
+        signatureBackend: "/signatures",
+        initSignaturePath: "/get_init_signature",
+        key: "my-upload-key",
+        contentType: "video/quicktime",
+        bucket: "some-bucket",
+        acl: "private",
+        encrypted: false,
+        customHeaders: { "X-Derp": "Yes" },
+        maxRetries: 3
+      };
+      spyOn(window, 'setTimeout').and.callFake(function(callback, time) {
+        callback();
+      });
+
+      uploader = new BasicS3Uploader(mockFile, mockSettings);
+    });
+
+    describe("when a retry is available", function() {
+      beforeEach(function() {
+        spyOn(uploader, '_notifyUploadRetry');
+        spyOn(uploader, '_getInitSignature');
+        spyOn(uploader, '_retryAvailable').and.returnValue(true);
+        uploader._getInitSignatureError(attempts, mockResponse);
+      });
+
+      it("notifies about the retry", function() {
+        expect(uploader._notifyUploadRetry).toHaveBeenCalled();
+      });
+
+      it("calls _getInitSignature with attempts incremented by 1", function() {
+        expect(uploader._getInitSignature).toHaveBeenCalledWith(attempts + 1);
+      });
+    });
+
+    describe("when no retries are available", function() {
+      beforeEach(function() {
+        spyOn(uploader, '_notifyUploadError');
+        spyOn(uploader, '_setFailed');
+        spyOn(uploader, '_resetData');
+        spyOn(uploader, '_retryAvailable').and.returnValue(false);
+        uploader._getInitSignatureError(attempts, mockResponse);
+      });
+
+      it("notifies about the upload error", function() {
+        expect(uploader._notifyUploadError).toHaveBeenCalledWith(2, uploader.errors[2]);
+      });
+
+      it("sets the uploader to a failed state", function() {
+        expect(uploader._setFailed).toHaveBeenCalled();
+      });
+
+      it("resets the uploader data", function() {
+        expect(uploader._resetData).toHaveBeenCalled();
+      });
     });
   });
 

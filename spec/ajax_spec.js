@@ -14,6 +14,7 @@ describe("Ajax", function() {
       upload: {},
       open: function(method, url) {},
       send: function(body) {},
+      abort: function() {},
     };
 
     mockXHR.addEventListener = function(event, callback, async) {
@@ -186,6 +187,17 @@ describe("Ajax", function() {
 
     it("sends the XHR request", function() {
       expect(ajax.xhr.send).toHaveBeenCalledWith("body");
+    });
+  });
+
+  describe("abort", function() {
+    beforeEach(function() {
+      spyOn(ajax.xhr, 'abort');
+    });
+
+    it("calls abort on the XHR object", function() {
+      ajax.abort();
+      expect(ajax.xhr.abort).toHaveBeenCalled();
     });
   });
 

@@ -210,8 +210,7 @@ BasicS3Uploader.prototype._getInitSignature = function(retries) {
   var attempts = retries || 0;
 
   uploader._log("Getting the init signature");
-
-  var xhrConfig = {
+  var ajax = new Ajax({
     url: uploader.settings.signatureBackend + uploader.settings.initSignaturePath,
     method: "GET",
     params: {
@@ -224,15 +223,22 @@ BasicS3Uploader.prototype._getInitSignature = function(retries) {
       encrypted: uploader.settings.encrypted
     },
     headers: uploader.settings.customHeaders,
-  };
-  
-  var ajax = new Ajax(xhrConfig);
-  ajax.onSuccess(uploader._getInitSignatureSuccess);
-  ajax.onError(uploader._getInitSignatureError);
-  ajax.onTimeout(uploader._getInitSignatureError);
+  });
+
+  ajax.onSuccess(function(response) {
+    uploader._getInitSignatureSuccess(response);
+  });
+
+  ajax.onError(function(response) {
+    uploader._getInitSignatureError(attempts, response);
+  });
+
+  ajax.onTimeout(function(response) {
+    uploader._getInitSignatureError(attempts, response);
+  });
 
   ajax.send();
-  uploader._XHRs.push(ajax.xhr);
+  uploader._XHRs.push(ajax);
 };
 
 BasicS3Uploader.prototype._getInitSignatureSuccess = function(response) {
@@ -249,7 +255,7 @@ BasicS3Uploader.prototype._getInitSignatureSuccess = function(response) {
   }
 };
 
-BasicS3Uploader.prototype._getInitSignatureError = function(response) {
+BasicS3Uploader.prototype._getInitSignatureError = function(attempts, response) {
   var uploader = this;
   if (uploader._retryAvailable(attempts)) {
     attempts += 1;
@@ -257,7 +263,7 @@ BasicS3Uploader.prototype._getInitSignatureError = function(response) {
     setTimeout(function() {
       var data = {
         action: "getInitSignature",
-        xhr: xhr
+        xhr: response
       };
       uploader._notifyUploadRetry(attempts, data);
       uploader._getInitSignature(attempts);
