@@ -10,10 +10,8 @@ module.exports = function(config) {
     // list of files / patterns to load in the browser
     files: [
       'src/basic_s3_uploader.js',
-      'src/signature_generator.js',
       'src/ajax.js',
       'spec/basic_s3_uploader_spec.js',
-      'spec/signature_generator_spec.js',
       'spec/ajax_spec.js',
     ],
 
