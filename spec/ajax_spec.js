@@ -1,4 +1,4 @@
-describe("Ajax", function() {
+describe("bs3u.Ajax", function() {
   var ajax, config, mockXHR;
 
   beforeEach(function() {

@@ -561,11 +561,12 @@ describe("bs3u.Uploader", function() {
 
     it("registers the success callback", function() {
       spyOn(uploader, '_getInitSignatureSuccess');
-      uploader._getInitSignature();
+      var attempts = 1;
+      uploader._getInitSignature(attempts);
       var callback = mockAjaxClass.onSuccess.calls.argsFor(0)[0];
       var mockResponse = { status: 200 };
       callback(mockResponse);
-      expect(uploader._getInitSignatureSuccess).toHaveBeenCalledWith(mockResponse);
+      expect(uploader._getInitSignatureSuccess).toHaveBeenCalledWith(attempts, mockResponse);
     });
 
     it("registers the error callback", function() {
@@ -600,9 +601,10 @@ describe("bs3u.Uploader", function() {
   });
 
   describe("_getInitSignatureSuccess", function() {
-    var uploader, mockFile, mockSettings, mockResponse;
+    var uploader, mockFile, mockSettings, mockResponse, attempts;
 
     beforeEach(function() {
+      attempts = 0;
       mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
       mockSettings = {
         signatureBackend: "/signatures",
@@ -627,7 +629,7 @@ describe("bs3u.Uploader", function() {
           }
         };
         spyOn(uploader, '_initiateUpload');
-        uploader._getInitSignatureSuccess(mockResponse);
+        uploader._getInitSignatureSuccess(attempts, mockResponse);
       });
 
       it("parses and stores the init signature and date from the response body", function() {
@@ -646,11 +648,11 @@ describe("bs3u.Uploader", function() {
           status: 500
         };
         spyOn(uploader, '_getInitSignatureError');
-        uploader._getInitSignatureSuccess(mockResponse);
+        uploader._getInitSignatureSuccess(attempts, mockResponse);
       });
 
       it("calls the error handler", function() {
-        expect(uploader._getInitSignatureError).toHaveBeenCalledWith(mockResponse);
+        expect(uploader._getInitSignatureError).toHaveBeenCalledWith(attempts, mockResponse);
       });
     });
   });
@@ -691,7 +693,7 @@ describe("bs3u.Uploader", function() {
       });
 
       it("notifies about the retry", function() {
-        expect(uploader._notifyUploadRetry).toHaveBeenCalled();
+        expect(uploader._notifyUploadRetry).toHaveBeenCalledWith(attempts + 1, jasmine.any(Object));
       });
 
       it("calls _getInitSignature with attempts incremented by 1", function() {
@@ -740,24 +742,22 @@ describe("bs3u.Uploader", function() {
     });
 
     it("adds the XHR object to the _XHRs array", function() {
-      spyOn(uploader, '_ajax').and.returnValue("XHR");
       expect(uploader._XHRs.length).toEqual(0);
       uploader._initiateUpload();
-      expect(uploader._XHRs[0]).toEqual("XHR");
+      expect(uploader._XHRs[0]).toEqual(mockAjaxClass);
     });
 
     describe("ajax settings", function() {
       var ajaxSettings;
 
       beforeEach(function() {
-        spyOn(uploader, '_ajax');
         uploader._date = "today";
         uploader._initSignature = "init-signature";
       });
 
       it("properly configures the url, method, and headers for the call", function() {
         uploader._initiateUpload();
-        ajaxSettings = uploader._ajax.calls.argsFor(0)[0];
+        ajaxSettings = bs3u.Ajax.calls.argsFor(0)[0];
 
         expect(ajaxSettings.url).toEqual("some-host/my-upload-key?uploads");
         expect(ajaxSettings.method).toEqual("POST");
@@ -771,7 +771,7 @@ describe("bs3u.Uploader", function() {
         it("does not set the encryption header", function() {
           uploader.settings.encrypted = false;
           uploader._initiateUpload();
-          ajaxSettings = uploader._ajax.calls.argsFor(0)[0];
+          ajaxSettings = bs3u.Ajax.calls.argsFor(0)[0];
           expect(ajaxSettings.headers['x-amz-server-side-encryption']).toBeUndefined();
         });
       });
@@ -780,34 +780,50 @@ describe("bs3u.Uploader", function() {
         it("sets the encryption header", function() {
           uploader.settings.encrypted = true;
           uploader._initiateUpload();
-          ajaxSettings = uploader._ajax.calls.argsFor(0)[0];
+          ajaxSettings = bs3u.Ajax.calls.argsFor(0)[0];
           expect(ajaxSettings.headers['x-amz-server-side-encryption']).toEqual("AES256");
         });
       });
 
     });
+  });
 
-    describe("a successful response", function() {
+  describe("_initiateUploadSuccess", function() {
+    var uploader, mockSettings, mockFile, attempts;
+
+    beforeEach(function() {
+      attempts = 1;
+      mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
+      mockSettings = {
+        host: 'some-host',
+        key: "my-upload-key",
+        acl: "private",
+        encrypted: false,
+        maxRetries: 3,
+        awsAccessKey: 'my-access-key',
+
+      };
+      uploader = new bs3u.Uploader(mockFile, mockSettings);
+    });
+
+    describe("a 200 response", function() {
       var mockResponse, xml;
 
       beforeEach(function() {
         xml = new DOMParser().parseFromString("<SomeResponse><UploadId>the-upload-id</UploadId></SomeResponse>","text/xml");
         mockResponse = {
+          status: 200,
           target: {
             responseXML: xml
           }
         };
-        spyOn(uploader, '_ajax').and.callFake(function(config) {
-          config.status = 200;
-          config.success(mockResponse);
-        });
         spyOn(uploader, '_getRemainingSignatures').and.callFake(function(retries, callback) {
           callback();
         });
         spyOn(uploader, '_uploadChunks');
         spyOn(uploader, '_startProgressWatcher');
         spyOn(uploader, '_startBandwidthMonitor');
-        uploader._initiateUpload();
+        uploader._initiateUploadSuccess(attempts, mockResponse);
       });
 
       it("stores the uploadId from the response xml", function() {
@@ -829,18 +845,15 @@ describe("bs3u.Uploader", function() {
       it("starts the bandwidth monitor interval", function() {
         expect(uploader._startBandwidthMonitor).toHaveBeenCalled();
       });
-
     });
 
-    describe("a failed response", function() {
+    describe("a non-200 response", function() {
       var mockResponse;
 
       beforeEach(function() {
-        mockResponse = {};
-        spyOn(uploader, '_ajax').and.callFake(function(config) {
-          config.status = 400;
-          config.error(null);
-        });
+        mockResponse = {
+          status: 400
+        };
       });
 
       describe("and retries are available", function() {
@@ -850,18 +863,17 @@ describe("bs3u.Uploader", function() {
           });
 
           spyOn(uploader, '_notifyUploadRetry');
-          spyOn(uploader, '_initiateUpload').and.callThrough();
+          spyOn(uploader, '_initiateUpload');
 
-          uploader._initiateUpload();
+          uploader._initiateUploadSuccess(attempts, mockResponse);
         });
 
         it("notifies about the next retry attempt", function() {
-          expect(uploader._notifyUploadRetry.calls.count()).toEqual(mockSettings.maxRetries);
+          expect(uploader._notifyUploadRetry).toHaveBeenCalledWith(attempts + 1, jasmine.any(Object));
         });
 
-        it("retries the call, up to the maxRetries setting", function() {
-          // 3 retries and 1 inital call
-          expect(uploader._initiateUpload.calls.count()).toEqual(mockSettings.maxRetries + 1);
+        it("retries the call", function() {
+          expect(uploader._initiateUpload).toHaveBeenCalledWith(attempts + 1);
         });
       });
 
@@ -871,7 +883,7 @@ describe("bs3u.Uploader", function() {
           spyOn(uploader, '_notifyUploadError');
           spyOn(uploader, '_setFailed');
           spyOn(uploader, '_resetData');
-          uploader._initiateUpload();
+          uploader._initiateUploadSuccess(attempts, mockResponse);
         });
 
         it("notifies that the upload has failed", function() {

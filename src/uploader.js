@@ -219,7 +219,7 @@ bs3u.Uploader.prototype._getInitSignature = function(retries) {
   });
 
   ajax.onSuccess(function(response) {
-    uploader._getInitSignatureSuccess(response);
+    uploader._getInitSignatureSuccess(attempts, response);
   });
 
   ajax.onError(function(response) {
@@ -234,7 +234,7 @@ bs3u.Uploader.prototype._getInitSignature = function(retries) {
   uploader._XHRs.push(ajax);
 };
 
-bs3u.Uploader.prototype._getInitSignatureSuccess = function(response) {
+bs3u.Uploader.prototype._getInitSignatureSuccess = function(attempts, response) {
   var uploader = this;
   if (response.status == 200) {
     uploader._log("Init signature retrieved");
@@ -244,7 +244,7 @@ bs3u.Uploader.prototype._getInitSignatureSuccess = function(response) {
     uploader._initiateUpload();
   } else {
     uploader._log("Server returned a non-200. Deferring to error handler!");
-    uploader._getInitSignatureError(response);
+    uploader._getInitSignatureError(attempts, response);
   }
 };
 
@@ -290,51 +290,67 @@ bs3u.Uploader.prototype._initiateUpload = function(retries) {
     headers["x-amz-server-side-encryption"] = "AES256";
   }
 
-  var xhr = uploader._ajax({
+  var ajax = new bs3u.Ajax({
     url: uploader.settings.host + "/" + uploader.settings.key + "?uploads",
     method: "POST",
-    headers: headers,
-    success: function(response) {
-      var xhr = this;
-      if (xhr.status == 200) {
-        uploader._log("Upload initiated.");
-        var xml = response.target.responseXML;
-        uploader._uploadId = xml.getElementsByTagName('UploadId')[0].textContent;
-
-        uploader._getRemainingSignatures(0, function() {
-          uploader._uploadChunks();
-          uploader._startProgressWatcher();
-          uploader._startBandwidthMonitor();
-        });
-
-      } else {
-        uploader._log("Initiate upload error. Deferring to error handler.");
-        xhr._data.error();
-      }
-    },
-    error: function(response) {
-      var xhr = this;
-      if (uploader._retryAvailable(attempts)) {
-        attempts += 1;
-        uploader._log("Retrying to initiate the upload.");
-        setTimeout(function() {
-          var data = {
-            action: "initiateUpload",
-            xhr: xhr
-          };
-          uploader._notifyUploadRetry(attempts, data);
-          uploader._initiateUpload(attempts);
-        }, 2000 * attempts);
-      } else {
-        var errorCode = 3;
-        uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
-        uploader._setFailed();
-        uploader._resetData();
-        uploader._log("Uploader error!", uploader.errors[errorCode]);
-      }
-    }
+    headers: headers
   });
-  uploader._XHRs.push(xhr);
+
+  ajax.onSuccess(function(response) {
+    uploader._initiateUploadSuccess(attempts, response);
+  });
+
+  ajax.onError(function(response) {
+    uploader._initiateUploadError(attempts, response);
+  });
+  
+  ajax.onTimeout(function(response) {
+    uploader._initiateUploadError(attempts, response);
+  });
+
+  ajax.send();
+  uploader._XHRs.push(ajax);
+};
+
+bs3u.Uploader.prototype._initiateUploadSuccess = function(attempts, response) {
+  var uploader = this;
+  if (response.status == 200) {
+    uploader._log("Upload initiated.");
+    var xml = response.target.responseXML;
+    uploader._uploadId = xml.getElementsByTagName('UploadId')[0].textContent;
+
+    uploader._getRemainingSignatures(0, function() {
+      uploader._uploadChunks();
+      uploader._startProgressWatcher();
+      uploader._startBandwidthMonitor();
+    });
+
+  } else {
+    uploader._log("Initiate upload error. Deferring to error handler.");
+    uploader._initiateUploadError(attempts, response);
+  }
+};
+
+bs3u.Uploader.prototype._initiateUploadError = function(attempts, response) {
+  var uploader = this;
+  if (uploader._retryAvailable(attempts)) {
+    attempts += 1;
+    uploader._log("Retrying to initiate the upload.");
+    setTimeout(function() {
+      var data = {
+        action: "initiateUpload",
+        xhr: response
+      };
+      uploader._notifyUploadRetry(attempts, data);
+      uploader._initiateUpload(attempts);
+    }, 2000 * attempts);
+  } else {
+    var errorCode = 3;
+    uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
+    uploader._setFailed();
+    uploader._resetData();
+    uploader._log("Uploader error!", uploader.errors[errorCode]);
+  }
 };
 
 // Using the UploadId, retrieve the remaining signatures required for uploads
