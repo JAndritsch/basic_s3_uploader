@@ -1048,62 +1048,6 @@ BasicS3Uploader.prototype._validateFileIsReadable = function(callback) {
   }
 };
 
-
-// A convenient and uniform way for creating and sending XHR requests.
-BasicS3Uploader.prototype._ajax = function(data) {
-  var uploader = this;
-  var url = data.url;
-  var method = data.method || "GET";
-  var body = data.body;
-  var params = data.params;
-  var headers = data.headers || {};
-  var customHeaders = data.customHeaders || {};
-
-  var success = data.success || function(response) {};
-  var error = data.error || function(response) {};
-  var stateChange = data.stateChange || function(response) {};
-  var progress = data.progress || function(response) {};
-
-  var xhr = new XMLHttpRequest();
-  xhr._data = data;
-
-  xhr.addEventListener("error", error, true);
-  xhr.addEventListener("timeout", error, true);
-  xhr.addEventListener("load", success, true);
-  xhr.addEventListener("readystatechange", stateChange);
-  xhr.upload.addEventListener("progress", progress);
-
-  if (params) {
-    for (var name in params) {
-      if (url.indexOf('?') !== -1) {
-        url += "&";
-      } else {
-        url += "?";
-      }
-
-      url += encodeURIComponent(name) + "=";
-      url += encodeURIComponent(params[name]);
-    }
-  }
-
-  xhr.open(method, url);
-
-  for (var customHeader in customHeaders) {
-    xhr.setRequestHeader(customHeader, customHeaders[customHeader]);
-  }
-
-  for (var header in headers) {
-    xhr.setRequestHeader(header, headers[header]);
-  }
-
-  if (body) {
-    xhr.send(body);
-  } else {
-    xhr.send();
-  }
-  return xhr;
-};
-
 BasicS3Uploader.prototype._requiresFirefoxHack = function() {
   return navigator.userAgent.indexOf("Firefox") !== -1;
 };
