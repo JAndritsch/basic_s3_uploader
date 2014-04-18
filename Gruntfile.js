@@ -25,7 +25,7 @@ module.exports = function(grunt) {
         {
           expand: true,
           src: [
-            'src/basic_s3_uploader.js',
+            'dist/basic_s3_uploader.js',
             'src/basic_s3_uploader_mock.js',
           ],
           dest: 'sample_app/public/javascripts/',
@@ -46,13 +46,24 @@ module.exports = function(grunt) {
     tasks: ['test']
   });
 
+  grunt.config('concat', {
+    options: {
+      separator: '\n\n',
+    },
+    dist: {
+      src: ['src/bs3u.js', 'src/ajax.js', 'src/uploader.js'],
+      dest: 'dist/basic_s3_uploader.js',
+    }
+  });
+
   grunt.loadNpmTasks('grunt-karma');
   grunt.loadNpmTasks('grunt-contrib-jshint');
   grunt.loadNpmTasks('grunt-contrib-copy');
   grunt.loadNpmTasks('grunt-contrib-watch');
+  grunt.loadNpmTasks('grunt-contrib-concat');
 
   grunt.registerTask('test', ['jshint', 'karma']);
-  grunt.registerTask('build', ['test', 'copy']);
+  grunt.registerTask('build', ['test', 'concat', 'copy']);
 
   grunt.registerTask('default', ['test']);
 
