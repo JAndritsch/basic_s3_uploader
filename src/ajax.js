@@ -1,6 +1,6 @@
 bs3u.Ajax = function(config) {
-  this.config     = config;
-  this.xhr        = new XMLHttpRequest();
+  this.config = config;
+  this.xhr    = new XMLHttpRequest();
 };
 
 bs3u.Ajax.prototype.onError = function(callback) {

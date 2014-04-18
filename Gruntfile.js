@@ -48,7 +48,7 @@ module.exports = function(grunt) {
 
   grunt.config('concat', {
     options: {
-      separator: '\n\n',
+      separator: '\n',
     },
     dist: {
       src: ['src/bs3u.js', 'src/ajax.js', 'src/uploader.js'],
