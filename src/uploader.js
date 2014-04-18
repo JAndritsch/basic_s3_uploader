@@ -376,7 +376,7 @@ bs3u.Uploader.prototype._getRemainingSignatures = function(retries, successCallb
 
   uploader._log("Attempting to get the remaining upload signatures");
 
-  var xhr = uploader._ajax({
+  var ajax = new bs3u.Ajax({
     url: uploader.settings.signatureBackend + uploader.settings.remainingSignaturesPath,
     method: "GET",
     params: {
@@ -386,47 +386,63 @@ bs3u.Uploader.prototype._getRemainingSignatures = function(retries, successCallb
       bucket: uploader.settings.bucket,
       key: uploader.settings.key
     },
-    customHeaders: uploader.settings.customHeaders,
-    success: function(response) {
-      var xhr = this;
-      if (xhr.status == 200) {
-        uploader._log("Remaining signatures have been retrieved");
-        var json = JSON.parse(response.target.responseText);
-
-        uploader._chunkSignatures = json.chunk_signatures;
-        uploader._completeSignature = json.complete_signature;
-        uploader._listSignature = json.list_signature;
-
-        if (successCallback) { successCallback(); }
-
-      } else {
-        uploader._log("Failed to get remaining signatures. Deferring to error handler");
-        xhr._data.error();
-      }
-    },
-    error: function(response) {
-      var xhr = this;
-      if (uploader._retryAvailable(attempts)) {
-        attempts += 1;
-        uploader._log("Retrying retrieval of remaining signatures");
-        setTimeout(function() {
-          var data = {
-            action: "getRemainingSignatures",
-            xhr: xhr
-          };
-          uploader._notifyUploadRetry(attempts, data);
-          uploader._getRemainingSignatures(attempts, successCallback);
-        }, 2000 * attempts);
-      } else {
-        var errorCode = 4;
-        uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
-        uploader._setFailed();
-        uploader._resetData();
-        uploader._log("Uploader error!", uploader.errors[errorCode]);
-      }
-    }
+    headers: uploader.settings.customHeaders
   });
-  uploader._XHRs.push(xhr);
+
+  ajax.onSuccess(function(response) {
+    uploader._getRemainingSignaturesSuccess(attempts, response, successCallback);
+  });
+
+  ajax.onError(function(response) {
+    uploader._getRemainingSignaturesError(attempts, response, successCallback);
+  });
+
+  ajax.onTimeout(function(response) {
+    uploader._getRemainingSignaturesError(attempts, response, successCallback);
+  });
+
+  ajax.send();
+  uploader._XHRs.push(ajax);
+};
+
+bs3u.Uploader.prototype._getRemainingSignaturesSuccess = function(attempts, response, successCallback) {
+  var uploader = this;
+  if (response.status == 200) {
+    uploader._log("Remaining signatures have been retrieved");
+    var json = JSON.parse(response.target.responseText);
+
+    uploader._chunkSignatures = json.chunk_signatures;
+    uploader._completeSignature = json.complete_signature;
+    uploader._listSignature = json.list_signature;
+
+    if (successCallback) { successCallback(); }
+
+  } else {
+    uploader._log("Failed to get remaining signatures. Deferring to error handler");
+    uploader._getRemainingSignaturesError(attempts, response, successCallback);
+  }
+};
+
+bs3u.Uploader.prototype._getRemainingSignaturesError = function(attempts, response, successCallback) {
+  var uploader = this;
+  if (uploader._retryAvailable(attempts)) {
+    attempts += 1;
+    uploader._log("Retrying retrieval of remaining signatures");
+    setTimeout(function() {
+      var data = {
+        action: "getRemainingSignatures",
+        xhr: response
+      };
+      uploader._notifyUploadRetry(attempts, data);
+      uploader._getRemainingSignatures(attempts, successCallback);
+    }, 2000 * attempts);
+  } else {
+    var errorCode = 4;
+    uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
+    uploader._setFailed();
+    uploader._resetData();
+    uploader._log("Uploader error!", uploader.errors[errorCode]);
+  }
 };
 
 // Iterate over all chunks and start all uploads simultaneously
