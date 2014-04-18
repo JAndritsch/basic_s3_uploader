@@ -598,7 +598,7 @@ bs3u.Uploader.prototype._verifyAllChunksUploaded = function(retries) {
 
   uploader._log("Verifying all chunks have been uploaded");
 
-  var xhr = uploader._ajax({
+  var ajax = new bs3u.Ajax({
     url: uploader.settings.host + "/" + uploader.settings.key,
     method: "GET",
     params: {
@@ -607,76 +607,90 @@ bs3u.Uploader.prototype._verifyAllChunksUploaded = function(retries) {
     headers: {
       "x-amz-date": date,
       "Authorization": authorization
-    },
-    success: function(response) {
-      var xhr = this;
-
-      if (xhr.status == 200) {
-
-        var xml = response.target.responseXML;
-        var invalidParts = [];
-        var parts = xml.getElementsByTagName("Part");
-        var totalParts = Object.keys(uploader._chunks).length;
-
-        for (var i = 0; i < parts.length; i++) {
-          var part = parts[i];
-
-          var number = parseInt(part.getElementsByTagName("PartNumber")[0].textContent, 10);
-          var eTag = part.getElementsByTagName("ETag")[0].textContent;
-          var size = parseInt(part.getElementsByTagName("Size")[0].textContent, 10);
-
-          var uploadedChunk = uploader._chunks[number];
-          var expectedSize = uploadedChunk.endRange - uploadedChunk.startRange;
-
-          if (!uploadedChunk || eTag != uploader._eTags[number] || size != expectedSize) {
-            invalidParts.push(number);
-          }
-        }
-
-        if (totalParts != parts.length) {
-          uploader._log("Some chunks are missing. Attempting to re-upload them.");
-          uploader._handleMissingChunks(parts);
-        } else if (invalidParts.length > 0) {
-          uploader._log("Some chunks are invalid. Attempting to re-upload them.");
-          uploader._handleInvalidChunks(invalidParts);
-        } else {
-          uploader._log("All chunks have been uploaded");
-          uploader._completeUpload();
-        }
-
-      } else {
-        uploader._log("Chunk verification has failed. Deferring to error handler");
-        xhr._data.error();
-      }
-
-    },
-    error: function(response) {
-      var xhr = this;
-      if (uploader._retryAvailable(attempts)) {
-        attempts += 1;
-        uploader._log("Retrying chunk verification");
-        setTimeout(function() {
-          var data = {
-            action: "verifyAllChunksUploaded",
-            xhr: xhr
-          };
-          uploader._notifyUploadRetry(attempts, data);
-
-          uploader._getRemainingSignatures(0, function() {
-            uploader._verifyAllChunksUploaded(attempts);
-          });
-
-        }, 2000 * attempts);
-      } else {
-        var errorCode = 6;
-        uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
-        uploader._setFailed();
-        uploader._resetData();
-        uploader._log("Uploader error!", uploader.errors[errorCode]);
-      }
     }
   });
-  uploader._XHRs.push(xhr);
+
+  ajax.onSuccess(function(response) {
+    uploader._verifyAllChunksUploadedSuccess(attempts, response);
+  });
+
+  ajax.onError(function(response) {
+    uploader._verifyAllChunksUploadedError(attempts, response);
+  });
+
+  ajax.onTimeout(function(response) {
+    uploader._verifyAllChunksUploadedError(attempts, response);
+  });
+
+  ajax.send();
+  uploader._XHRs.push(ajax);
+};
+
+bs3u.Uploader.prototype._verifyAllChunksUploadedSuccess = function(attempts, response) {
+  var uploader = this;
+
+  if (response.status == 200) {
+    var xml = response.target.responseXML;
+    var invalidParts = [];
+    var parts = xml.getElementsByTagName("Part");
+    var totalParts = Object.keys(uploader._chunks).length;
+
+    for (var i = 0; i < parts.length; i++) {
+      var part = parts[i];
+
+      var number = parseInt(part.getElementsByTagName("PartNumber")[0].textContent, 10);
+      var eTag = part.getElementsByTagName("ETag")[0].textContent;
+      var size = parseInt(part.getElementsByTagName("Size")[0].textContent, 10);
+
+      var uploadedChunk = uploader._chunks[number];
+      var expectedSize = uploadedChunk.endRange - uploadedChunk.startRange;
+
+      if (!uploadedChunk || eTag != uploader._eTags[number] || size != expectedSize) {
+        invalidParts.push(number);
+      }
+    }
+
+    if (totalParts != parts.length) {
+      uploader._log("Some chunks are missing. Attempting to re-upload them.");
+      uploader._handleMissingChunks(parts);
+    } else if (invalidParts.length > 0) {
+      uploader._log("Some chunks are invalid. Attempting to re-upload them.");
+      uploader._handleInvalidChunks(invalidParts);
+    } else {
+      uploader._log("All chunks have been uploaded");
+      uploader._completeUpload();
+    }
+
+  } else {
+    uploader._log("Chunk verification has failed. Deferring to error handler");
+    uploader._verifyAllChunksUploadedError(attempts, response);
+  }
+};
+
+bs3u.Uploader.prototype._verifyAllChunksUploadedError = function(attempts, response) {
+  var uploader = this;
+  if (uploader._retryAvailable(attempts)) {
+    attempts += 1;
+    uploader._log("Retrying chunk verification");
+    setTimeout(function() {
+      var data = {
+        action: "verifyAllChunksUploaded",
+        xhr: response
+      };
+      uploader._notifyUploadRetry(attempts, data);
+
+      uploader._getRemainingSignatures(0, function() {
+        uploader._verifyAllChunksUploaded(attempts);
+      });
+
+    }, 2000 * attempts);
+  } else {
+    var errorCode = 6;
+    uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
+    uploader._setFailed();
+    uploader._resetData();
+    uploader._log("Uploader error!", uploader.errors[errorCode]);
+  }
 };
 
 // Iterates over the list of invalid chunks and calls _retryChunk.
