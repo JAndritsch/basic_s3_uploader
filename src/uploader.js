@@ -234,6 +234,7 @@ bs3u.Uploader.prototype._getInitSignature = function(retries) {
   uploader._XHRs.push(ajax);
 };
 
+// The success callback for getting an init signature
 bs3u.Uploader.prototype._getInitSignatureSuccess = function(attempts, response) {
   var uploader = this;
   if (response.status == 200) {
@@ -248,6 +249,7 @@ bs3u.Uploader.prototype._getInitSignatureSuccess = function(attempts, response) 
   }
 };
 
+// The error callback for getting an init signature
 bs3u.Uploader.prototype._getInitSignatureError = function(attempts, response) {
   var uploader = this;
   if (uploader._retryAvailable(attempts)) {
@@ -312,6 +314,7 @@ bs3u.Uploader.prototype._initiateUpload = function(retries) {
   uploader._XHRs.push(ajax);
 };
 
+// The success callback for initiating an upload
 bs3u.Uploader.prototype._initiateUploadSuccess = function(attempts, response) {
   var uploader = this;
   if (response.status == 200) {
@@ -331,6 +334,7 @@ bs3u.Uploader.prototype._initiateUploadSuccess = function(attempts, response) {
   }
 };
 
+// The error callback for initiating an upload
 bs3u.Uploader.prototype._initiateUploadError = function(attempts, response) {
   var uploader = this;
   if (uploader._retryAvailable(attempts)) {
@@ -405,6 +409,7 @@ bs3u.Uploader.prototype._getRemainingSignatures = function(retries, successCallb
   uploader._XHRs.push(ajax);
 };
 
+// The success callback for getting the remaining signatures
 bs3u.Uploader.prototype._getRemainingSignaturesSuccess = function(attempts, response, successCallback) {
   var uploader = this;
   if (response.status == 200) {
@@ -423,6 +428,7 @@ bs3u.Uploader.prototype._getRemainingSignaturesSuccess = function(attempts, resp
   }
 };
 
+// The error callback for getting the remaining signatures
 bs3u.Uploader.prototype._getRemainingSignaturesError = function(attempts, response, successCallback) {
   var uploader = this;
   if (uploader._retryAvailable(attempts)) {
@@ -1101,3 +1107,6 @@ bs3u.Uploader.prototype.errors = {
   8: "Max number of retries have been met. Unable to complete multipart upload!"
 
 };
+
+// For backwards compatibility
+var BasicS3Uploader = bs3u.Uploader;

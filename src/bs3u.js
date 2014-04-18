@@ -6,6 +6,3 @@ var bs3u = {
     patch: "5"
   }
 };
-
-// For backwards compatibility
-var BasicS3Uploader = bs3u.Uploader;

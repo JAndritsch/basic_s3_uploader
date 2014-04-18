@@ -14,6 +14,10 @@ describe("bs3u.Uploader", function() {
     spyOn(bs3u, 'Ajax').and.returnValue(mockAjaxClass);
   });
 
+  it("should also be referred to as BasicS3Uploader", function() {
+    expect(bs3u.Uploader).toEqual(BasicS3Uploader);
+  });
+
   describe("constructor", function() {
     var uploader, mockFile, mockSettings;
 
