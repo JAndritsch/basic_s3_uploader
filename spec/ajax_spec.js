@@ -69,11 +69,11 @@ describe("bs3u.Ajax", function() {
     });
   });
 
-  describe("onLoad", function() {
+  describe("onSuccess", function() {
     var callbackSpy;
     beforeEach(function() {
       callbackSpy = jasmine.createSpy();
-      ajax.onLoad(callbackSpy);
+      ajax.onSuccess(callbackSpy);
     });
 
     it("registers the provided callback to the 'load' XHR event", function() {

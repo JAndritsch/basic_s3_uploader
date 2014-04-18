@@ -13,7 +13,7 @@ bs3u.Ajax.prototype.onTimeout = function(callback) {
   this.xhr.addEventListener("timeout", callback, true);
 };
 
-bs3u.Ajax.prototype.onLoad = function(callback) {
+bs3u.Ajax.prototype.onSuccess = function(callback) {
   callback = callback || function() {};
   this.xhr.addEventListener("load", callback, true);
 };

@@ -6,11 +6,12 @@ describe("bs3u.Uploader", function() {
     mockAjaxClass.onSuccess = function(callback) {};
     mockAjaxClass.onError = function(callback) {};
     mockAjaxClass.onTimeout = function(callback) {};
-    mockAjaxClass.xhr = {};
+    mockAjaxClass.onProgress = function(callback) {};
     spyOn(mockAjaxClass, 'send');
     spyOn(mockAjaxClass, 'onSuccess');
     spyOn(mockAjaxClass, 'onError');
     spyOn(mockAjaxClass, 'onTimeout');
+    spyOn(mockAjaxClass, 'onProgress');
     spyOn(bs3u, 'Ajax').and.returnValue(mockAjaxClass);
   });
 
@@ -1049,7 +1050,7 @@ describe("bs3u.Uploader", function() {
       callback(mockResponse);
       expect(uploader._getRemainingSignaturesError).toHaveBeenCalledWith(attempts, mockResponse, signatureCallback);
     });
-    
+
     it("sends the ajax request", function() {
       uploader._getRemainingSignatures();
       expect(mockAjaxClass.send).toHaveBeenCalled();
@@ -1277,6 +1278,7 @@ describe("bs3u.Uploader", function() {
 
       };
       uploader = new bs3u.Uploader(mockFile, mockSettings);
+      uploader._chunkUploadsInProgress = 0;
       uploader._uploadId = "upload-id";
       uploader._chunks = {
         1: { startRange: 0, endRange: 1000, uploading: false, uploadComplete: false }
@@ -1286,188 +1288,255 @@ describe("bs3u.Uploader", function() {
       };
     });
 
-    it("adds the XHR object to the _chunkXHRs map", function() {
-      spyOn(uploader, '_ajax').and.returnValue("XHR");
+    it("increments the number of uploads in progress by 1", function() {
+      uploader._uploadChunk(1);
+      expect(uploader._chunkUploadsInProgress).toEqual(1);
+    });
+
+    it("sets the correct statuses for the chunk", function() {
+      uploader._uploadChunk(1);
+      expect(uploader._chunks[1].uploading).toBeTruthy();
+      expect(uploader._chunks[1].uploadComplete).toBeFalsy();
+    });
+
+    it("properly configures the url, method, params, and headers for the call", function() {
+      uploader._uploadChunk(1);
+      var ajaxSettings = bs3u.Ajax.calls.argsFor(0)[0];
+      expect(ajaxSettings.url).toEqual('some-host/my-upload-key');
+      expect(ajaxSettings.method).toEqual('PUT');
+      expect(ajaxSettings.params.uploadId).toEqual('upload-id');
+      expect(ajaxSettings.params.partNumber).toEqual(1);
+      expect(ajaxSettings.headers['x-amz-date']).toEqual('date');
+      expect(ajaxSettings.headers.Authorization).toEqual('AWS my-access-key:chunk-signature');
+      expect(ajaxSettings.headers['Content-Disposition']).toEqual('attachment; filename=myfile');
+      expect(ajaxSettings.headers['Content-Type']).toEqual('video/quicktime');
+    });
+
+    it("registers the progress callback", function() {
+      spyOn(uploader, '_uploadChunkProgress');
+      var chunkNumber = 1;
+      uploader._uploadChunk(chunkNumber);
+      var callback = mockAjaxClass.onProgress.calls.argsFor(0)[0];
+      var mockResponse = { status: 200 };
+      callback(mockResponse);
+      expect(uploader._uploadChunkProgress).toHaveBeenCalledWith(mockResponse, chunkNumber);
+    });
+
+    it("registers the success callback", function() {
+      spyOn(uploader, '_uploadChunkSuccess');
+      var chunkNumber = 1;
+      var attempts = 1;
+      uploader._uploadChunk(chunkNumber, attempts);
+      var callback = mockAjaxClass.onSuccess.calls.argsFor(0)[0];
+      var mockResponse = { status: 200 };
+      callback(mockResponse);
+      expect(uploader._uploadChunkSuccess).toHaveBeenCalledWith(attempts, mockResponse, chunkNumber);
+    });
+
+    it("registers the error callback", function() {
+      spyOn(uploader, '_uploadChunkError');
+      var chunkNumber = 1;
+      var attempts = 1;
+      uploader._uploadChunk(chunkNumber, attempts);
+      var callback = mockAjaxClass.onError.calls.argsFor(0)[0];
+      var mockResponse = { status: 200 };
+      callback(mockResponse);
+      expect(uploader._uploadChunkError).toHaveBeenCalledWith(attempts, mockResponse, chunkNumber);
+    });
+
+    it("registers the timeout callback", function() {
+      spyOn(uploader, '_uploadChunkError');
+      var chunkNumber = 1;
+      var attempts = 1;
+      uploader._uploadChunk(chunkNumber, attempts);
+      var callback = mockAjaxClass.onTimeout.calls.argsFor(0)[0];
+      var mockResponse = { status: 200 };
+      callback(mockResponse);
+      expect(uploader._uploadChunkError).toHaveBeenCalledWith(attempts, mockResponse, chunkNumber);
+    });
+
+    it("sends the request", function() {
+      var chunkNumber = 1;
+      var attempts = 1;
+      uploader._uploadChunk(chunkNumber, attempts);
+      expect(mockAjaxClass.send).toHaveBeenCalledWith("file-blob");
+    });
+
+    it("adds the XHR object to the _chunkXHRs object", function() {
       expect(Object.keys(uploader._chunkXHRs).length).toEqual(0);
       uploader._uploadChunk(1);
-      expect(uploader._chunkXHRs[1]).toEqual("XHR");
+      expect(uploader._chunkXHRs[1]).toEqual(mockAjaxClass);
     });
 
-    describe("ajax settings", function() {
-      var ajaxSettings;
+  });
 
-      beforeEach(function() {
-        spyOn(uploader, '_ajax');
-      });
+  describe("_uploadChunkProgress", function() {
+    var mockFile, mockSettings, uploader, mockResponse;
 
-      it("properly configures the url, method, params, and headers for the call", function() {
-        uploader._uploadChunk(1);
-        ajaxSettings = uploader._ajax.calls.argsFor(0)[0];
-        expect(ajaxSettings.url).toEqual('some-host/my-upload-key');
-        expect(ajaxSettings.method).toEqual('PUT');
-        expect(ajaxSettings.body).toEqual('file-blob');
-        expect(ajaxSettings.params.uploadId).toEqual('upload-id');
-        expect(ajaxSettings.params.partNumber).toEqual(1);
-        expect(ajaxSettings.headers['x-amz-date']).toEqual('date');
-        expect(ajaxSettings.headers.Authorization).toEqual('AWS my-access-key:chunk-signature');
-        expect(ajaxSettings.headers['Content-Disposition']).toEqual('attachment; filename=myfile');
-        expect(ajaxSettings.headers['Content-Type']).toEqual('video/quicktime');
-      });
-
+    beforeEach(function() {
+      mockFile = { name: "myfile", type: "video/quicktime", size: 1000, slice: function(start, end) { return "file-blob"; } };
+      mockSettings = {};
+      uploader = new bs3u.Uploader(mockFile, mockSettings);
+      uploader._chunks = {
+        1: { startRange: 0, endRange: 1000, uploading: false, uploadComplete: false }
+      };
+      mockResponse = {
+        loaded: 500
+      };
+      spyOn(uploader, '_notifyUploadProgress');
+      uploader._uploadChunkProgress(mockResponse, 1);
     });
 
-    describe("when progress is reported", function() {
-      var mockXHR;
+    it("sets the chunk's progress from the response", function() {
+      expect(uploader._chunkProgress[1]).toEqual(500);
+    });
+
+    it("notifies about upload progress", function() {
+      expect(uploader._notifyUploadProgress).toHaveBeenCalled();
+    });
+  });
+
+  describe("_uploadChunksSuccess", function() {
+    var mockFile, mockSettings, uploader, mockResponse, attempts, chunkNumber;
+
+    beforeEach(function() {
+      attempts = 1;
+      chunkNumber = 1;
+      mockFile = { name: "myfile", type: "video/quicktime", size: 1000, slice: function(start, end) { return "file-blob"; } };
+      mockSettings = {};
+      uploader = new bs3u.Uploader(mockFile, mockSettings);
+      uploader._chunks = {
+        1: { startRange: 0, endRange: 1000, uploading: true, uploadComplete: false },
+        2: { startRange: 0, endRange: 1000, uploading: true, uploadComplete: false }
+      };
+      uploader._chunkUploadsInProgress = 1;
+      uploader._chunkXHRs[chunkNumber] = "chunkXHR";
+    });
+
+    describe("a 200 response", function() {
       beforeEach(function() {
-        mockXHR = {};
         mockResponse = {
-          loaded: 1000
+          status: 200,
+          getResponseHeader: function(header) { return "eTag"; }
         };
-        spyOn(uploader, '_ajax').and.callFake(function(config) {
-          config.status = 200;
-          config.progress(mockResponse);
-          return mockXHR;
-        });
-        spyOn(window, 'Date').and.returnValue({
-          getTime: function() { return "timestamp"; }
-        });
-        spyOn(uploader, '_notifyUploadProgress');
-        uploader._chunkXHRs = {
-          1: mockXHR
-        };
-        uploader._uploadChunk(1);
-      });
-
-      it("stores the progress returned in the chunkProgress hash", function() {
-        expect(uploader._chunkProgress[1]).toEqual(1000);
-      });
-
-      it("sets the lastProgressAt timestamp on the chunkXHR", function() {
-        expect(uploader._chunkXHRs[1].lastProgressAt).toEqual("timestamp");
-      });
-
-      it("notfies that there was upload progress", function() {
-        expect(uploader._notifyUploadProgress).toHaveBeenCalled();
-      });
-    });
-
-    describe("a successful response", function() {
-      var mocks;
-
-      beforeEach(function() {
-        mocks = {
-          getResponseHeader: function(header) {}
-        };
-        mockResponse = "";
-        spyOn(uploader, '_ajax').and.callFake(function(config) {
-          config.status = 200;
-          config.getResponseHeader = mocks.getResponseHeader;
-          config.success(null);
-        });
         spyOn(uploader, '_notifyChunkUploaded');
-        spyOn(mocks, 'getResponseHeader').and.returnValue('eTag');
-
       });
 
-      describe("handles the chunk status and stores data about the upload", function() {
-        beforeEach(function() {
-          spyOn(uploader, '_allETagsAvailable').and.returnValue(false);
-          spyOn(uploader, '_uploadChunks');
-          uploader._uploadChunk(1);
-        });
+      it("updates the chunk statuses", function() {
+        uploader._uploadChunkSuccess(attempts, mockResponse, chunkNumber);
+        expect(uploader._chunks[chunkNumber].uploading).toBeFalsy();
+        expect(uploader._chunks[chunkNumber].uploadComplete).toBeTruthy();
+      });
 
-        it("flags the chunk as no longer uploading and that the upload is complete", function() {
-          expect(uploader._chunks[1].uploading).toBeFalsy();
-          expect(uploader._chunks[1].uploadComplete).toBeTruthy();
-        });
+      it("deletes the chunk XHR", function() {
+        uploader._uploadChunkSuccess(attempts, mockResponse, chunkNumber);
+        expect(uploader._chunkXHRs[chunkNumber]).toBeUndefined();
+      });
 
-        it("deletes the chunk XHR object", function() {
-          expect(uploader._chunkXHRs[1]).toBeUndefined();
-        });
+      it("decrements the chunkUploadsInProgress by 1", function() {
+        uploader._uploadChunkSuccess(attempts, mockResponse, chunkNumber);
+        expect(uploader._chunkUploadsInProgress).toEqual(0);
+      });
 
-        it("decrements _chunkUploadsInProgress by 1", function() {
-          expect(uploader._chunkUploadsInProgress).toEqual(0);
-        });
+      it("notifies the chunks has been uploaded", function() {
+        uploader._uploadChunkSuccess(attempts, mockResponse, chunkNumber);
+        var totalChunks = 2;
+        expect(uploader._notifyChunkUploaded).toHaveBeenCalledWith(chunkNumber, totalChunks);
+      });
 
-        it("notifies that the chunk has uploaded", function() {
-          var totalChunks = Object.keys(uploader._chunks).length;
-          expect(uploader._notifyChunkUploaded).toHaveBeenCalledWith(1, totalChunks);
-        });
-
-        it("gets the eTag from the responseHeaders and stores it", function() {
-          expect(mocks.getResponseHeader).toHaveBeenCalledWith("ETag");
-          expect(uploader._eTags[1]).toEqual("eTag");
-        });
+      it("stores the eTag for the chunk", function() {
+        uploader._uploadChunkSuccess(attempts, mockResponse, chunkNumber);
+        expect(uploader._eTags[chunkNumber]).toEqual("eTag");
       });
 
       describe("when all eTags are available", function() {
         beforeEach(function() {
           spyOn(uploader, '_allETagsAvailable').and.returnValue(true);
           spyOn(uploader, '_verifyAllChunksUploaded');
-          uploader._uploadChunk(1);
+          uploader._uploadChunkSuccess(attempts, mockResponse, chunkNumber);
         });
 
-        it("calls to verify if all chunks have been uploaded", function() {
+        it("verifies that all chunks have been uploaded", function() {
           expect(uploader._verifyAllChunksUploaded).toHaveBeenCalled();
         });
       });
 
-      describe("when not all eTags are avaialble", function() {
+      describe("when not all eTags are available", function() {
         beforeEach(function() {
           spyOn(uploader, '_allETagsAvailable').and.returnValue(false);
           spyOn(uploader, '_uploadChunks');
-          uploader._uploadChunk(1);
+          uploader._uploadChunkSuccess(attempts, mockResponse, chunkNumber);
         });
 
         it("continues uploading the remaining chunks", function() {
           expect(uploader._uploadChunks).toHaveBeenCalled();
         });
       });
-
     });
 
-    describe("a failed response", function() {
-      var xhrAbortSpy;
-
+    describe("a non-200 response", function() {
       beforeEach(function() {
-        xhrAbortSpy = jasmine.createSpy();
-        uploader._chunkXHRs[1] = { abort: xhrAbortSpy };
-        spyOn(uploader, '_ajax').and.callFake(function(config) {
-          config.status = 400;
-          config.error(null);
-        });
-        spyOn(window, 'setTimeout').and.callFake(function(callback, interval) {
-          callback();
-        });
-        spyOn(uploader, '_notifyUploadRetry');
-        spyOn(uploader, '_retryChunk');
-        uploader._uploadChunk(1);
+        mockResponse = {
+          status: 500
+        };
+        spyOn(uploader, '_uploadChunkError');
+        uploader._uploadChunkSuccess(attempts, mockResponse, chunkNumber);
       });
 
-      it("decrements the _chunkUploadsInProgress by one", function() {
-        expect(uploader._chunkUploadsInProgress).toEqual(0);
+      it("calls the error handler", function() {
+        expect(uploader._uploadChunkError).toHaveBeenCalledWith(attempts, mockResponse, chunkNumber);
       });
+    });
+  });
 
-      it("sets uploading and uploadComplete to false for the chunk", function() {
-        expect(uploader._chunks[1].uploading).toBeFalsy();
-        expect(uploader._chunks[1].uploadComplete).toBeFalsy();
-      });
+  describe("_uploadChunkError", function() {
+    var uploader, mockSettings, mockFile, xhrAbortSpy, attempts, mockResponse, chunkNumber;
 
-      it("aborts the XHR for that chunk", function() {
-        expect(xhrAbortSpy).toHaveBeenCalled();
+    beforeEach(function() {
+      mockFile = { name: "myfile", type: "video/quicktime", size: 1000, slice: function(start, end) { return "file-blob"; } };
+      mockSettings = {};
+      uploader = new bs3u.Uploader(mockFile, mockSettings);
+      xhrAbortSpy = jasmine.createSpy();
+      chunkNumber = 1;
+      mockResponse = {};
+      attempts = 1;
+      uploader._chunkXHRs[chunkNumber] = { abort: xhrAbortSpy };
+      spyOn(window, 'setTimeout').and.callFake(function(callback, interval) {
+        callback();
       });
+      spyOn(uploader, '_notifyUploadRetry');
+      spyOn(uploader, '_retryChunk');
+      uploader._chunkUploadsInProgress = 1;
+      uploader._chunks = {
+        1: { uploading: true, uploadComplete: true }
+      };
 
-      it("deletes the XHR for that chunk", function() {
-        expect(uploader._chunkXHRs[1]).toBeUndefined();
-      });
+      uploader._uploadChunkError(attempts, mockResponse, chunkNumber);
+    });
 
-      it("notfies that the chunk upload is going to retry another attempt", function() {
-        expect(uploader._notifyUploadRetry).toHaveBeenCalled();
-      });
+    it("decrements the _chunkUploadsInProgress by one", function() {
+      expect(uploader._chunkUploadsInProgress).toEqual(0);
+    });
 
-      it("retries uploading the chunk", function() {
-        expect(uploader._retryChunk).toHaveBeenCalledWith(1);
-      });
+    it("sets uploading and uploadComplete to false for the chunk", function() {
+      expect(uploader._chunks[chunkNumber].uploading).toBeFalsy();
+      expect(uploader._chunks[chunkNumber].uploadComplete).toBeFalsy();
+    });
+
+    it("aborts the XHR for that chunk", function() {
+      expect(xhrAbortSpy).toHaveBeenCalled();
+    });
+
+    it("deletes the XHR for that chunk", function() {
+      expect(uploader._chunkXHRs[chunkNumber]).toBeUndefined();
+    });
+
+    it("notfies that the chunk upload is going to retry another attempt", function() {
+      expect(uploader._notifyUploadRetry).toHaveBeenCalled();
+    });
+
+    it("retries uploading the chunk", function() {
+      expect(uploader._retryChunk).toHaveBeenCalledWith(chunkNumber);
     });
   });
 

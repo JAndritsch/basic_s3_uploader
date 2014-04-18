@@ -489,11 +489,11 @@ bs3u.Uploader.prototype._uploadChunk = function(number, retries) {
   var signature = uploader._chunkSignatures[number].signature;
   var date = uploader._chunkSignatures[number].date;
   var authorization = "AWS " + uploader.settings.awsAccessKey + ":" + signature;
+  var body = uploader.file.slice(chunk.startRange, chunk.endRange);
 
   var ajax = new bs3u.Ajax({
     url: uploader.settings.host + "/" + uploader.settings.key,
     method: "PUT",
-    body: uploader.file.slice(chunk.startRange, chunk.endRange),
     params: {
       uploadId: uploader._uploadId,
       partNumber: number,
@@ -511,29 +511,32 @@ bs3u.Uploader.prototype._uploadChunk = function(number, retries) {
   });
 
   ajax.onSuccess(function(response) {
-    uploader._uploadChunkSuccess(attempts, response, chunk, number);
+    uploader._uploadChunkSuccess(attempts, response, number);
   });
 
   ajax.onError(function(response) {
-    uploader._uploadChunkError(attempts, response, chunk, number);
+    uploader._uploadChunkError(attempts, response, number);
   });
 
   ajax.onTimeout(function(response) {
-    uploader._uploadChunkError(attempts, response, chunk, number);
+    uploader._uploadChunkError(attempts, response, number);
   });
 
-  ajax.send();
+  ajax.send(body);
   uploader._chunkXHRs[number] = ajax;
 };
 
+// The progress callback for a single chunk
 bs3u.Uploader.prototype._uploadChunkProgress = function(response, number) {
   var uploader = this;
   uploader._chunkProgress[number] = response.loaded;
   uploader._notifyUploadProgress();
 };
 
-bs3u.Uploader.prototype._uploadChunkSuccess = function(attempts, response, chunk, number) {
+// The success callback for uploading a single chunk
+bs3u.Uploader.prototype._uploadChunkSuccess = function(attempts, response, number) {
   var uploader = this;
+  var chunk = uploader._chunks[number];
   if (response.status == 200) {
     var totalChunks = Object.keys(uploader._chunks).length;
     chunk.uploading = false;
@@ -542,7 +545,7 @@ bs3u.Uploader.prototype._uploadChunkSuccess = function(attempts, response, chunk
     uploader._chunkUploadsInProgress -= 1;
     uploader._log("Chunk " + number +  " has finished uploading");
     uploader._notifyChunkUploaded(number, totalChunks);
-    var eTag = xhr.getResponseHeader("ETag");
+    var eTag = response.getResponseHeader("ETag");
     if (eTag && eTag.length > 0) {
       uploader._eTags[number] = eTag;
     }
@@ -556,12 +559,14 @@ bs3u.Uploader.prototype._uploadChunkSuccess = function(attempts, response, chunk
     }
   } else {
     uploader._log("Upload of chunk " + number +  " has failed. Deferring to error handler");
-    uploader.uploadChunkError(attempts, response, chunk, number);
+    uploader._uploadChunkError(attempts, response, number);
   }
 };
 
-bs3u.Uploader.prototype._uploadChunkError = function(attempts, response, chunk, number) {
+// The error callback for uploading a single chunk
+bs3u.Uploader.prototype._uploadChunkError = function(attempts, response, number) {
   var uploader = this;
+  var chunk = uploader._chunks[number];
   uploader._chunkUploadsInProgress -= 1;
   chunk.uploading = false;
   chunk.uploadComplete = false;
@@ -572,9 +577,9 @@ bs3u.Uploader.prototype._uploadChunkError = function(attempts, response, chunk, 
   setTimeout(function() {
     var data = {
       action: "uploadChunk",
-      xhr: xhr,
+      xhr: response,
       chunkNumber: number,
-      chunk: uploader._chunks[number]
+      chunk: chunk
     };
     uploader._notifyUploadRetry(attempts, data);
     uploader._retryChunk(number);
