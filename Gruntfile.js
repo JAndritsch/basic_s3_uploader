@@ -10,12 +10,8 @@ module.exports = function(grunt) {
 
   grunt.config('jshint', {
     all: [
-      'src/bs3u.js',
-      'src/uploader.js',
-      'src/mock_uploader.js',
-      'src/ajax.js',
-      'spec/uploader_spec.js',
-      'spec/ajax_spec.js',
+      'src/*.js',
+      'spec/*.js',
     ]
   });
 
@@ -37,11 +33,8 @@ module.exports = function(grunt) {
 
   grunt.config('watch', {
     files: [
-      'src/bs3u.js',
-      'src/uploader.js',
-      'src/ajax.js',
-      'spec/uploader_spec.js',
-      'spec/ajax_spec.js',
+      'src/*.js',
+      'spec/*.js',
     ],
     tasks: ['test']
   });
@@ -51,7 +44,11 @@ module.exports = function(grunt) {
       separator: '\n',
     },
     dist: {
-      src: ['src/bs3u.js', 'src/ajax.js', 'src/uploader.js'],
+      src: [
+        'src/bs3u.js',
+        'src/ajax.js',
+        'src/uploader.js'
+      ],
       dest: 'dist/basic_s3_uploader.js',
     }
   });
