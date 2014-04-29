@@ -626,29 +626,37 @@ bs3u.Uploader.prototype._verifyAllChunksUploaded = function(retries) {
   uploader._XHRs.push(ajax);
 };
 
+bs3u.Uploader.prototype._collectInvalidChunks = function(parts) {
+  var uploader = this;
+  var invalidParts = [];
+
+  for (var i = 0; i < parts.length; i++) {
+    var part = parts[i];
+
+    var number = parseInt(part.getElementsByTagName("PartNumber")[0].textContent, 10);
+    var eTag = part.getElementsByTagName("ETag")[0].textContent;
+    var size = parseInt(part.getElementsByTagName("Size")[0].textContent, 10);
+
+    var uploadedChunk = uploader._chunks[number];
+    var expectedSize = uploadedChunk.endRange - uploadedChunk.startRange;
+
+    if (!uploadedChunk || eTag != uploader._eTags[number] || size != expectedSize) {
+      invalidParts.push(number);
+    }
+  }
+
+  return invalidParts;
+};
+
 bs3u.Uploader.prototype._verifyAllChunksUploadedSuccess = function(attempts, response) {
   var uploader = this;
 
   if (response.status == 200) {
     var xml = response.target.responseXML;
-    var invalidParts = [];
     var parts = xml.getElementsByTagName("Part");
     var totalParts = Object.keys(uploader._chunks).length;
 
-    for (var i = 0; i < parts.length; i++) {
-      var part = parts[i];
-
-      var number = parseInt(part.getElementsByTagName("PartNumber")[0].textContent, 10);
-      var eTag = part.getElementsByTagName("ETag")[0].textContent;
-      var size = parseInt(part.getElementsByTagName("Size")[0].textContent, 10);
-
-      var uploadedChunk = uploader._chunks[number];
-      var expectedSize = uploadedChunk.endRange - uploadedChunk.startRange;
-
-      if (!uploadedChunk || eTag != uploader._eTags[number] || size != expectedSize) {
-        invalidParts.push(number);
-      }
-    }
+    var invalidParts = uploader._collectInvalidChunks(parts);
 
     if (totalParts != parts.length) {
       uploader._log("Some chunks are missing. Attempting to re-upload them.");
@@ -678,11 +686,9 @@ bs3u.Uploader.prototype._verifyAllChunksUploadedError = function(attempts, respo
         xhr: response
       };
       uploader._notifyUploadRetry(attempts, data);
-
       uploader._getRemainingSignatures(0, function() {
         uploader._verifyAllChunksUploaded(attempts);
       });
-
     }, 2000 * attempts);
   } else {
     var errorCode = 6;
