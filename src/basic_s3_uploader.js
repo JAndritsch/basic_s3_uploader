@@ -780,22 +780,20 @@ BasicS3Uploader.prototype._startProgressWatcher = function() {
   uploader._log("Starting the progress watcher interval");
 
   var id = setInterval(function() {
-    if (uploader._isFailed() || uploader._isComplete() || uploader._isCancelled()) {
+    if (!uploader._isUploading()) {
       uploader._log("Stopping the progress watcher interval");
       clearInterval(id);
       return;
     }
 
     var currentTime = new Date().getTime();
-    var chunkProgressTime;
-    var xhr;
+    var chunkProgressTime, xhr;
 
     for (var index in uploader._chunkXHRs) {
       xhr = uploader._chunkXHRs[index];
       chunkProgressTime = xhr.lastProgressAt;
       // if no progress reported within 30 seconds
       if ((currentTime - chunkProgressTime) > 30000) {
-        // abort the XHR
         uploader._log("No progress has been reported within 30 seconds for chunk " + index);
         xhr.abort();
         xhr._data.error();

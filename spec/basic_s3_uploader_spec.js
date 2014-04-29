@@ -1860,6 +1860,76 @@ describe("BasicS3Uploader", function() {
     });
   });
 
+  describe("_startProgressWatcher", function() {
+    var mockFile, mockSettings, uploader, chunkXHROne, chunkXHRTwo,
+    chunkOneAbortSpy, chunkTwoAbortSpy, chunkOneErrorSpy, chunkTwoErrorSpy;
+
+    beforeEach(function() {
+      mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
+      mockSettings = {};
+      uploader = new BasicS3Uploader(mockFile, mockSettings);
+      chunkOneAbortSpy = jasmine.createSpy();
+      chunkTwoAbortSpy = jasmine.createSpy();
+      chunkOneErrorSpy = jasmine.createSpy();
+      chunkTwoErrorSpy = jasmine.createSpy();
+
+      chunkXHROne = {
+        lastProgressAt: 80000,
+        abort: chunkOneAbortSpy,
+        _data: {
+          error: chunkOneErrorSpy
+        }
+      };
+
+      chunkXHRTwo = {
+        lastProgressAt: 30000,
+        abort: chunkTwoAbortSpy,
+        _data: {
+          error: chunkTwoErrorSpy
+        }
+      };
+      uploader._chunkXHRs = {
+        1: chunkXHROne,
+        2: chunkXHRTwo,
+      };
+      spyOn(window, 'setInterval').and.callFake(function(callback, interval) {
+        callback();
+      });
+      spyOn(window, 'clearInterval');
+    });
+
+    describe("when the uploader is not uploading", function() {
+      beforeEach(function() {
+        spyOn(uploader, '_isUploading').and.returnValue(false);
+        uploader._startProgressWatcher();
+      });
+
+      it("clears the interval", function() {
+        expect(window.clearInterval).toHaveBeenCalled();
+      });
+    });
+
+    describe("when the uploader is uploading", function() {
+      beforeEach(function() {
+        spyOn(uploader, '_isUploading').and.returnValue(true);
+        spyOn(window, 'Date').and.returnValue({
+          getTime: function() { return 90000; }
+        });
+        uploader._startProgressWatcher();
+      });
+
+      it("stops any chunks that have not reported progress within 30 seconds", function() {
+        expect(chunkOneAbortSpy).not.toHaveBeenCalled();
+        expect(chunkTwoAbortSpy).toHaveBeenCalled();
+      });
+
+      it("triggers the error handler for chunks that have not reported progress within 30 seconds", function() {
+        expect(chunkOneErrorSpy).not.toHaveBeenCalled();
+        expect(chunkTwoErrorSpy).toHaveBeenCalled();
+      });
+    });
+  });
+
   describe("_setReady", function() {
     var mockFile, mockSettings, uploader;
 
