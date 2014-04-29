@@ -1626,6 +1626,54 @@ describe("bs3u.Uploader", function() {
     });
   });
 
+  describe("_collectInvalidChunks", function() {
+    var mockFile, mockSettings, uploader, xml, xmlString, partsFromS3;
+
+    xmlString = "<Parts>";
+    xmlString += "<Part><PartNumber>1</PartNumber><ETag>\"invalid-eTag\"</ETag><Size>1000</Size></Part>";
+    xmlString += "<Part><PartNumber>2</PartNumber><ETag>\"chunk-2-eTag\"</ETag><Size>0</Size></Part>";
+    xmlString += "<Part><PartNumber>3</PartNumber><ETag>\"chunk-3-eTag\"</ETag><Size>1000</Size></Part>";
+    xmlString += "</Parts>";
+    xml = new DOMParser().parseFromString(xmlString, "text/xml");
+    partsFromS3 = xml.getElementsByTagName("Part");
+
+    beforeEach(function() {
+      mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
+      mockSettings = {
+        host: 'some-host',
+        key: "my-upload-key",
+        acl: "private",
+        encrypted: false,
+        maxRetries: 3,
+        awsAccessKey: 'my-access-key',
+        customHeaders: { "X-Custom-Header": "Stuff" },
+        contentType: "video/quicktime",
+        bucket: "my-bucket",
+        signatureBackend: "/signatures",
+        remainingSignaturesPath: "/remaining"
+      };
+
+      uploader = new bs3u.Uploader(mockFile, mockSettings);
+      uploader._chunks = {
+        1: { startRange: 0, endRange: 1000 },
+        2: { startRange: 1000, endRange: 2000 },
+        3: { startRange: 2000, endRange: 3000 }
+      };
+      uploader._eTags = {
+        1: '"chunk-1-eTag"',
+        2: '"chunk-2-eTag"',
+        3: '"chunk-3-eTag"'
+      };
+    });
+
+    it("returns an array of part numbers that have an invalid size or etag", function() {
+      var invalidParts = uploader._collectInvalidChunks(partsFromS3);
+      expect(invalidParts.length).toEqual(2);
+      expect(invalidParts[0]).toEqual(1);
+      expect(invalidParts[1]).toEqual(2);
+    });
+  });
+
   describe("_verifyAllChunksUploadedSuccess", function() {
     var mockFile, mockSettings, uploader;
 
