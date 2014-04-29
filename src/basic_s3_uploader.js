@@ -18,10 +18,10 @@ var BasicS3Uploader = function(file, settings) {
 };
 
 BasicS3Uploader.version = {
-  full: "1.0.5",
+  full: "1.0.6",
   major: "1",
   minor: "0",
-  patch: "5"
+  patch: "6"
 };
 
 // Configure the uploader using the provided settings or sensible defaults.
@@ -73,12 +73,9 @@ BasicS3Uploader.prototype._configureUploader = function(settings) {
   // The maximum number of concurrent XHR requests for a given upload. Increasing this
   // number may result in faster uploads, however browsers tend to have their own concurrent
   // XHR limitation built in. This means anything greater than that number will not have
-  // any effect on upload performance.
-  uploader.settings.maxConcurrentChunks     = settings.maxConcurrentChunks || 5;
-  // The number of milliseconds to wait for an XHR request to respond. If the XHR request
-  // does not respond within the configured time, it will fire the timeout callback, aborting
-  // the request and retrying it.
-  uploader.settings.xhrRequestTimeout       = settings.xhrRequestTimeout || 30000;
+  // any effect on upload performance. To handle this, we're setting a cap at 5
+  // concurrent XHRs.
+  uploader.settings.maxConcurrentChunks     = Math.max(Math.min((settings.maxConcurrentChunks || 5), 5), 1);
 
   // Generates a default key to use for the upload if none was provided.
   var defaultKey = "/" + uploader.settings.bucket + "/" + new Date().getTime() + "_" + uploader.file.name;
@@ -133,6 +130,8 @@ BasicS3Uploader.prototype.startUpload = function() {
       uploader._notifyUploadStarted();
       uploader._setUploading();
       uploader._getInitSignature();
+      uploader._startProgressWatcher();
+      uploader._startBandwidthMonitor();
     } else {
       var errorCode = 1;
       uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
@@ -430,7 +429,6 @@ BasicS3Uploader.prototype._uploadChunk = function(number, retries) {
   var uploader = this;
   var attempts = retries || 0;
 
-  uploader._log("About to upload chunk " + number);
   var chunk = uploader._chunks[number];
 
   uploader._chunkUploadsInProgress += 1;
@@ -458,6 +456,7 @@ BasicS3Uploader.prototype._uploadChunk = function(number, retries) {
     },
     progress: function(response) {
       uploader._chunkProgress[number] = response.loaded;
+      uploader._chunkXHRs[number].lastProgressAt = new Date().getTime();
       uploader._notifyUploadProgress();
     },
     success: function(response) {
@@ -488,12 +487,7 @@ BasicS3Uploader.prototype._uploadChunk = function(number, retries) {
     },
     error: function(response) {
       var xhr = this;
-      uploader._chunkUploadsInProgress -= 1;
-      chunk.uploading = false;
-      chunk.uploadComplete = false;
-      uploader._chunkXHRs[number].abort();
-      delete uploader._chunkXHRs[number];
-
+      uploader._abortChunkUpload(number);
       uploader._log("Retrying to upload chunk " + number);
       setTimeout(function() {
         var data = {
@@ -646,7 +640,9 @@ BasicS3Uploader.prototype._retryChunk = function(chunkNumber) {
     uploader._log("Fetching new signatures for chunk retry");
 
     uploader._getRemainingSignatures(0, function() {
-      uploader._uploadChunk(chunkNumber, chunkAttempts);
+      if (uploader._uploadSpotAvailable()) {
+        uploader._uploadChunk(chunkNumber, chunkAttempts);
+      }
     });
 
   } else {
@@ -775,6 +771,117 @@ BasicS3Uploader.prototype._resetData = function() {
   uploader._chunkUploadsInProgress = 0;
 };
 
+// Since none of the XHR requests are configured with a timeout, we need to
+// monitor each chunk upload request and evaluate if the request has bombed out
+// (no progress reported in 30sec). When this happens, we can abort the chunk
+// upload and try it again.
+BasicS3Uploader.prototype._startProgressWatcher = function() {
+  var uploader = this;
+  uploader._log("Starting the progress watcher interval");
+
+  var id = setInterval(function() {
+    if (uploader._isFailed() || uploader._isComplete() || uploader._isCancelled()) {
+      uploader._log("Stopping the progress watcher interval");
+      clearInterval(id);
+      return;
+    }
+
+    var currentTime = new Date().getTime();
+    var chunkProgressTime;
+    var xhr;
+
+    for (var index in uploader._chunkXHRs) {
+      xhr = uploader._chunkXHRs[index];
+      chunkProgressTime = xhr.lastProgressAt;
+      // if no progress reported within 30 seconds
+      if ((currentTime - chunkProgressTime) > 30000) {
+        // abort the XHR
+        uploader._log("No progress has been reported within 30 seconds for chunk " + index);
+        xhr.abort();
+        xhr._data.error();
+      }
+    }
+  }, 3000);
+};
+
+// This method will monitor the speed of the upload and reconfigure the number
+// of concurrent uploads allowed. Once an appropriate number for concurrent
+// uploads has been determined, this will either start or stop chunk uploads
+// to meet the new max chunks setting.
+//
+// The purpose of this method is to ensure a single chunk can finish uploading
+// before its upload signature becomes invalid. This information is calculated
+// given a connection's speed, the chunk's size, and then number of concurrent
+// chunks uploading.
+BasicS3Uploader.prototype._startBandwidthMonitor = function() {
+  var uploader = this;
+  uploader._log("Starting bandwidth monitor");
+  var initialMaxChunks = uploader.settings.maxConcurrentChunks;
+  var monitorStartTime = new Date().getTime();
+  var newConcurrentChunks;
+
+  // calculate the number of possible concurrent chunks based on upload speed.
+  // i.e. can all chunks finish within 15 minutes, before signatures go state.
+  var id = setInterval(function(){
+    if (!uploader._isUploading()) {
+      uploader._log("Stopping the bandwidth monitor");
+      clearInterval(id);
+      return;
+    }
+
+    newConcurrentChunks = uploader._calculateOptimalConcurrentChunks(monitorStartTime);
+    uploader._log("Optimal concurrent chunks for connection is ", newConcurrentChunks);
+    uploader._log("Number of concurrent uploads in progress is ", uploader._chunkUploadsInProgress);
+
+    if (uploader.settings.maxConcurrentChunks != newConcurrentChunks) {
+      // change concurrent chunks
+      uploader.settings.maxConcurrentChunks = newConcurrentChunks;
+      // cancel the number of xhrs needed
+      for (var number in uploader._chunkXHRs) {
+        if (newConcurrentChunks >= uploader._chunkUploadsInProgress) {
+          uploader._log("More concurrent upload spots are available");
+          uploader._uploadChunks();
+          break;
+        } else {
+          uploader._log("Cancelling the upload for chunk ", number);
+          uploader._abortChunkUpload(number);
+        }
+      }
+    }
+  }, 10000);
+};
+
+BasicS3Uploader.prototype._abortChunkUpload = function(number) {
+  var uploader = this;
+  uploader._chunkXHRs[number].abort();
+  uploader._chunks[number].uploading = false;
+  uploader._chunks[number].uploadComplete = false;
+  uploader._chunkUploadsInProgress -= 1;
+};
+
+BasicS3Uploader.prototype._calculateOptimalConcurrentChunks = function(time) {
+  var uploader = this;
+  var loaded = uploader._calculateUploadProgress();
+  var speed = loaded / (new Date().getTime() - time);
+  var signatureTimeout = 15 * 60000;  // 15 min
+
+  uploader._log("Calculated upload speed is ", speed);
+  var chunkSize = uploader.settings.chunkSize;
+  // Needed speed to upload a single chunk within the signature timeout
+  var neededSpeed = (chunkSize / signatureTimeout);
+  var count = parseInt((speed / neededSpeed), 10);
+  return Math.max(Math.min(count, 5), 1);
+};
+
+BasicS3Uploader.prototype._calculateUploadProgress = function() {
+  var uploader = this;
+  var loaded = 0;
+  for (var chunkNumber in uploader._chunkProgress) {
+    loaded += uploader._chunkProgress[chunkNumber];
+  }
+  return loaded;
+};
+
 // State-related methods
 BasicS3Uploader.prototype._setReady = function() {
   var uploader = this;
@@ -846,14 +953,9 @@ BasicS3Uploader.prototype._notifyUploadStarted = function() {
 // progress can be determined.
 BasicS3Uploader.prototype._notifyUploadProgress = function() {
   var uploader = this;
-  var loaded = 0;
 
-  for (var chunkNumber in uploader._chunkProgress) {
-    loaded += uploader._chunkProgress[chunkNumber];
-  }
-
+  var loaded = uploader._calculateUploadProgress();
   var total = uploader.file.size;
-
   uploader.settings.onProgress.call(uploader, loaded, total);
 };
 
@@ -959,7 +1061,6 @@ BasicS3Uploader.prototype._ajax = function(data) {
   }
 
   xhr.open(method, url);
-  xhr.timeout = uploader.settings.xhrRequestTimeout;
 
   for (var customHeader in customHeaders) {
     xhr.setRequestHeader(customHeader, customHeaders[customHeader]);
@@ -985,9 +1086,9 @@ BasicS3Uploader.prototype._log = function(msg, object) {
   msg = "[BasicS3Uploader] " + msg;
   if (this.settings.log) {
     if (object) {
-      console.log(msg, object);
+      console.debug(msg, object);
     } else {
-      console.log(msg);
+      console.debug(msg);
     }
   }
 };

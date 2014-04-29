@@ -73,7 +73,6 @@ describe("BasicS3Uploader", function() {
         log: true,
         customHeaders: { "X-Test-Header": "True" },
         maxConcurrentChunks: 5,
-        xhrRequestTimeout: 7000,
         key: "my-key-for-this-upload",
         onReady: function() {},
         onStart: function() {},
@@ -109,7 +108,6 @@ describe("BasicS3Uploader", function() {
       expect(uploader.settings.log).toEqual(mockSettings.log);
       expect(uploader.settings.customHeaders).toEqual(mockSettings.customHeaders);
       expect(uploader.settings.maxConcurrentChunks).toEqual(mockSettings.maxConcurrentChunks);
-      expect(uploader.settings.xhrRequestTimeout).toEqual(mockSettings.xhrRequestTimeout);
       expect(uploader.settings.key).toEqual(mockSettings.key);
       expect(uploader.settings.onReady).toEqual(mockSettings.onReady);
       expect(uploader.settings.onStart).toEqual(mockSettings.onStart);
@@ -139,7 +137,6 @@ describe("BasicS3Uploader", function() {
       expect(uploader.settings.log).toBeFalsy();
       expect(uploader.settings.customHeaders).toEqual({});
       expect(uploader.settings.maxConcurrentChunks).toEqual(5);
-      expect(uploader.settings.xhrRequestTimeout).toEqual(30000);
       expect(uploader.settings.key).toEqual("/" + uploader.settings.bucket + "/timestamp_" + uploader.file.name);
       expect(uploader.settings.onReady).toBeDefined();
       expect(uploader.settings.onStart).toBeDefined();
@@ -2129,9 +2126,7 @@ describe("BasicS3Uploader", function() {
       progressSpy = jasmine.createSpy();
 
       mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
-      mockSettings = {
-        xhrRequestTimeout: 5000
-      };
+      mockSettings = {};
       spyOn(window, "XMLHttpRequest").and.returnValue(mockXHR);
 
       spyOn(mockXHR, 'open');
@@ -2194,10 +2189,6 @@ describe("BasicS3Uploader", function() {
     it("opens the connection to the provided URL, including any provided query params", function() {
       var expectedURL = "http://www.somesite.com?customParam1=value1&customParam2=value2";
       expect(mockXHR.open).toHaveBeenCalledWith("PUT", expectedURL);
-    });
-
-    it("sets a timeout for the connection, using the 'xhrRequestTimeout' setting", function() {
-      expect(mockXHR.timeout).toEqual(5000);
     });
 
     it("sets request headers", function() {
