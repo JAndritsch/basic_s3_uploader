@@ -251,6 +251,8 @@ describe("BasicS3Uploader", function() {
             spyOn(uploader, "_createChunks");
             spyOn(uploader, "_notifyUploadStarted");
             spyOn(uploader, "_setUploading");
+            spyOn(uploader, '_startProgressWatcher');
+            spyOn(uploader, '_startBandwidthMonitor');
 
             uploader.startUpload();
           });
@@ -269,6 +271,14 @@ describe("BasicS3Uploader", function() {
 
           it("calls to get the init signature", function() {
             expect(uploader._getInitSignature).toHaveBeenCalled();
+          });
+
+          it("starts the progress watcher interval", function() {
+            expect(uploader._startProgressWatcher).toHaveBeenCalled();
+          });
+
+          it("starts the bandwidth monitor interval", function() {
+            expect(uploader._startBandwidthMonitor).toHaveBeenCalled();
           });
         });
 
@@ -1065,6 +1075,41 @@ describe("BasicS3Uploader", function() {
 
     });
 
+    describe("when progress is reported", function() {
+      var mockXHR;
+      beforeEach(function() {
+        mockXHR = {};
+        mockResponse = {
+          loaded: 1000
+        };
+        spyOn(uploader, '_ajax').and.callFake(function(config) {
+          config.status = 200;
+          config.progress(mockResponse);
+          return mockXHR;
+        });
+        spyOn(window, 'Date').and.returnValue({
+          getTime: function() { return "timestamp"; }
+        });
+        spyOn(uploader, '_notifyUploadProgress');
+        uploader._chunkXHRs = {
+          1: mockXHR
+        };
+        uploader._uploadChunk(1);
+      });
+
+      it("stores the progress returned in the chunkProgress hash", function() {
+        expect(uploader._chunkProgress[1]).toEqual(1000);
+      });
+
+      it("sets the lastProgressAt timestamp on the chunkXHR", function() {
+        expect(uploader._chunkXHRs[1].lastProgressAt).toEqual("timestamp");
+      });
+
+      it("notfies that there was upload progress", function() {
+        expect(uploader._notifyUploadProgress).toHaveBeenCalled();
+      });
+    });
+
     describe("a successful response", function() {
       var mocks;
 
@@ -1467,22 +1512,47 @@ describe("BasicS3Uploader", function() {
     });
 
     describe('when there are retries available', function() {
+
       beforeEach(function() {
         spyOn(uploader, '_retryAvailable').and.returnValue(true);
-        spyOn(uploader, '_getRemainingSignatures').and.callFake(function(attempt, callback) {
-          callback();
+      });
+
+      describe('and an upload spot is available', function() {
+        beforeEach(function() {
+          spyOn(uploader, '_getRemainingSignatures').and.callFake(function(attempt, callback) {
+            callback();
+          });
+          spyOn(uploader, '_uploadChunk');
+          spyOn(uploader, '_uploadSpotAvailable').and.returnValue(true);
+          uploader._retryChunk(1);
         });
-        spyOn(uploader, '_uploadChunk');
 
-        uploader._retryChunk(1);
+        it("fetches new upload signatures", function() {
+          expect(uploader._getRemainingSignatures).toHaveBeenCalled();
+        });
+
+        it("uploads the chunk", function() {
+          expect(uploader._uploadChunk).toHaveBeenCalledWith(1, 1);
+        });
       });
+      
+      describe("and there is not an upload spot available", function() {
+        beforeEach(function() {
+          spyOn(uploader, '_getRemainingSignatures').and.callFake(function(attempt, callback) {
+            callback();
+          });
+          spyOn(uploader, '_uploadSpotAvailable').and.returnValue(false);
+          spyOn(uploader, '_uploadChunk');
+          uploader._retryChunk(1);
+        });
 
-      it("fetches new upload signatures", function() {
-        expect(uploader._getRemainingSignatures).toHaveBeenCalled();
-      });
+        it("fetches new upload signatures", function() {
+          expect(uploader._getRemainingSignatures).toHaveBeenCalled();
+        });
 
-      it("uploads the chunk", function() {
-        expect(uploader._uploadChunk).toHaveBeenCalledWith(1, 1);
+        it("does not upload the chunk", function() {
+          expect(uploader._uploadChunk).not.toHaveBeenCalled();
+        });
       });
     });
 
