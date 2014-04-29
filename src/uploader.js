@@ -782,7 +782,7 @@ bs3u.Uploader.prototype._completeUpload = function(retries) {
     body = new Blob([body]);
   }
 
-  var xhr = uploader._ajax({
+  var ajax = new bs3u.Ajax({
     url: uploader.settings.host + "/" + uploader.settings.key,
     method: "POST",
     body: body,
@@ -794,50 +794,64 @@ bs3u.Uploader.prototype._completeUpload = function(retries) {
       "Authorization": authorization,
       "Content-Type": uploader.settings.contentType,
       "Content-Disposition": "attachment; filename=" + uploader.file.name
-    },
-    success: function(response) {
-      var xhr = this;
-      if (xhr.status == 200) {
-        var xml = response.target.responseXML;
-        var location = xml.getElementsByTagName('Location')[0].textContent;
-        if (location) {
-          uploader._log("The upload has completed!");
-          uploader._notifyUploadComplete(location);
-          uploader._setComplete();
-          uploader._resetData();
-        }
-      } else {
-        uploader._log("Unable to complete the uploader. Deferring to error handler");
-        xhr._data.error();
-      }
-    },
-    error: function(response) {
-      var xhr = this;
-      if (uploader._retryAvailable(attempts)) {
-        attempts += 1;
-        uploader._log("Attempting to retry upload completion");
-        setTimeout(function() {
-          var data = {
-            action: "completeUpload",
-            xhr: xhr
-          };
-          uploader._notifyUploadRetry(attempts, data);
-
-          uploader._getRemainingSignatures(0, function() {
-            uploader._completeUpload(attempts);
-          });
-
-        }, 2000 * attempts);
-      } else {
-        var errorCode = 8;
-        uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
-        uploader._setFailed();
-        uploader._resetData();
-        uploader._log("Uploader error!", uploader.errors[errorCode]);
-      }
     }
   });
-  uploader._XHRs.push(xhr);
+
+  ajax.onSuccess(function(response) {
+    uploader._completeUploadSuccess(attempts, response);
+  });
+
+  ajax.onError(function(response) {
+    uploader._completeUploadError(attempts, response);
+  });
+
+  ajax.onTimeout(function(response) {
+    uploader._completeUploadError(attempts, response);
+  });
+
+  ajax.send();
+  uploader._XHRs.push(ajax);
+};
+
+var bs3u.Uploader.prototype._completeUploadSuccess = function(attempts, response) {
+  var uploader = this;
+  if (response.status == 200) {
+    var xml = response.target.responseXML;
+    var location = xml.getElementsByTagName('Location')[0].textContent;
+    if (location) {
+      uploader._log("The upload has completed!");
+      uploader._notifyUploadComplete(location);
+      uploader._setComplete();
+      uploader._resetData();
+    }
+  } else {
+    uploader._log("Unable to complete the uploader. Deferring to error handler");
+    uploader._completeUploadError(attempts, response);
+  }
+};
+
+var bs3u.Uploader.prototype._completeUploadError = function(attempts, response) {
+  var uploader = this;
+  if (uploader._retryAvailable(attempts)) {
+    attempts += 1;
+    uploader._log("Attempting to retry upload completion");
+    setTimeout(function() {
+      var data = {
+        action: "completeUpload",
+        xhr: response
+      };
+      uploader._notifyUploadRetry(attempts, data);
+      uploader._getRemainingSignatures(0, function() {
+        uploader._completeUpload(attempts);
+      });
+    }, 2000 * attempts);
+  } else {
+    var errorCode = 8;
+    uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
+    uploader._setFailed();
+    uploader._resetData();
+    uploader._log("Uploader error!", uploader.errors[errorCode]);
+  }
 };
 
 // Returns true if attemts is less than maxRetries. Note that the first attempt
