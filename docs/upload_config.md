@@ -23,7 +23,11 @@ Below are all the upload settings that can be configured.
     <tr>
       <td>chunkSize</td>
       <td>Number (bytes)</td>
-      <td>The size of each chunk. AWS requires a chunk size of at least 5MB</td>
+      <td>
+        The size of each chunk. AWS requires a chunk size of at least 5MB, but this uploader
+        requires you to specify a chunk size of at least 6MB to be safe. Anything higher is
+        allowed.
+      </td>
       <td>10MB</td>
     </tr>
     <tr>
@@ -118,16 +122,9 @@ Below are all the upload settings that can be configured.
         The maximum number of concurrent XHR requests for a given upload. Increasing this
         number may result in faster uploads, however browsers tend to have their own concurrent
         XHR limitation built in. This means anything greater than that number will not have
-        any effect on upload performance.
+        any effect on upload performance. This number must fall within the range of 1-5.
       </td>
       <td>5</td>
-    </tr>
-    <tr>
-      <td>xhrRequestTimeout</td>
-      <td>Number (milliseconds)</td>
-      <td>The number of milliseconds to wait for an XHR request to respond before 
-      aborting.</td>
-      <td>30000</td>
     </tr>
     <tr>
       <td>key</td>
