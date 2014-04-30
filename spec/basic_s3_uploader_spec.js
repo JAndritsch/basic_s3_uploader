@@ -251,8 +251,6 @@ describe("BasicS3Uploader", function() {
             spyOn(uploader, "_createChunks");
             spyOn(uploader, "_notifyUploadStarted");
             spyOn(uploader, "_setUploading");
-            spyOn(uploader, '_startProgressWatcher');
-            spyOn(uploader, '_startBandwidthMonitor');
 
             uploader.startUpload();
           });
@@ -271,14 +269,6 @@ describe("BasicS3Uploader", function() {
 
           it("calls to get the init signature", function() {
             expect(uploader._getInitSignature).toHaveBeenCalled();
-          });
-
-          it("starts the progress watcher interval", function() {
-            expect(uploader._startProgressWatcher).toHaveBeenCalled();
-          });
-
-          it("starts the bandwidth monitor interval", function() {
-            expect(uploader._startBandwidthMonitor).toHaveBeenCalled();
           });
         });
 
@@ -731,6 +721,8 @@ describe("BasicS3Uploader", function() {
           callback();
         });
         spyOn(uploader, '_uploadChunks');
+        spyOn(uploader, '_startProgressWatcher');
+        spyOn(uploader, '_startBandwidthMonitor');
         uploader._initiateUpload();
       });
 
@@ -744,6 +736,14 @@ describe("BasicS3Uploader", function() {
 
       it("begins uploading chunks once the remaining signatures are present", function() {
         expect(uploader._uploadChunks).toHaveBeenCalled();
+      });
+
+      it("starts the progress watcher interval", function() {
+        expect(uploader._startProgressWatcher).toHaveBeenCalled();
+      });
+
+      it("starts the bandwidth monitor interval", function() {
+        expect(uploader._startBandwidthMonitor).toHaveBeenCalled();
       });
 
     });
@@ -1861,8 +1861,9 @@ describe("BasicS3Uploader", function() {
   });
 
   describe("_startProgressWatcher", function() {
-    var mockFile, mockSettings, uploader, chunkXHROne, chunkXHRTwo,
-    chunkOneAbortSpy, chunkTwoAbortSpy, chunkOneErrorSpy, chunkTwoErrorSpy;
+    var mockFile, mockSettings, uploader, chunkXHROne, chunkXHRTwo, chunkXHRThree,
+    chunkOneAbortSpy, chunkTwoAbortSpy, chunkOneErrorSpy, chunkTwoErrorSpy, 
+    chunkThreeErrorSpy;
 
     beforeEach(function() {
       mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
@@ -1870,8 +1871,10 @@ describe("BasicS3Uploader", function() {
       uploader = new BasicS3Uploader(mockFile, mockSettings);
       chunkOneAbortSpy = jasmine.createSpy();
       chunkTwoAbortSpy = jasmine.createSpy();
+      chunkThreeAbortSpy = jasmine.createSpy();
       chunkOneErrorSpy = jasmine.createSpy();
       chunkTwoErrorSpy = jasmine.createSpy();
+      chunkThreeErrorSpy = jasmine.createSpy();
 
       chunkXHROne = {
         lastProgressAt: 80000,
@@ -1888,9 +1891,25 @@ describe("BasicS3Uploader", function() {
           error: chunkTwoErrorSpy
         }
       };
+
+      chunkXHRThree = {
+        lastProgressAt: 0,
+        abort: chunkThreeAbortSpy,
+        _data: {
+          error: chunkThreeErrorSpy
+        }
+      };
+
       uploader._chunkXHRs = {
         1: chunkXHROne,
         2: chunkXHRTwo,
+        3: chunkXHRThree,
+      };
+
+      uploader._chunks = {
+        1: { uploading: true, uploadComplete: false },
+        2: { uploading: true, uploadComplete: false },
+        3: { uploading: false, uploadComplete: false },
       };
       spyOn(window, 'setInterval').and.callFake(function(callback, interval) {
         callback();
@@ -1927,6 +1946,11 @@ describe("BasicS3Uploader", function() {
         expect(chunkOneErrorSpy).not.toHaveBeenCalled();
         expect(chunkTwoErrorSpy).toHaveBeenCalled();
       });
+
+      it("ignores chunks that are not uploading", function() {
+        expect(chunkThreeAbortSpy).not.toHaveBeenCalled();
+        expect(chunkThreeErrorSpy).not.toHaveBeenCalled();
+      });
     });
   });
 
@@ -1953,10 +1977,10 @@ describe("BasicS3Uploader", function() {
       chunkFourXHR = jasmine.createSpy();
 
       uploader._chunks = {
-        1: {},
-        2: {},
-        3: {},
-        4: {},
+        1: { uploading: true },
+        2: { uploading: true },
+        3: { uploading: true },
+        4: { uploading: true },
       };
 
       uploader._chunkXHRs = {
@@ -1981,12 +2005,18 @@ describe("BasicS3Uploader", function() {
     describe("when the uploader is uploading", function() {
       beforeEach(function() {
         spyOn(uploader, '_isUploading').and.returnValue(true);
+        spyOn(uploader, '_uploadChunks');
+      });
+
+      it("updates the maxConcurrentChunks setting to be the value determined most optimal", function() {
+        spyOn(uploader, '_calculateOptimalConcurrentChunks').and.returnValue(1);
+        uploader._startBandwidthMonitor();
+        expect(uploader.settings.maxConcurrentChunks).toEqual(1);
       });
 
       describe("and the number of uploads in progress is lower than the optimal number of chunks", function() {
         beforeEach(function() {
           spyOn(uploader, '_calculateOptimalConcurrentChunks').and.returnValue(uploader.settings.maxConcurrentChunks);
-          spyOn(uploader, '_uploadChunks');
           uploader._chunkUploadsInProgress = 2;
           uploader._startBandwidthMonitor();
         });
@@ -1999,13 +2029,12 @@ describe("BasicS3Uploader", function() {
       describe("and the number of uploads in progress equals the optimal number of chunks", function() {
         beforeEach(function() {
           spyOn(uploader, '_calculateOptimalConcurrentChunks').and.returnValue(uploader.settings.maxConcurrentChunks);
-          spyOn(uploader, '_uploadChunks');
           uploader._chunkUploadsInProgress = uploader.settings.maxConcurrentChunks;
           uploader._startBandwidthMonitor();
         });
 
-        it("calls uploadChunks to fill the free upload spots", function() {
-          expect(uploader._uploadChunks).toHaveBeenCalled();
+        it("does not call uploadChunks", function() {
+          expect(uploader._uploadChunks).not.toHaveBeenCalled();
         });
       });
 
@@ -2060,14 +2089,15 @@ describe("BasicS3Uploader", function() {
   });
 
   describe("_calculateOptimalConcurrentChunks", function() {
-    var mockFile, mockSettings, uploader, bandwidthMonitorStartTime;
+    var mockFile, mockSettings, uploader, bandwidthMonitorStartTime,
+    initialMaxConcurrentChunks;
 
     beforeEach(function() {
       mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
       mockSettings = {
         chunkSize: 1024 * 1024 * 6,
-        maxConcurrentChunks: 4
       };
+      initialMaxConcurrentChunks = 4;
       spyOn(window, 'Date').and.returnValue({
         getTime: function() { return 1000; }
       });
@@ -2079,19 +2109,19 @@ describe("BasicS3Uploader", function() {
     // uploaded within that time frame.
     it("returns the number of concurrent chunks possible for faster connections up to the maxConcurrentChunks setting", function() {
       spyOn(uploader, '_calculateUploadProgress').and.returnValue(50000);
-      var result = uploader._calculateOptimalConcurrentChunks(bandwidthMonitorStartTime);
+      var result = uploader._calculateOptimalConcurrentChunks(bandwidthMonitorStartTime, initialMaxConcurrentChunks);
       expect(result).toEqual(4);
     });
 
     it("returns an optimal number of concurrent chunks for the connection", function() {
       spyOn(uploader, '_calculateUploadProgress').and.returnValue(10000);
-      var result = uploader._calculateOptimalConcurrentChunks(bandwidthMonitorStartTime);
+      var result = uploader._calculateOptimalConcurrentChunks(bandwidthMonitorStartTime, initialMaxConcurrentChunks);
       expect(result).toEqual(2);
     });
 
     it("returns a minimum value of 1 concurrent chunk for slower connections", function() {
       spyOn(uploader, '_calculateUploadProgress').and.returnValue(5000);
-      var result = uploader._calculateOptimalConcurrentChunks(bandwidthMonitorStartTime);
+      var result = uploader._calculateOptimalConcurrentChunks(bandwidthMonitorStartTime, initialMaxConcurrentChunks);
       expect(result).toEqual(1);
     });
   });

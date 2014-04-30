@@ -135,8 +135,6 @@ BasicS3Uploader.prototype.startUpload = function() {
       uploader._notifyUploadStarted();
       uploader._setUploading();
       uploader._getInitSignature();
-      uploader._startProgressWatcher();
-      uploader._startBandwidthMonitor();
     } else {
       var errorCode = 1;
       uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
@@ -297,6 +295,8 @@ BasicS3Uploader.prototype._initiateUpload = function(retries) {
 
         uploader._getRemainingSignatures(0, function() {
           uploader._uploadChunks();
+          uploader._startProgressWatcher();
+          uploader._startBandwidthMonitor();
         });
 
       } else {
@@ -792,16 +792,20 @@ BasicS3Uploader.prototype._startProgressWatcher = function() {
     }
 
     var currentTime = new Date().getTime();
-    var chunkProgressTime, xhr;
+    var chunkProgressTime, xhr, chunk;
 
     for (var index in uploader._chunkXHRs) {
-      xhr = uploader._chunkXHRs[index];
-      chunkProgressTime = xhr.lastProgressAt;
-      // if no progress reported within 30 seconds
-      if ((currentTime - chunkProgressTime) > 30000) {
-        uploader._log("No progress has been reported within 30 seconds for chunk " + index);
-        xhr.abort();
-        xhr._data.error();
+      chunk = uploader._chunks[index];
+      if (chunk.uploading && !chunk.uploadComplete) {
+        xhr = uploader._chunkXHRs[index];
+
+        chunkProgressTime = xhr.lastProgressAt;
+        // if no progress reported within 30 seconds
+        if ((currentTime - chunkProgressTime) > 30000) {
+          uploader._log("No progress has been reported within 30 seconds for chunk " + index);
+          xhr.abort();
+          xhr._data.error();
+        }
       }
     }
   }, 3000);
@@ -832,19 +836,21 @@ BasicS3Uploader.prototype._startBandwidthMonitor = function() {
       return;
     }
 
-    newConcurrentChunks = uploader._calculateOptimalConcurrentChunks(monitorStartTime);
+    newConcurrentChunks = uploader._calculateOptimalConcurrentChunks(monitorStartTime, initialMaxChunks);
     uploader._log("Optimal concurrent chunks for connection is ", newConcurrentChunks);
     uploader._log("Number of concurrent uploads in progress is ", uploader._chunkUploadsInProgress);
+    uploader.settings.maxConcurrentChunks = newConcurrentChunks;
 
     // If you are under-utilizing your connection
     if (newConcurrentChunks >= uploader._chunkUploadsInProgress) {
-      uploader._log("More concurrent upload spots are available");
-      uploader._uploadChunks();
+      if (newConcurrentChunks > uploader._chunkUploadsInProgress) {
+        uploader._log("More concurrent upload spots are available");
+        uploader._uploadChunks();
+      }
     } else {
       uploader._log("There are more concurrent uploads than your connection can support");
       for (var number in uploader._chunkXHRs) {
         if (uploader._chunkUploadsInProgress > newConcurrentChunks) {
-          uploader._log("Cancelling the upload for chunk ", number);
           uploader._abortChunkUpload(number);
         }
       }
@@ -854,23 +860,28 @@ BasicS3Uploader.prototype._startBandwidthMonitor = function() {
 
 BasicS3Uploader.prototype._abortChunkUpload = function(number) {
   var uploader = this;
-  uploader._chunkXHRs[number].abort();
-  uploader._chunks[number].uploading = false;
-  uploader._chunks[number].uploadComplete = false;
-  uploader._chunkUploadsInProgress -= 1;
+  var chunk = uploader._chunks[number];
+
+  if (chunk.uploading === true) {
+    uploader._log("Cancelling the upload for chunk ", number);
+    uploader._chunkXHRs[number].abort();
+    chunk.uploading = false;
+    chunk.uploadComplete = false;
+    uploader._chunkUploadsInProgress -= 1;
+  }
 };
 
-BasicS3Uploader.prototype._calculateOptimalConcurrentChunks = function(time) {
+BasicS3Uploader.prototype._calculateOptimalConcurrentChunks = function(time, initialMaxChunks) {
   var uploader = this;
   var loaded = uploader._calculateUploadProgress();
-  var speed = loaded / (new Date().getTime() - time);
-  uploader._log("Calculated upload speed is ", speed);
+  var speed = parseInt(loaded / (new Date().getTime() - time), 10);
+  uploader._log("Calculated average upload speed is " + speed + " KB/s");
   var chunkSize = uploader.settings.chunkSize;
   // Needed speed to upload a single chunk within the signature timeout
   var neededSpeed = (chunkSize / uploader._signatureTimeout);
   var count = parseInt((speed / neededSpeed), 10);
 
-  return Math.max(Math.min(count, uploader.settings.maxConcurrentChunks), 1);
+  return Math.max(Math.min(count, initialMaxChunks), 1);
 };
 
 BasicS3Uploader.prototype._calculateUploadProgress = function() {
