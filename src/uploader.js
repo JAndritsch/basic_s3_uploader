@@ -785,7 +785,6 @@ bs3u.Uploader.prototype._completeUpload = function(retries) {
   var ajax = new bs3u.Ajax({
     url: uploader.settings.host + "/" + uploader.settings.key,
     method: "POST",
-    body: body,
     params: {
       uploadId: uploader._uploadId
     },
@@ -809,11 +808,11 @@ bs3u.Uploader.prototype._completeUpload = function(retries) {
     uploader._completeUploadError(attempts, response);
   });
 
-  ajax.send();
+  ajax.send(body);
   uploader._XHRs.push(ajax);
 };
 
-var bs3u.Uploader.prototype._completeUploadSuccess = function(attempts, response) {
+bs3u.Uploader.prototype._completeUploadSuccess = function(attempts, response) {
   var uploader = this;
   if (response.status == 200) {
     var xml = response.target.responseXML;
@@ -830,7 +829,7 @@ var bs3u.Uploader.prototype._completeUploadSuccess = function(attempts, response
   }
 };
 
-var bs3u.Uploader.prototype._completeUploadError = function(attempts, response) {
+bs3u.Uploader.prototype._completeUploadError = function(attempts, response) {
   var uploader = this;
   if (uploader._retryAvailable(attempts)) {
     attempts += 1;
