@@ -569,7 +569,7 @@ describe("bs3u.Uploader", function() {
       var attempts = 1;
       uploader._getInitSignature(attempts);
       var callback = mockAjaxClass.onSuccess.calls.argsFor(0)[0];
-      var mockResponse = { status: 200 };
+      var mockResponse = { target: { status: 200 } };
       callback(mockResponse);
       expect(uploader._getInitSignatureSuccess).toHaveBeenCalledWith(attempts, mockResponse);
     });
@@ -579,7 +579,7 @@ describe("bs3u.Uploader", function() {
       var attempts = 1;
       uploader._getInitSignature(attempts);
       var callback = mockAjaxClass.onError.calls.argsFor(0)[0];
-      var mockResponse = { status: 500 };
+      var mockResponse = { target: { status: 500 } };
       callback(mockResponse);
       expect(uploader._getInitSignatureError).toHaveBeenCalledWith(attempts, mockResponse);
     });
@@ -589,7 +589,7 @@ describe("bs3u.Uploader", function() {
       var attempts = 1;
       uploader._getInitSignature(attempts);
       var callback = mockAjaxClass.onTimeout.calls.argsFor(0)[0];
-      var mockResponse = { status: 500 };
+      var mockResponse = { target: { status: 500 } };
       callback(mockResponse);
       expect(uploader._getInitSignatureError).toHaveBeenCalledWith(attempts, mockResponse);
     });
@@ -628,8 +628,8 @@ describe("bs3u.Uploader", function() {
     describe("a 200 response", function() {
       beforeEach(function() {
         mockResponse = {
-          status: 200,
           target: {
+            status: 200,
             responseText: "{\"signature\": \"init-signature\", \"date\": \"signature-date\"}"
           }
         };
@@ -650,7 +650,9 @@ describe("bs3u.Uploader", function() {
     describe("a non-200 response", function() {
       beforeEach(function() {
         mockResponse = {
-          status: 500
+          target: {
+            status: 500
+          }
         };
         spyOn(uploader, '_getInitSignatureError');
         uploader._getInitSignatureSuccess(attempts, mockResponse);
@@ -669,7 +671,9 @@ describe("bs3u.Uploader", function() {
       attempts = 2;
       mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
       mockResponse = {
-        status: 500
+        target: {
+          status: 500
+        }
       };
       mockSettings = {
         signatureBackend: "/signatures",
@@ -796,7 +800,7 @@ describe("bs3u.Uploader", function() {
       var attempts = 1;
       uploader._initiateUpload(attempts);
       var callback = mockAjaxClass.onSuccess.calls.argsFor(0)[0];
-      var mockResponse = { status: 200 };
+      var mockResponse = { target: { status: 200 } };
       callback(mockResponse);
       expect(uploader._initiateUploadSuccess).toHaveBeenCalledWith(attempts, mockResponse);
     });
@@ -806,7 +810,7 @@ describe("bs3u.Uploader", function() {
       var attempts = 1;
       uploader._initiateUpload(attempts);
       var callback = mockAjaxClass.onError.calls.argsFor(0)[0];
-      var mockResponse = { status: 500 };
+      var mockResponse = { target: { status: 500 } };
       callback(mockResponse);
       expect(uploader._initiateUploadError).toHaveBeenCalledWith(attempts, mockResponse);
     });
@@ -816,7 +820,7 @@ describe("bs3u.Uploader", function() {
       var attempts = 1;
       uploader._initiateUpload(attempts);
       var callback = mockAjaxClass.onTimeout.calls.argsFor(0)[0];
-      var mockResponse = { status: 500 };
+      var mockResponse = { target: { status: 500 } };
       callback(mockResponse);
       expect(uploader._initiateUploadError).toHaveBeenCalledWith(attempts, mockResponse);
     });
@@ -851,8 +855,8 @@ describe("bs3u.Uploader", function() {
       beforeEach(function() {
         xml = new DOMParser().parseFromString("<SomeResponse><UploadId>the-upload-id</UploadId></SomeResponse>","text/xml");
         mockResponse = {
-          status: 200,
           target: {
+            status: 200,
             responseXML: xml
           }
         };
@@ -892,7 +896,9 @@ describe("bs3u.Uploader", function() {
       beforeEach(function() {
         spyOn(uploader, '_initiateUploadError');
         mockResponse = {
-          status: 400
+          target: {
+            status: 400
+          }
         };
         uploader._initiateUploadSuccess(attempts, mockResponse);
       });
@@ -910,7 +916,9 @@ describe("bs3u.Uploader", function() {
       attempts = 2;
       mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
       mockResponse = {
-        status: 500
+        target: { 
+          status: 500
+        }
       };
       mockSettings = {
         signatureBackend: "/signatures",
@@ -1024,7 +1032,7 @@ describe("bs3u.Uploader", function() {
       var signatureCallback = function() {};
       uploader._getRemainingSignatures(attempts, signatureCallback);
       var callback = mockAjaxClass.onSuccess.calls.argsFor(0)[0];
-      var mockResponse = { status: 200 };
+      var mockResponse = { target: { status: 200 } };
       callback(mockResponse);
       expect(uploader._getRemainingSignaturesSuccess).toHaveBeenCalledWith(attempts, mockResponse, signatureCallback);
     });
@@ -1035,7 +1043,7 @@ describe("bs3u.Uploader", function() {
       var signatureCallback = function() {};
       uploader._getRemainingSignatures(attempts, signatureCallback);
       var callback = mockAjaxClass.onError.calls.argsFor(0)[0];
-      var mockResponse = { status: 500 };
+      var mockResponse = { target: { status: 500 } };
       callback(mockResponse);
       expect(uploader._getRemainingSignaturesError).toHaveBeenCalledWith(attempts, mockResponse, signatureCallback);
     });
@@ -1046,7 +1054,7 @@ describe("bs3u.Uploader", function() {
       var signatureCallback = function() {};
       uploader._getRemainingSignatures(attempts, signatureCallback);
       var callback = mockAjaxClass.onTimeout.calls.argsFor(0)[0];
-      var mockResponse = { status: 500 };
+      var mockResponse = { target: { status: 500 } };
       callback(mockResponse);
       expect(uploader._getRemainingSignaturesError).toHaveBeenCalledWith(attempts, mockResponse, signatureCallback);
     });
@@ -1086,8 +1094,8 @@ describe("bs3u.Uploader", function() {
       beforeEach(function() {
         json = '{"chunk_signatures":{"1":{"signature":"signature","date":"date"},"2":{"signature":"signature","date":"date"},"3":{"signature":"signature","date":"date"}},"complete_signature":{"signature":"signature","date":"date"},"list_signature":{"signature":"signature","date":"date"}}';
         mockResponse = {
-          status: 200,
           target: {
+            status: 200,
             responseText: json
           }
         };
@@ -1116,7 +1124,9 @@ describe("bs3u.Uploader", function() {
       beforeEach(function() {
         callback = function() {};
         mockResponse = {
-          status: 400
+          target: { 
+            status: 400
+          }
         };
         spyOn(uploader, '_getRemainingSignaturesError');
         uploader._getRemainingSignaturesSuccess(attempts, mockResponse, callback);
@@ -1137,7 +1147,9 @@ describe("bs3u.Uploader", function() {
       attempts = 2;
       mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
       mockResponse = {
-        status: 500
+        target: {
+          status: 500
+        }
       };
       mockSettings = {
         signatureBackend: "/signatures",
@@ -1317,7 +1329,7 @@ describe("bs3u.Uploader", function() {
       var chunkNumber = 1;
       uploader._uploadChunk(chunkNumber);
       var callback = mockAjaxClass.onProgress.calls.argsFor(0)[0];
-      var mockResponse = { status: 200 };
+      var mockResponse = { target: { status: 200 } };
       callback(mockResponse);
       expect(uploader._uploadChunkProgress).toHaveBeenCalledWith(mockResponse, chunkNumber);
     });
@@ -1328,7 +1340,7 @@ describe("bs3u.Uploader", function() {
       var attempts = 1;
       uploader._uploadChunk(chunkNumber, attempts);
       var callback = mockAjaxClass.onSuccess.calls.argsFor(0)[0];
-      var mockResponse = { status: 200 };
+      var mockResponse = { target: { status: 200 } };
       callback(mockResponse);
       expect(uploader._uploadChunkSuccess).toHaveBeenCalledWith(attempts, mockResponse, chunkNumber);
     });
@@ -1339,7 +1351,7 @@ describe("bs3u.Uploader", function() {
       var attempts = 1;
       uploader._uploadChunk(chunkNumber, attempts);
       var callback = mockAjaxClass.onError.calls.argsFor(0)[0];
-      var mockResponse = { status: 200 };
+      var mockResponse = { target: { status: 200 } };
       callback(mockResponse);
       expect(uploader._uploadChunkError).toHaveBeenCalledWith(attempts, mockResponse, chunkNumber);
     });
@@ -1350,7 +1362,7 @@ describe("bs3u.Uploader", function() {
       var attempts = 1;
       uploader._uploadChunk(chunkNumber, attempts);
       var callback = mockAjaxClass.onTimeout.calls.argsFor(0)[0];
-      var mockResponse = { status: 200 };
+      var mockResponse = { target: { status: 200 } };
       callback(mockResponse);
       expect(uploader._uploadChunkError).toHaveBeenCalledWith(attempts, mockResponse, chunkNumber);
     });
@@ -1416,8 +1428,10 @@ describe("bs3u.Uploader", function() {
     describe("a 200 response", function() {
       beforeEach(function() {
         mockResponse = {
-          status: 200,
-          getResponseHeader: function(header) { return "eTag"; }
+          target: {
+            status: 200,
+            getResponseHeader: function(header) { return "eTag"; }
+          },
         };
         spyOn(uploader, '_notifyChunkUploaded');
       });
@@ -1477,7 +1491,9 @@ describe("bs3u.Uploader", function() {
     describe("a non-200 response", function() {
       beforeEach(function() {
         mockResponse = {
-          status: 500
+          target: {
+            status: 500
+          }
         };
         spyOn(uploader, '_uploadChunkError');
         uploader._uploadChunkSuccess(attempts, mockResponse, chunkNumber);
@@ -1594,7 +1610,7 @@ describe("bs3u.Uploader", function() {
       var attempts = 1;
       uploader._verifyAllChunksUploaded(attempts);
       var callback = mockAjaxClass.onSuccess.calls.argsFor(0)[0];
-      var mockResponse = { status: 200 };
+      var mockResponse = { target: { status: 200 } };
       callback(mockResponse);
       expect(uploader._verifyAllChunksUploadedSuccess).toHaveBeenCalledWith(attempts, mockResponse);
     });
@@ -1604,7 +1620,7 @@ describe("bs3u.Uploader", function() {
       var attempts = 1;
       uploader._verifyAllChunksUploaded(attempts);
       var callback = mockAjaxClass.onError.calls.argsFor(0)[0];
-      var mockResponse = { status: 200 };
+      var mockResponse = { target: { status: 200 } };
       callback(mockResponse);
       expect(uploader._verifyAllChunksUploadedError).toHaveBeenCalledWith(attempts, mockResponse);
     });
@@ -1614,7 +1630,7 @@ describe("bs3u.Uploader", function() {
       var attempts = 1;
       uploader._verifyAllChunksUploaded(attempts);
       var callback = mockAjaxClass.onTimeout.calls.argsFor(0)[0];
-      var mockResponse = { status: 200 };
+      var mockResponse = { target: { status: 200 } };
       callback(mockResponse);
       expect(uploader._verifyAllChunksUploadedError).toHaveBeenCalledWith(attempts, mockResponse);
     });
@@ -1718,8 +1734,8 @@ describe("bs3u.Uploader", function() {
 
         beforeEach(function() {
           mockResponse = {
-            status: 200,
             target: {
+              status: 200,
               responseXML: xml
             }
           };
@@ -1746,8 +1762,8 @@ describe("bs3u.Uploader", function() {
 
         beforeEach(function() {
           mockResponse = {
-            status: 200,
             target: {
+              status: 200,
               responseXML: xml
             }
           };
@@ -1774,8 +1790,8 @@ describe("bs3u.Uploader", function() {
 
         beforeEach(function() {
           mockResponse = {
-            status: 200,
             target: {
+              status: 200,
               responseXML: xml
             }
           };
@@ -1795,7 +1811,9 @@ describe("bs3u.Uploader", function() {
       beforeEach(function() {
         attempts = 1;
         mockResponse = {
-          status: 400
+          target: {
+            status: 400
+          }
         };
         spyOn(window, 'setTimeout').and.callFake(function(callback, interval) {
           callback();
@@ -2077,7 +2095,7 @@ describe("bs3u.Uploader", function() {
       var attempts = 1;
       uploader._completeUpload(attempts);
       var callback = mockAjaxClass.onSuccess.calls.argsFor(0)[0];
-      var mockResponse = { status: 200 };
+      var mockResponse = { target: { status: 200 } };
       callback(mockResponse);
       expect(uploader._completeUploadSuccess).toHaveBeenCalledWith(attempts, mockResponse);
     });
@@ -2087,7 +2105,7 @@ describe("bs3u.Uploader", function() {
       var attempts = 1;
       uploader._completeUpload(attempts);
       var callback = mockAjaxClass.onError.calls.argsFor(0)[0];
-      var mockResponse = { status: 500 };
+      var mockResponse = { target: { status: 500 } };
       callback(mockResponse);
       expect(uploader._completeUploadError).toHaveBeenCalledWith(attempts, mockResponse);
     });
@@ -2097,7 +2115,7 @@ describe("bs3u.Uploader", function() {
       var attempts = 1;
       uploader._completeUpload(attempts);
       var callback = mockAjaxClass.onTimeout.calls.argsFor(0)[0];
-      var mockResponse = { status: 500 };
+      var mockResponse = { target: { status: 500 } };
       callback(mockResponse);
       expect(uploader._completeUploadError).toHaveBeenCalledWith(attempts, mockResponse);
     });
@@ -2158,8 +2176,8 @@ describe("bs3u.Uploader", function() {
         attempts = 1;
         xml = new DOMParser().parseFromString("<SomeResponse><Location>the-upload-location</Location></SomeResponse>","text/xml");
         mockResponse = {
-          status: 200,
           target: {
+            status: 200,
             responseXML: xml
           }
         };
@@ -2188,7 +2206,9 @@ describe("bs3u.Uploader", function() {
       beforeEach(function() {
         attempts = 1;
         mockResponse = {
-          status: 400,
+          target: {
+            status: 400,
+          }
         };
         spyOn(uploader, '_completeUploadError');
         uploader._completeUploadSuccess(attempts, mockResponse);

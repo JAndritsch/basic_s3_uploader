@@ -333,7 +333,7 @@ bs3u.Uploader.prototype._getInitSignature = function(retries) {
 // The success callback for getting an init signature
 bs3u.Uploader.prototype._getInitSignatureSuccess = function(attempts, response) {
   var uploader = this;
-  if (response.status == 200) {
+  if (response.target.status == 200) {
     uploader._log("Init signature retrieved");
     var json = JSON.parse(response.target.responseText);
     uploader._initSignature = json.signature;
@@ -413,7 +413,7 @@ bs3u.Uploader.prototype._initiateUpload = function(retries) {
 // The success callback for initiating an upload
 bs3u.Uploader.prototype._initiateUploadSuccess = function(attempts, response) {
   var uploader = this;
-  if (response.status == 200) {
+  if (response.target.status == 200) {
     uploader._log("Upload initiated.");
     var xml = response.target.responseXML;
     uploader._uploadId = xml.getElementsByTagName('UploadId')[0].textContent;
@@ -508,7 +508,7 @@ bs3u.Uploader.prototype._getRemainingSignatures = function(retries, successCallb
 // The success callback for getting the remaining signatures
 bs3u.Uploader.prototype._getRemainingSignaturesSuccess = function(attempts, response, successCallback) {
   var uploader = this;
-  if (response.status == 200) {
+  if (response.target.status == 200) {
     uploader._log("Remaining signatures have been retrieved");
     var json = JSON.parse(response.target.responseText);
 
@@ -633,7 +633,7 @@ bs3u.Uploader.prototype._uploadChunkProgress = function(response, number) {
 bs3u.Uploader.prototype._uploadChunkSuccess = function(attempts, response, number) {
   var uploader = this;
   var chunk = uploader._chunks[number];
-  if (response.status == 200) {
+  if (response.target.status == 200) {
     var totalChunks = Object.keys(uploader._chunks).length;
     chunk.uploading = false;
     chunk.uploadComplete = true;
@@ -641,7 +641,7 @@ bs3u.Uploader.prototype._uploadChunkSuccess = function(attempts, response, numbe
     uploader._chunkUploadsInProgress -= 1;
     uploader._log("Chunk " + number +  " has finished uploading");
     uploader._notifyChunkUploaded(number, totalChunks);
-    var eTag = response.getResponseHeader("ETag");
+    var eTag = response.target.getResponseHeader("ETag");
     if (eTag && eTag.length > 0) {
       uploader._eTags[number] = eTag;
     }
@@ -747,7 +747,7 @@ bs3u.Uploader.prototype._collectInvalidChunks = function(parts) {
 bs3u.Uploader.prototype._verifyAllChunksUploadedSuccess = function(attempts, response) {
   var uploader = this;
 
-  if (response.status == 200) {
+  if (response.target.status == 200) {
     var xml = response.target.responseXML;
     var parts = xml.getElementsByTagName("Part");
     var totalParts = Object.keys(uploader._chunks).length;
@@ -910,7 +910,7 @@ bs3u.Uploader.prototype._completeUpload = function(retries) {
 
 bs3u.Uploader.prototype._completeUploadSuccess = function(attempts, response) {
   var uploader = this;
-  if (response.status == 200) {
+  if (response.target.status == 200) {
     var xml = response.target.responseXML;
     var location = xml.getElementsByTagName('Location')[0].textContent;
     if (location) {
