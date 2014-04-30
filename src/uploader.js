@@ -890,7 +890,7 @@ bs3u.Uploader.prototype._resetData = function() {
 // monitor each chunk upload request and evaluate if the request has bombed out
 // (no progress reported in 30sec). When this happens, we can abort the chunk
 // upload and try it again.
-BasicS3Uploader.prototype._startProgressWatcher = function() {
+bs3u.Uploader.prototype._startProgressWatcher = function() {
   var uploader = this;
   uploader._log("Starting the progress watcher interval");
 
@@ -930,7 +930,7 @@ BasicS3Uploader.prototype._startProgressWatcher = function() {
 // before its upload signature becomes invalid. This information is calculated
 // given a connection's speed, the chunk's size, and then number of concurrent
 // chunks uploading.
-BasicS3Uploader.prototype._startBandwidthMonitor = function() {
+bs3u.Uploader.prototype._startBandwidthMonitor = function() {
   var uploader = this;
   uploader._log("Starting bandwidth monitor");
   var initialMaxChunks = uploader.settings.maxConcurrentChunks;
@@ -968,7 +968,7 @@ BasicS3Uploader.prototype._startBandwidthMonitor = function() {
   }, 10000);
 };
 
-BasicS3Uploader.prototype._abortChunkUpload = function(number) {
+bs3u.Uploader.prototype._abortChunkUpload = function(number) {
   var uploader = this;
   var chunk = uploader._chunks[number];
 
@@ -981,7 +981,7 @@ BasicS3Uploader.prototype._abortChunkUpload = function(number) {
   }
 };
 
-BasicS3Uploader.prototype._calculateOptimalConcurrentChunks = function(time, initialMaxChunks) {
+bs3u.Uploader.prototype._calculateOptimalConcurrentChunks = function(time, initialMaxChunks) {
   var uploader = this;
   var loaded = uploader._calculateUploadProgress();
   var speed = parseInt(loaded / (new Date().getTime() - time), 10);
@@ -994,7 +994,7 @@ BasicS3Uploader.prototype._calculateOptimalConcurrentChunks = function(time, ini
   return Math.max(Math.min(count, initialMaxChunks), 1);
 };
 
-BasicS3Uploader.prototype._calculateUploadProgress = function() {
+bs3u.Uploader.prototype._calculateUploadProgress = function() {
   var uploader = this;
   var loaded = 0;
   for (var chunkNumber in uploader._chunkProgress) {
