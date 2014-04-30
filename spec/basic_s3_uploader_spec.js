@@ -59,7 +59,7 @@ describe("BasicS3Uploader", function() {
       mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
       mockSettings = {
         contentType: "video/quicktime",
-        chunkSize: 1000,
+        chunkSize: 1024 * 1024 * 7,
         encrypted: true,
         maxRetries: 5,
         maxFileSize: 10000,
@@ -1926,6 +1926,103 @@ describe("BasicS3Uploader", function() {
       it("triggers the error handler for chunks that have not reported progress within 30 seconds", function() {
         expect(chunkOneErrorSpy).not.toHaveBeenCalled();
         expect(chunkTwoErrorSpy).toHaveBeenCalled();
+      });
+    });
+  });
+
+  describe("_startBandwidthMonitor", function() {
+    var mockFile, mockSettings, uploader, chunkOneXHR, chunkTwoXHR,
+    chunkThreeXHR, chunkFourXHR;
+
+    beforeEach(function() {
+      mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
+      mockSettings = {
+        maxConcurrentChunks: 4
+      };
+      uploader = new BasicS3Uploader(mockFile, mockSettings);
+      spyOn(window, 'Date').and.returnValue({
+        getTime: function() { return "timestamp"; }
+      });
+      spyOn(window, 'setInterval').and.callFake(function(callback, interval) {
+        callback();
+      });
+      spyOn(window, 'clearInterval');
+      chunkOneXHR = jasmine.createSpy();
+      chunkTwoXHR = jasmine.createSpy();
+      chunkThreeXHR = jasmine.createSpy();
+      chunkFourXHR = jasmine.createSpy();
+
+      uploader._chunks = {
+        1: {},
+        2: {},
+        3: {},
+        4: {},
+      };
+
+      uploader._chunkXHRs = {
+        1: { abort: chunkOneXHR },
+        2: { abort: chunkTwoXHR },
+        3: { abort: chunkThreeXHR },
+        4: { abort: chunkFourXHR },
+      };
+    });
+
+    describe("when the uploader is not uploading", function() {
+      beforeEach(function() {
+        spyOn(uploader, '_isUploading').and.returnValue(false);
+        uploader._startBandwidthMonitor();
+      });
+
+      it("stops the interval", function() {
+        expect(window.clearInterval).toHaveBeenCalled();
+      });
+    });
+
+    describe("when the uploader is uploading", function() {
+      beforeEach(function() {
+        spyOn(uploader, '_isUploading').and.returnValue(true);
+      });
+
+      describe("and the number of uploads in progress is lower than the optimal number of chunks", function() {
+        beforeEach(function() {
+          spyOn(uploader, '_calculateOptimalConcurrentChunks').and.returnValue(uploader.settings.maxConcurrentChunks);
+          spyOn(uploader, '_uploadChunks');
+          uploader._chunkUploadsInProgress = 2;
+          uploader._startBandwidthMonitor();
+        });
+
+        it("calls uploadChunks to fill the free upload spots", function() {
+          expect(uploader._uploadChunks).toHaveBeenCalled();
+        });
+      });
+
+      describe("and the number of uploads in progress equals the optimal number of chunks", function() {
+        beforeEach(function() {
+          spyOn(uploader, '_calculateOptimalConcurrentChunks').and.returnValue(uploader.settings.maxConcurrentChunks);
+          spyOn(uploader, '_uploadChunks');
+          uploader._chunkUploadsInProgress = uploader.settings.maxConcurrentChunks;
+          uploader._startBandwidthMonitor();
+        });
+
+        it("calls uploadChunks to fill the free upload spots", function() {
+          expect(uploader._uploadChunks).toHaveBeenCalled();
+        });
+      });
+
+      describe("and the number of uploads in progress is greater than the optimal number of chunks", function() {
+        beforeEach(function() {
+          spyOn(uploader, '_calculateOptimalConcurrentChunks').and.returnValue(2);
+          spyOn(uploader, '_abortChunkUpload').and.callThrough();
+          uploader._chunkUploadsInProgress = 4;
+          uploader._startBandwidthMonitor();
+        });
+
+        it("aborts a chunk upload until the number of concurrent uplaods equals the optimal setting", function() {
+          expect(chunkOneXHR).toHaveBeenCalled();
+          expect(chunkTwoXHR).toHaveBeenCalled();
+          expect(chunkThreeXHR).not.toHaveBeenCalled();
+          expect(chunkFourXHR).not.toHaveBeenCalled();
+        });
       });
     });
   });

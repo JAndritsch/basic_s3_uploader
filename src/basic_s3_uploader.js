@@ -34,7 +34,11 @@ BasicS3Uploader.prototype._configureUploader = function(settings) {
   uploader.settings.contentType             = settings.contentType || uploader.file.type;
   // Size of each part sent in the multipart request. AWS requires a chunk size of at least 5mb,
   // so it cannot be any lower than that.
-  uploader.settings.chunkSize               = settings.chunkSize || 1024 * 1024 * 10; // 10MB
+
+  var minimumChunkSize = 1024 * 1024 * 6;
+  var defaultChunkSize = 1024 * 1024 * 10;
+
+  uploader.settings.chunkSize               = Math.max(settings.chunkSize || defaultChunkSize, minimumChunkSize);
   // If set to true, the upload will be performed using an AES256 encryption.
   uploader.settings.encrypted               = settings.encrypted || false;
   // Should any part of the upload process fail, it will automatically retry any AJAX call
@@ -831,16 +835,14 @@ BasicS3Uploader.prototype._startBandwidthMonitor = function() {
     uploader._log("Optimal concurrent chunks for connection is ", newConcurrentChunks);
     uploader._log("Number of concurrent uploads in progress is ", uploader._chunkUploadsInProgress);
 
-    if (uploader.settings.maxConcurrentChunks != newConcurrentChunks) {
-      // change concurrent chunks
-      uploader.settings.maxConcurrentChunks = newConcurrentChunks;
-      // cancel the number of xhrs needed
+    // If you are under-utilizing your connection
+    if (newConcurrentChunks >= uploader._chunkUploadsInProgress) {
+      uploader._log("More concurrent upload spots are available");
+      uploader._uploadChunks();
+    } else {
+      uploader._log("There are more concurrent uploads than your connection can support");
       for (var number in uploader._chunkXHRs) {
-        if (newConcurrentChunks >= uploader._chunkUploadsInProgress) {
-          uploader._log("More concurrent upload spots are available");
-          uploader._uploadChunks();
-          break;
-        } else {
+        if (uploader._chunkUploadsInProgress > newConcurrentChunks) {
           uploader._log("Cancelling the upload for chunk ", number);
           uploader._abortChunkUpload(number);
         }
@@ -868,7 +870,7 @@ BasicS3Uploader.prototype._calculateOptimalConcurrentChunks = function(time) {
   // Needed speed to upload a single chunk within the signature timeout
   var neededSpeed = (chunkSize / signatureTimeout);
   var count = parseInt((speed / neededSpeed), 10);
-  return Math.max(Math.min(count, 5), 1);
+  return Math.max(Math.min(count, uploader.settings.maxConcurrentChunks), 1);
 };
 
 BasicS3Uploader.prototype._calculateUploadProgress = function() {
