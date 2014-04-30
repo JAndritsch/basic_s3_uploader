@@ -249,3 +249,6 @@ bs3u.MockUploader.prototype._notifyUploadCancelled = function() {
   var uploader = this;
   uploader.settings.onCancel.call(uploader);
 };
+
+// For backwards compatibility
+var BasicS3UploaderMock = bs3u.MockUploader;
