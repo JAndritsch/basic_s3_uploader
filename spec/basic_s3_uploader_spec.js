@@ -2027,6 +2027,94 @@ describe("BasicS3Uploader", function() {
     });
   });
 
+  describe("_abortChunkUpload", function() {
+    var mockFile, mockSettings, uploader, abortSpy;
+
+    beforeEach(function() {
+      mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
+      mockSettings = {};
+      abortSpy = jasmine.createSpy();
+      uploader = new BasicS3Uploader(mockFile, mockSettings);
+      uploader._chunks = {
+        1: { uploading: true, uploadComplete: true }
+      };
+      uploader._chunkXHRs = {
+        1: { abort: abortSpy }
+      };
+      uploader._chunkUploadsInProgress = 1;
+      uploader._abortChunkUpload(1);
+    });
+
+    it("aborts the chunk's XHR", function() {
+      expect(abortSpy).toHaveBeenCalled();
+    });
+
+    it("sets the chunk's status to not uploading and not upload complete", function() {
+      expect(uploader._chunks[1].uploading).toBeFalsy();
+      expect(uploader._chunks[1].uploadComplete).toBeFalsy();
+    });
+
+    it("decrements the _chunkUploadsInProgress count by one", function() {
+      expect(uploader._chunkUploadsInProgress).toEqual(0);
+    });
+  });
+
+  describe("_calculateOptimalConcurrentChunks", function() {
+    var mockFile, mockSettings, uploader, bandwidthMonitorStartTime;
+
+    beforeEach(function() {
+      mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
+      mockSettings = {
+        chunkSize: 1024 * 1024 * 6,
+        maxConcurrentChunks: 4
+      };
+      spyOn(window, 'Date').and.returnValue({
+        getTime: function() { return 1000; }
+      });
+      uploader = new BasicS3Uploader(mockFile, mockSettings);
+      bandwidthMonitorStartTime = 500;
+    });
+
+    // Keeping the time interval constant and only changing the number of bytes
+    // uploaded within that time frame.
+    it("returns the number of concurrent chunks possible for faster connections up to the maxConcurrentChunks setting", function() {
+      spyOn(uploader, '_calculateUploadProgress').and.returnValue(50000);
+      var result = uploader._calculateOptimalConcurrentChunks(bandwidthMonitorStartTime);
+      expect(result).toEqual(4);
+    });
+
+    it("returns an optimal number of concurrent chunks for the connection", function() {
+      spyOn(uploader, '_calculateUploadProgress').and.returnValue(10000);
+      var result = uploader._calculateOptimalConcurrentChunks(bandwidthMonitorStartTime);
+      expect(result).toEqual(2);
+    });
+
+    it("returns a minimum value of 1 concurrent chunk for slower connections", function() {
+      spyOn(uploader, '_calculateUploadProgress').and.returnValue(5000);
+      var result = uploader._calculateOptimalConcurrentChunks(bandwidthMonitorStartTime);
+      expect(result).toEqual(1);
+    });
+  });
+
+  describe("_calculateUploadProgress", function() {
+    var mockFile, mockSettings, uploader;
+
+    beforeEach(function() {
+      mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
+      mockSettings = {};
+      uploader = new BasicS3Uploader(mockFile, mockSettings);
+      uploader._chunkProgress = {
+        1: 20,
+        2: 30,
+        3: 50
+      };
+    });
+
+    it("iterates over the _chunkProgress map and returns the sum of their progress", function() {
+      expect(uploader._calculateUploadProgress()).toEqual(100);
+    });
+  });
+
   describe("_setReady", function() {
     var mockFile, mockSettings, uploader;
 

@@ -12,6 +12,7 @@ var BasicS3Uploader = function(file, settings) {
   uploader._eTags = {};
   uploader._chunkProgress = {};
   uploader._chunkUploadsInProgress = 0;
+  uploader._signatureTimeout = 15 * 60000;
   uploader._configureUploader(settings);
   uploader._notifyUploaderReady();
   uploader._setReady();
@@ -863,13 +864,12 @@ BasicS3Uploader.prototype._calculateOptimalConcurrentChunks = function(time) {
   var uploader = this;
   var loaded = uploader._calculateUploadProgress();
   var speed = loaded / (new Date().getTime() - time);
-  var signatureTimeout = 15 * 60000;  // 15 min
-
   uploader._log("Calculated upload speed is ", speed);
   var chunkSize = uploader.settings.chunkSize;
   // Needed speed to upload a single chunk within the signature timeout
-  var neededSpeed = (chunkSize / signatureTimeout);
+  var neededSpeed = (chunkSize / uploader._signatureTimeout);
   var count = parseInt((speed / neededSpeed), 10);
+
   return Math.max(Math.min(count, uploader.settings.maxConcurrentChunks), 1);
 };
 
