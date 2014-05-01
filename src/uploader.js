@@ -530,6 +530,7 @@ bs3u.Uploader.prototype._uploadChunk = function(number, retries) {
 bs3u.Uploader.prototype._uploadChunkProgress = function(response, number) {
   var uploader = this;
   uploader._chunkProgress[number] = response.loaded;
+  uploader._chunkXHRs[number].lastProgressAt = new Date().getTime();
   uploader._notifyUploadProgress();
 };
 

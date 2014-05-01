@@ -1392,15 +1392,25 @@ describe("bs3u.Uploader", function() {
       uploader._chunks = {
         1: { startRange: 0, endRange: 1000, uploading: false, uploadComplete: false }
       };
+      uploader._chunkXHRs = {
+        1: { lastProgressAt: 0 }
+      };
       mockResponse = {
         loaded: 500
       };
       spyOn(uploader, '_notifyUploadProgress');
+      spyOn(window, 'Date').and.returnValue({
+        getTime: function() { return 1000; }
+      });
       uploader._uploadChunkProgress(mockResponse, 1);
     });
 
     it("sets the chunk's progress from the response", function() {
       expect(uploader._chunkProgress[1]).toEqual(500);
+    });
+
+    it("records the time at which progress was last reported", function() {
+      expect(uploader._chunkXHRs[1].lastProgressAt).toEqual(1000);
     });
 
     it("notifies about upload progress", function() {
