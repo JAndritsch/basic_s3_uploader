@@ -567,11 +567,7 @@ bs3u.Uploader.prototype._uploadChunkSuccess = function(attempts, response, numbe
 bs3u.Uploader.prototype._uploadChunkError = function(attempts, response, number) {
   var uploader = this;
   var chunk = uploader._chunks[number];
-  uploader._chunkUploadsInProgress -= 1;
-  chunk.uploading = false;
-  chunk.uploadComplete = false;
-  uploader._chunkXHRs[number].abort();
-  delete uploader._chunkXHRs[number];
+  uploader._abortChunkUpload(number);
 
   uploader._log("Retrying to upload chunk " + number);
   setTimeout(function() {
@@ -913,8 +909,8 @@ bs3u.Uploader.prototype._startProgressWatcher = function() {
         // if no progress reported within 30 seconds
         if ((currentTime - chunkProgressTime) > 30000) {
           uploader._log("No progress has been reported within 30 seconds for chunk " + index);
-          xhr.abort();
-          xhr._data.error();
+          uploader._abortChunkUpload(index);
+          uploader._retryChunk(index);
         }
       }
     }

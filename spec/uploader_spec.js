@@ -916,7 +916,7 @@ describe("bs3u.Uploader", function() {
       attempts = 2;
       mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
       mockResponse = {
-        target: { 
+        target: {
           status: 500
         }
       };
@@ -1124,7 +1124,7 @@ describe("bs3u.Uploader", function() {
       beforeEach(function() {
         callback = function() {};
         mockResponse = {
-          target: { 
+          target: {
             status: 400
           }
         };
@@ -1526,25 +1526,13 @@ describe("bs3u.Uploader", function() {
       uploader._chunks = {
         1: { uploading: true, uploadComplete: true }
       };
+      spyOn(uploader, '_abortChunkUpload');
 
       uploader._uploadChunkError(attempts, mockResponse, chunkNumber);
     });
 
-    it("decrements the _chunkUploadsInProgress by one", function() {
-      expect(uploader._chunkUploadsInProgress).toEqual(0);
-    });
-
-    it("sets uploading and uploadComplete to false for the chunk", function() {
-      expect(uploader._chunks[chunkNumber].uploading).toBeFalsy();
-      expect(uploader._chunks[chunkNumber].uploadComplete).toBeFalsy();
-    });
-
-    it("aborts the XHR for that chunk", function() {
-      expect(xhrAbortSpy).toHaveBeenCalled();
-    });
-
-    it("deletes the XHR for that chunk", function() {
-      expect(uploader._chunkXHRs[chunkNumber]).toBeUndefined();
+    it("aborts the chunk upload", function() {
+      expect(uploader._abortChunkUpload).toHaveBeenCalledWith(chunkNumber);
     });
 
     it("notfies that the chunk upload is going to retry another attempt", function() {
@@ -1994,7 +1982,7 @@ describe("bs3u.Uploader", function() {
           expect(uploader._uploadChunk).toHaveBeenCalledWith(1, 1);
         });
       });
-      
+
       describe("and there is not an upload spot available", function() {
         beforeEach(function() {
           spyOn(uploader, '_getRemainingSignatures').and.callFake(function(attempt, callback) {
@@ -2421,43 +2409,24 @@ describe("bs3u.Uploader", function() {
   });
 
   describe("_startProgressWatcher", function() {
-    var mockFile, mockSettings, uploader, chunkXHROne, chunkXHRTwo, chunkXHRThree,
-    chunkOneAbortSpy, chunkTwoAbortSpy, chunkOneErrorSpy, chunkTwoErrorSpy, 
-    chunkThreeErrorSpy;
+    var mockFile, mockSettings, uploader, chunkXHROne, chunkXHRTwo,
+    chunkXHRThree;
 
     beforeEach(function() {
       mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
       mockSettings = {};
       uploader = new BasicS3Uploader(mockFile, mockSettings);
-      chunkOneAbortSpy = jasmine.createSpy();
-      chunkTwoAbortSpy = jasmine.createSpy();
-      chunkThreeAbortSpy = jasmine.createSpy();
-      chunkOneErrorSpy = jasmine.createSpy();
-      chunkTwoErrorSpy = jasmine.createSpy();
-      chunkThreeErrorSpy = jasmine.createSpy();
 
       chunkXHROne = {
         lastProgressAt: 80000,
-        abort: chunkOneAbortSpy,
-        _data: {
-          error: chunkOneErrorSpy
-        }
       };
 
       chunkXHRTwo = {
         lastProgressAt: 30000,
-        abort: chunkTwoAbortSpy,
-        _data: {
-          error: chunkTwoErrorSpy
-        }
       };
 
       chunkXHRThree = {
         lastProgressAt: 0,
-        abort: chunkThreeAbortSpy,
-        _data: {
-          error: chunkThreeErrorSpy
-        }
       };
 
       uploader._chunkXHRs = {
@@ -2474,6 +2443,8 @@ describe("bs3u.Uploader", function() {
       spyOn(window, 'setInterval').and.callFake(function(callback, interval) {
         callback();
       });
+      spyOn(uploader, '_abortChunkUpload');
+      spyOn(uploader, '_retryChunk');
       spyOn(window, 'clearInterval');
     });
 
@@ -2498,18 +2469,13 @@ describe("bs3u.Uploader", function() {
       });
 
       it("stops any chunks that have not reported progress within 30 seconds", function() {
-        expect(chunkOneAbortSpy).not.toHaveBeenCalled();
-        expect(chunkTwoAbortSpy).toHaveBeenCalled();
+        expect(uploader._abortChunkUpload).toHaveBeenCalledWith('2');
+        expect(uploader._abortChunkUpload.calls.count()).toEqual(1);
       });
 
-      it("triggers the error handler for chunks that have not reported progress within 30 seconds", function() {
-        expect(chunkOneErrorSpy).not.toHaveBeenCalled();
-        expect(chunkTwoErrorSpy).toHaveBeenCalled();
-      });
-
-      it("ignores chunks that are not uploading", function() {
-        expect(chunkThreeAbortSpy).not.toHaveBeenCalled();
-        expect(chunkThreeErrorSpy).not.toHaveBeenCalled();
+      it("retries any chunks that have not reported progress within 30 seconds", function() {
+        expect(uploader._retryChunk).toHaveBeenCalledWith('2');
+        expect(uploader._retryChunk.calls.count()).toEqual(1);
       });
     });
   });
