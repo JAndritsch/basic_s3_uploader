@@ -204,13 +204,12 @@ Want to help make this better? Please perform the following steps to contribute:
 
 - Fork the project
 - Create a new branch with your changes
-- Be sure if adding/removing/changing logic to update the tests in spec/basic_s3_uploader_spec.js
-- Make sure all specs are passing. You can run the tests in two ways:
-  * Open the standalone HTML file found in lib/jasmine/SpecRunner.html.
-  * Run them through grunt and karma:
+- Be sure if adding/removing/changing logic to update the appropriate tests found in spec/
+- Make sure all specs are passing. You can run them through grunt and karma:
       * `npm install`
       * `grunt`, `grunt test`, or even `grunt watch`
-- Make sure you update the sample app (it has its own copy of the uploader):
-  * `grunt build` (copies the files from src/* to sample_app/public/javascripts)
+- Make sure you update the distributed copy by running the 'build' task
+  * `grunt build` (merges the src files together and copies it to dist/. Also copies the
+  built file into the sample app).
 - Use the sample app provided to "smoke test" your changes.
 - Send me a pull request
