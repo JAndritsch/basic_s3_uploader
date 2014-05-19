@@ -29,7 +29,7 @@ Here are the steps required to use BasicS3Uploader:
           // configure the settings for the uploader per file
           var settings = {};
           for (var file in files) {
-            uploader = new BasicS3Uploader(file, settings);
+            uploader = new bs3u.Uploader(file, settings);
             uploaders.push(uploader);
           }
         });
@@ -53,7 +53,7 @@ Here are the steps required to use BasicS3Uploader:
 
 3. Instantiate a BasicS3Uploader, passing it the file and the settings
 
-        var uploader = new BasicS3Uploader(file, settings);
+        var uploader = new bs3u.Uploader(file, settings);
 
 4. Call "startUpload()" whenever you're ready for the upload to start.
 
