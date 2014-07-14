@@ -769,7 +769,15 @@ bs3u.Uploader.prototype._completeUpload = function(retries) {
   var authorization = "AWS " + uploader.settings.awsAccessKey + ":" + signature;
   var body = "<CompleteMultipartUpload>";
 
-  for (var chunkNumber in uploader._chunks) {
+  // Keys in objects should already be sorted by default when iterating, but doing it
+  // manually here just in case some browsers sort differently (or not at all).
+  var chunkNumbers = Object.keys(uploader._chunks).sort(function(a, b) {
+    return a - b;
+  });
+
+  var chunkNumber;
+  for (var i = 0; i < chunkNumbers.length; i ++) {
+    chunkNumber = chunkNumbers[i];
     body += "<Part>";
     body += "<PartNumber>" + chunkNumber + "</PartNumber>";
     body += "<ETag>" + uploader._chunks[chunkNumber].eTag + "</ETag>";
