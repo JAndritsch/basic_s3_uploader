@@ -9,7 +9,6 @@ bs3u.Uploader = function(file, settings) {
   uploader.file = file;
   uploader._XHRs = [];
   uploader._chunkXHRs = {};
-  uploader._eTags = {};
   uploader._chunkProgress = {};
   uploader._chunkUploadsInProgress = 0;
   uploader._signatureTimeout = 15 * 60000;
@@ -182,7 +181,13 @@ bs3u.Uploader.prototype._createChunks = function() {
 
     endRange = (startRange + sizeOfChunk);
 
-    chunks[partNumber] = {startRange: startRange, endRange: endRange, uploading: false, uploadComplete: false};
+    chunks[partNumber] = {
+      startRange: startRange,
+      endRange: endRange,
+      uploading: false,
+      uploadComplete: false,
+      eTag: null
+    };
 
     startRange = (chunkSize * partNumber);
     remainingSize = remainingSize - sizeOfChunk;
@@ -305,7 +310,7 @@ bs3u.Uploader.prototype._initiateUpload = function(retries) {
   ajax.onError(function(response) {
     uploader._initiateUploadError(attempts, response);
   });
-  
+
   ajax.onTimeout(function(response) {
     uploader._initiateUploadError(attempts, response);
   });
@@ -546,9 +551,11 @@ bs3u.Uploader.prototype._uploadChunkSuccess = function(attempts, response, numbe
     uploader._chunkUploadsInProgress -= 1;
     uploader._log("Chunk " + number +  " has finished uploading");
     uploader._notifyChunkUploaded(number, totalChunks);
+
+    // Store the eTag on the chunk
     var eTag = response.target.getResponseHeader("ETag");
     if (eTag && eTag.length > 0) {
-      uploader._eTags[number] = eTag;
+      chunk.eTag = eTag;
     }
 
     if (uploader._allETagsAvailable()) {
@@ -637,7 +644,7 @@ bs3u.Uploader.prototype._collectInvalidChunks = function(parts) {
     var uploadedChunk = uploader._chunks[number];
     var expectedSize = uploadedChunk.endRange - uploadedChunk.startRange;
 
-    if (!uploadedChunk || eTag != uploader._eTags[number] || size != expectedSize) {
+    if (!uploadedChunk || eTag != uploadedChunk.eTag || size != expectedSize) {
       invalidParts.push(number);
     }
   }
@@ -765,10 +772,10 @@ bs3u.Uploader.prototype._completeUpload = function(retries) {
   var authorization = "AWS " + uploader.settings.awsAccessKey + ":" + signature;
   var body = "<CompleteMultipartUpload>";
 
-  for (var chunkNumber in uploader._eTags) {
+  for (var chunkNumber in uploader._chunks) {
     body += "<Part>";
     body += "<PartNumber>" + chunkNumber + "</PartNumber>";
-    body += "<ETag>" + uploader._eTags[chunkNumber] + "</ETag>";
+    body += "<ETag>" + uploader._chunks[chunkNumber].eTag + "</ETag>";
     body += "</Part>";
   }
 
@@ -863,7 +870,13 @@ bs3u.Uploader.prototype._retryAvailable = function(attempts) {
 // Returns true if we have an eTag for every chunk
 bs3u.Uploader.prototype._allETagsAvailable = function() {
   var uploader = this;
-  return Object.keys(uploader._eTags).length == Object.keys(uploader._chunks).length;
+  for (var chunkNumber in uploader._chunks) {
+    var chunk = uploader._chunks[chunkNumber];
+    if (chunk.eTag === null || chunk.eTag === undefined || chunk.eTag.length < 1) {
+      return false;
+    }
+  }
+  return true;
 };
 
 bs3u.Uploader.prototype._resetData = function() {
@@ -872,7 +885,6 @@ bs3u.Uploader.prototype._resetData = function() {
   // in case any callbacks still need them. Everything else can go.
   uploader._XHRs = [];
   uploader._date = null;
-  uploader._eTags = {};
   uploader._uploadId = null;
   uploader._initSignature = null;
   uploader._listSignature = null;

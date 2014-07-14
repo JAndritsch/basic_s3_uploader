@@ -45,10 +45,6 @@ describe("bs3u.Uploader", function() {
       expect(uploader._XHRs).toEqual([]);
     });
 
-    it("creates a hash to hold all eTags", function() {
-      expect(uploader._eTags).toEqual({});
-    });
-
     it("creates a hash to hold chunk upload progress", function() {
       expect(uploader._chunkProgress).toEqual({});
     });
@@ -1470,7 +1466,7 @@ describe("bs3u.Uploader", function() {
 
       it("stores the eTag for the chunk", function() {
         uploader._uploadChunkSuccess(attempts, mockResponse, chunkNumber);
-        expect(uploader._eTags[chunkNumber]).toEqual("eTag");
+        expect(uploader._chunks[chunkNumber].eTag).toEqual("eTag");
       });
 
       describe("when all eTags are available", function() {
@@ -1669,14 +1665,9 @@ describe("bs3u.Uploader", function() {
 
       uploader = new bs3u.Uploader(mockFile, mockSettings);
       uploader._chunks = {
-        1: { startRange: 0, endRange: 1000 },
-        2: { startRange: 1000, endRange: 2000 },
-        3: { startRange: 2000, endRange: 3000 }
-      };
-      uploader._eTags = {
-        1: '"chunk-1-eTag"',
-        2: '"chunk-2-eTag"',
-        3: '"chunk-3-eTag"'
+        1: { startRange: 0, endRange: 1000, eTag: '"chunk-1-eTag"' },
+        2: { startRange: 1000, endRange: 2000, eTag: '"chunk-2-eTag"' },
+        3: { startRange: 2000, endRange: 3000, eTag: '"chunk-3-eTag"' }
       };
     });
 
@@ -1709,14 +1700,10 @@ describe("bs3u.Uploader", function() {
       };
       uploader = new bs3u.Uploader(mockFile, mockSettings);
       uploader._chunks = {
-        1: { startRange: 0, endRange: 1000, uploading: false, uploadComplete: false },
-        2: { startRange: 1000, endRange: 2000, uploading: false, uploadComplete: false }
+        1: { startRange: 0, endRange: 1000, uploading: false, uploadComplete: false, eTag: '"chunk-1-eTag"' },
+        2: { startRange: 1000, endRange: 2000, uploading: false, uploadComplete: false, eTag: '"chunk-2-eTag"' }
       };
       uploader._listSignature = { signature: 'list-signature', date: 'date' };
-      uploader._eTags = {
-        1: '"chunk-1-eTag"',
-        2: '"chunk-2-eTag"',
-      };
     });
 
     describe("a 200 response", function() {
@@ -2059,14 +2046,10 @@ describe("bs3u.Uploader", function() {
       uploader = new bs3u.Uploader(mockFile, mockSettings);
       uploader._uploadId = "upload-id";
       uploader._chunks = {
-        1: { startRange: 0, endRange: 1000, uploading: false, uploadComplete: false },
-        2: { startRange: 1000, endRange: 2000, uploading: false, uploadComplete: false }
+        1: { startRange: 0, endRange: 1000, uploading: false, uploadComplete: false, eTag: '"chunk-1-eTag"' },
+        2: { startRange: 1000, endRange: 2000, uploading: false, uploadComplete: false, eTag: '"chunk-2-eTag"' }
       };
       uploader._completeSignature = { signature: 'complete-signature', date: 'date' };
-      uploader._eTags = {
-        1: '"chunk-1-eTag"',
-        2: '"chunk-2-eTag"',
-      };
       spyOn(uploader, '_requiresFirefoxHack').and.returnValue(false);
     });
 
@@ -2354,23 +2337,39 @@ describe("bs3u.Uploader", function() {
         bucket: "my-bucket"
       };
       uploader = new bs3u.Uploader(mockFile, mockSettings);
-      uploader._chunks = {
-        1: {},
-        2: {}
-      };
     });
 
     it('returns true if each chunk has an eTag', function() {
-      uploader._eTags = {
-        1: '"chunk-1-eTag"',
-        2: '"chunk-2-eTag"',
+      uploader._chunks = {
+        1: { eTag: "chunk-1-etag" },
+        2: { eTag: "chunk-2-etag" }
       };
       expect(uploader._allETagsAvailable()).toBeTruthy();
     });
 
-    it('returns false if at least 1 eTag is missing', function() {
-      uploader._eTags = {
-        1: '"chunk-1-eTag"'
+    it('returns false if at least 1 eTag is null', function() {
+      uploader._chunks = {
+        1: { eTag: "chunk-1-etag" },
+        2: { eTag: null },
+        3: { eTag: "chunk-3-etag" }
+      };
+      expect(uploader._allETagsAvailable()).toBeFalsy();
+    });
+
+    it('returns false if at least 1 eTag is undefined', function() {
+      uploader._chunks = {
+        1: { eTag: "chunk-1-etag" },
+        2: { eTag: undefined },
+        3: { eTag: "chunk-3-etag" }
+      };
+      expect(uploader._allETagsAvailable()).toBeFalsy();
+    });
+
+    it('returns false if at least 1 eTag is empty', function() {
+      uploader._chunks = {
+        1: { eTag: "chunk-1-etag" },
+        2: { eTag: "" },
+        3: { eTag: "chunk-3-etag" }
       };
       expect(uploader._allETagsAvailable()).toBeFalsy();
     });
@@ -2391,7 +2390,6 @@ describe("bs3u.Uploader", function() {
       uploader = new bs3u.Uploader(mockFile, mockSettings);
       uploader._XHRs = ["someXHR"];
       uploader._date = "someDate";
-      uploader._eTags = {1: "etag"};
       uploader._uploadId = "upload-id";
       uploader._initSignature = "init-sig";
       uploader._listSignature = "list-sig";
@@ -2406,7 +2404,6 @@ describe("bs3u.Uploader", function() {
       uploader._resetData();
       expect(uploader._XHRs).toEqual([]);
       expect(uploader._date).toBeNull();
-      expect(uploader._eTags).toEqual({});
       expect(uploader._uploadId).toBeNull();
       expect(uploader._initSignature).toBeNull();
       expect(uploader._listSignature).toBeNull();
