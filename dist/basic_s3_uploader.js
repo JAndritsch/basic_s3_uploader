@@ -1,9 +1,9 @@
 var bs3u = {
   version: {
-    full: "1.0.7",
+    full: "1.0.8",
     major: "1",
     minor: "0",
-    patch: "7"
+    patch: "8"
   }
 };
 
@@ -105,9 +105,7 @@ bs3u.Uploader = function(file, settings) {
   uploader.file = file;
   uploader._XHRs = [];
   uploader._chunkXHRs = {};
-  uploader._eTags = {};
   uploader._chunkProgress = {};
-  uploader._chunkUploadsInProgress = 0;
   uploader._signatureTimeout = 15 * 60000;
   uploader._configureUploader(settings);
   uploader._notifyUploaderReady();
@@ -278,7 +276,13 @@ bs3u.Uploader.prototype._createChunks = function() {
 
     endRange = (startRange + sizeOfChunk);
 
-    chunks[partNumber] = {startRange: startRange, endRange: endRange, uploading: false, uploadComplete: false};
+    chunks[partNumber] = {
+      startRange: startRange,
+      endRange: endRange,
+      uploading: false,
+      uploadComplete: false,
+      eTag: null
+    };
 
     startRange = (chunkSize * partNumber);
     remainingSize = remainingSize - sizeOfChunk;
@@ -401,7 +405,7 @@ bs3u.Uploader.prototype._initiateUpload = function(retries) {
   ajax.onError(function(response) {
     uploader._initiateUploadError(attempts, response);
   });
-  
+
   ajax.onTimeout(function(response) {
     uploader._initiateUploadError(attempts, response);
   });
@@ -565,7 +569,7 @@ bs3u.Uploader.prototype._uploadChunks = function() {
 // for another chunk upload.
 bs3u.Uploader.prototype._uploadSpotAvailable = function() {
   var uploader = this;
-  return uploader._chunkUploadsInProgress < uploader.settings.maxConcurrentChunks;
+  return uploader._chunkUploadsInProgress() < uploader.settings.maxConcurrentChunks;
 };
 
 // Uploads a single chunk to S3. Because multiple chunks can be uploading at
@@ -578,7 +582,6 @@ bs3u.Uploader.prototype._uploadChunk = function(number, retries) {
 
   var chunk = uploader._chunks[number];
 
-  uploader._chunkUploadsInProgress += 1;
   chunk.uploading = true;
   chunk.uploadComplete = false;
 
@@ -639,12 +642,13 @@ bs3u.Uploader.prototype._uploadChunkSuccess = function(attempts, response, numbe
     chunk.uploading = false;
     chunk.uploadComplete = true;
     delete uploader._chunkXHRs[number];
-    uploader._chunkUploadsInProgress -= 1;
     uploader._log("Chunk " + number +  " has finished uploading");
     uploader._notifyChunkUploaded(number, totalChunks);
+
+    // Store the eTag on the chunk
     var eTag = response.target.getResponseHeader("ETag");
     if (eTag && eTag.length > 0) {
-      uploader._eTags[number] = eTag;
+      chunk.eTag = eTag;
     }
 
     if (uploader._allETagsAvailable()) {
@@ -733,7 +737,7 @@ bs3u.Uploader.prototype._collectInvalidChunks = function(parts) {
     var uploadedChunk = uploader._chunks[number];
     var expectedSize = uploadedChunk.endRange - uploadedChunk.startRange;
 
-    if (!uploadedChunk || eTag != uploader._eTags[number] || size != expectedSize) {
+    if (!uploadedChunk || eTag != uploadedChunk.eTag || size != expectedSize) {
       invalidParts.push(number);
     }
   }
@@ -861,10 +865,10 @@ bs3u.Uploader.prototype._completeUpload = function(retries) {
   var authorization = "AWS " + uploader.settings.awsAccessKey + ":" + signature;
   var body = "<CompleteMultipartUpload>";
 
-  for (var chunkNumber in uploader._eTags) {
+  for (var chunkNumber in uploader._chunks) {
     body += "<Part>";
     body += "<PartNumber>" + chunkNumber + "</PartNumber>";
-    body += "<ETag>" + uploader._eTags[chunkNumber] + "</ETag>";
+    body += "<ETag>" + uploader._chunks[chunkNumber].eTag + "</ETag>";
     body += "</Part>";
   }
 
@@ -959,7 +963,29 @@ bs3u.Uploader.prototype._retryAvailable = function(attempts) {
 // Returns true if we have an eTag for every chunk
 bs3u.Uploader.prototype._allETagsAvailable = function() {
   var uploader = this;
-  return Object.keys(uploader._eTags).length == Object.keys(uploader._chunks).length;
+  for (var chunkNumber in uploader._chunks) {
+    var chunk = uploader._chunks[chunkNumber];
+    if (chunk.eTag === null || chunk.eTag === undefined || chunk.eTag.length < 1) {
+      return false;
+    }
+  }
+  return true;
+};
+
+// Returns the number of chunk uploads currently in progress
+bs3u.Uploader.prototype._chunkUploadsInProgress = function() {
+  var uploader = this;
+  var count = 0;
+  var chunk;
+
+  for (var chunkNumber in uploader._chunks) {
+    chunk = uploader._chunks[chunkNumber];
+    if (chunk.uploading === true) {
+      count += 1;
+    }
+  }
+
+  return count;
 };
 
 bs3u.Uploader.prototype._resetData = function() {
@@ -968,7 +994,6 @@ bs3u.Uploader.prototype._resetData = function() {
   // in case any callbacks still need them. Everything else can go.
   uploader._XHRs = [];
   uploader._date = null;
-  uploader._eTags = {};
   uploader._uploadId = null;
   uploader._initSignature = null;
   uploader._listSignature = null;
@@ -976,7 +1001,6 @@ bs3u.Uploader.prototype._resetData = function() {
   uploader._chunkSignatures = {};
   uploader._chunkXHRs = {};
   uploader._chunkProgress = {};
-  uploader._chunkUploadsInProgress = 0;
 };
 
 // Since none of the XHR requests are configured with a timeout, we need to
@@ -1031,7 +1055,7 @@ bs3u.Uploader.prototype._startBandwidthMonitor = function() {
   var newConcurrentChunks;
 
   // calculate the number of possible concurrent chunks based on upload speed.
-  // i.e. can all chunks finish within 15 minutes, before signatures go state.
+  // i.e. can all chunks finish within 15 minutes, before signatures go stale.
   var id = setInterval(function(){
     if (!uploader._isUploading()) {
       uploader._log("Stopping the bandwidth monitor");
@@ -1041,19 +1065,19 @@ bs3u.Uploader.prototype._startBandwidthMonitor = function() {
 
     newConcurrentChunks = uploader._calculateOptimalConcurrentChunks(monitorStartTime, initialMaxChunks);
     uploader._log("Optimal concurrent chunks for connection is ", newConcurrentChunks);
-    uploader._log("Number of concurrent uploads in progress is ", uploader._chunkUploadsInProgress);
+    uploader._log("Number of concurrent uploads in progress is ", uploader._chunkUploadsInProgress());
     uploader.settings.maxConcurrentChunks = newConcurrentChunks;
 
     // If you are under-utilizing your connection
-    if (newConcurrentChunks >= uploader._chunkUploadsInProgress) {
-      if (newConcurrentChunks > uploader._chunkUploadsInProgress) {
+    if (newConcurrentChunks >= uploader._chunkUploadsInProgress()) {
+      if (newConcurrentChunks > uploader._chunkUploadsInProgress()) {
         uploader._log("More concurrent upload spots are available");
         uploader._uploadChunks();
       }
     } else {
       uploader._log("There are more concurrent uploads than your connection can support");
-      for (var number in uploader._chunkXHRs) {
-        if (uploader._chunkUploadsInProgress > newConcurrentChunks) {
+      for (var number in uploader._chunks) {
+        if (uploader._chunkUploadsInProgress() > newConcurrentChunks) {
           uploader._abortChunkUpload(number);
         }
       }
@@ -1070,7 +1094,6 @@ bs3u.Uploader.prototype._abortChunkUpload = function(number) {
     uploader._chunkXHRs[number].abort();
     chunk.uploading = false;
     chunk.uploadComplete = false;
-    uploader._chunkUploadsInProgress -= 1;
   }
 };
 
