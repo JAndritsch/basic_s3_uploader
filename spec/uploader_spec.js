@@ -49,10 +49,6 @@ describe("bs3u.Uploader", function() {
       expect(uploader._chunkProgress).toEqual({});
     });
 
-    it("sets _chunkUploadsInProgress to 0", function() {
-      expect(uploader._chunkUploadsInProgress).toEqual(0);
-    });
-
     it("configures the uploader using the provided settings", function() {
       expect(bs3u.Uploader.prototype._configureUploader).toHaveBeenCalled();
     });
@@ -1256,12 +1252,12 @@ describe("bs3u.Uploader", function() {
     });
 
     it("returns true if the number of concurrent uploads is less than the max amount", function() {
-      uploader._chunkUploadsInProgress = 2;
+      spyOn(uploader, '_chunkUploadsInProgress').and.returnValue(2);
       expect(uploader._uploadSpotAvailable()).toBeTruthy();
     });
 
     it("returns false if the number of concurrent uploads is equal to the max amount", function() {
-      uploader._chunkUploadsInProgress = 3;
+      spyOn(uploader, '_chunkUploadsInProgress').and.returnValue(3);
       expect(uploader._uploadSpotAvailable()).toBeFalsy();
     });
   });
@@ -1286,7 +1282,6 @@ describe("bs3u.Uploader", function() {
 
       };
       uploader = new bs3u.Uploader(mockFile, mockSettings);
-      uploader._chunkUploadsInProgress = 0;
       uploader._uploadId = "upload-id";
       uploader._chunks = {
         1: { startRange: 0, endRange: 1000, uploading: false, uploadComplete: false }
@@ -1294,11 +1289,6 @@ describe("bs3u.Uploader", function() {
       uploader._chunkSignatures = {
         1: { signature: 'chunk-signature', date: 'date' }
       };
-    });
-
-    it("increments the number of uploads in progress by 1", function() {
-      uploader._uploadChunk(1);
-      expect(uploader._chunkUploadsInProgress).toEqual(1);
     });
 
     it("sets the correct statuses for the chunk", function() {
@@ -1427,7 +1417,6 @@ describe("bs3u.Uploader", function() {
         1: { startRange: 0, endRange: 1000, uploading: true, uploadComplete: false },
         2: { startRange: 0, endRange: 1000, uploading: true, uploadComplete: false }
       };
-      uploader._chunkUploadsInProgress = 1;
       uploader._chunkXHRs[chunkNumber] = "chunkXHR";
     });
 
@@ -1451,11 +1440,6 @@ describe("bs3u.Uploader", function() {
       it("deletes the chunk XHR", function() {
         uploader._uploadChunkSuccess(attempts, mockResponse, chunkNumber);
         expect(uploader._chunkXHRs[chunkNumber]).toBeUndefined();
-      });
-
-      it("decrements the chunkUploadsInProgress by 1", function() {
-        uploader._uploadChunkSuccess(attempts, mockResponse, chunkNumber);
-        expect(uploader._chunkUploadsInProgress).toEqual(0);
       });
 
       it("notifies the chunks has been uploaded", function() {
@@ -1528,7 +1512,6 @@ describe("bs3u.Uploader", function() {
       });
       spyOn(uploader, '_notifyUploadRetry');
       spyOn(uploader, '_retryChunk');
-      uploader._chunkUploadsInProgress = 1;
       uploader._chunks = {
         1: { uploading: true, uploadComplete: true }
       };
@@ -2375,6 +2358,33 @@ describe("bs3u.Uploader", function() {
     });
   });
 
+  describe("_chunkUploadsInProgress", function() {
+    var mockFile, mockSettings, uploader;
+
+    beforeEach(function() {
+      mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
+      mockSettings = {
+        host: 'some-host',
+        key: "my-upload-key",
+        maxRetries: 3,
+        awsAccessKey: 'my-access-key',
+        bucket: "my-bucket"
+      };
+      uploader = new bs3u.Uploader(mockFile, mockSettings);
+      uploader._chunks = {
+        1: { uploading: true, uploadComplete: false },
+        2: { uploading: false, uploadComplete: false },
+        3: { uploading: false, uploadComplete: true },
+        4: { uploading: true, uploadComplete: false }
+      };
+    });
+
+    it("returns the number of chunk uploads in progress", function() {
+      expect(uploader._chunkUploadsInProgress()).toEqual(2);
+    });
+
+  });
+
   describe("_resetData", function() {
     var mockFile, mockSettings, uploader;
 
@@ -2397,7 +2407,6 @@ describe("bs3u.Uploader", function() {
       uploader._chunkSignatures = {1: "chunk-sig"};
       uploader._chunkXHRs = {1: "chunkXHR"};
       uploader._chunkProgress = {1: "chunkProgress"};
-      uploader._chunkUploadsInProgress = 2;
     });
 
     it('clears out any attributes that are no longer needed ', function() {
@@ -2411,7 +2420,6 @@ describe("bs3u.Uploader", function() {
       expect(uploader._chunkSignatures).toEqual({});
       expect(uploader._chunkXHRs).toEqual({});
       expect(uploader._chunkProgress).toEqual({});
-      expect(uploader._chunkUploadsInProgress).toEqual(0);
     });
   });
 
@@ -2488,8 +2496,7 @@ describe("bs3u.Uploader", function() {
   });
 
   describe("_startBandwidthMonitor", function() {
-    var mockFile, mockSettings, uploader, chunkOneXHR, chunkTwoXHR,
-    chunkThreeXHR, chunkFourXHR;
+    var mockFile, mockSettings, uploader;
 
     beforeEach(function() {
       mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
@@ -2504,23 +2511,11 @@ describe("bs3u.Uploader", function() {
         callback();
       });
       spyOn(window, 'clearInterval');
-      chunkOneXHR = jasmine.createSpy();
-      chunkTwoXHR = jasmine.createSpy();
-      chunkThreeXHR = jasmine.createSpy();
-      chunkFourXHR = jasmine.createSpy();
-
       uploader._chunks = {
         1: { uploading: true },
         2: { uploading: true },
         3: { uploading: true },
         4: { uploading: true },
-      };
-
-      uploader._chunkXHRs = {
-        1: { abort: chunkOneXHR },
-        2: { abort: chunkTwoXHR },
-        3: { abort: chunkThreeXHR },
-        4: { abort: chunkFourXHR },
       };
     });
 
@@ -2539,6 +2534,7 @@ describe("bs3u.Uploader", function() {
       beforeEach(function() {
         spyOn(uploader, '_isUploading').and.returnValue(true);
         spyOn(uploader, '_uploadChunks');
+        spyOn(uploader, '_abortChunkUpload');
       });
 
       it("updates the maxConcurrentChunks setting to be the value determined most optimal", function() {
@@ -2550,7 +2546,7 @@ describe("bs3u.Uploader", function() {
       describe("and the number of uploads in progress is lower than the optimal number of chunks", function() {
         beforeEach(function() {
           spyOn(uploader, '_calculateOptimalConcurrentChunks').and.returnValue(uploader.settings.maxConcurrentChunks);
-          uploader._chunkUploadsInProgress = 2;
+          spyOn(uploader, '_chunkUploadsInProgress').and.returnValue(2);
           uploader._startBandwidthMonitor();
         });
 
@@ -2562,7 +2558,7 @@ describe("bs3u.Uploader", function() {
       describe("and the number of uploads in progress equals the optimal number of chunks", function() {
         beforeEach(function() {
           spyOn(uploader, '_calculateOptimalConcurrentChunks').and.returnValue(uploader.settings.maxConcurrentChunks);
-          uploader._chunkUploadsInProgress = uploader.settings.maxConcurrentChunks;
+          spyOn(uploader, '_chunkUploadsInProgress').and.returnValue(uploader.settings.maxConcurrentChunks);
           uploader._startBandwidthMonitor();
         });
 
@@ -2574,16 +2570,12 @@ describe("bs3u.Uploader", function() {
       describe("and the number of uploads in progress is greater than the optimal number of chunks", function() {
         beforeEach(function() {
           spyOn(uploader, '_calculateOptimalConcurrentChunks').and.returnValue(2);
-          spyOn(uploader, '_abortChunkUpload').and.callThrough();
-          uploader._chunkUploadsInProgress = 4;
+          spyOn(uploader, '_chunkUploadsInProgress').and.returnValue(4);
           uploader._startBandwidthMonitor();
         });
 
         it("aborts a chunk upload until the number of concurrent uplaods equals the optimal setting", function() {
-          expect(chunkOneXHR).toHaveBeenCalled();
-          expect(chunkTwoXHR).toHaveBeenCalled();
-          expect(chunkThreeXHR).not.toHaveBeenCalled();
-          expect(chunkFourXHR).not.toHaveBeenCalled();
+          expect(uploader._abortChunkUpload).toHaveBeenCalled();
         });
       });
     });
@@ -2603,7 +2595,6 @@ describe("bs3u.Uploader", function() {
       uploader._chunkXHRs = {
         1: { abort: abortSpy }
       };
-      uploader._chunkUploadsInProgress = 1;
       uploader._abortChunkUpload(1);
     });
 
@@ -2614,10 +2605,6 @@ describe("bs3u.Uploader", function() {
     it("sets the chunk's status to not uploading and not upload complete", function() {
       expect(uploader._chunks[1].uploading).toBeFalsy();
       expect(uploader._chunks[1].uploadComplete).toBeFalsy();
-    });
-
-    it("decrements the _chunkUploadsInProgress count by one", function() {
-      expect(uploader._chunkUploadsInProgress).toEqual(0);
     });
   });
 

@@ -10,7 +10,6 @@ bs3u.Uploader = function(file, settings) {
   uploader._XHRs = [];
   uploader._chunkXHRs = {};
   uploader._chunkProgress = {};
-  uploader._chunkUploadsInProgress = 0;
   uploader._signatureTimeout = 15 * 60000;
   uploader._configureUploader(settings);
   uploader._notifyUploaderReady();
@@ -474,7 +473,7 @@ bs3u.Uploader.prototype._uploadChunks = function() {
 // for another chunk upload.
 bs3u.Uploader.prototype._uploadSpotAvailable = function() {
   var uploader = this;
-  return uploader._chunkUploadsInProgress < uploader.settings.maxConcurrentChunks;
+  return uploader._chunkUploadsInProgress() < uploader.settings.maxConcurrentChunks;
 };
 
 // Uploads a single chunk to S3. Because multiple chunks can be uploading at
@@ -487,7 +486,6 @@ bs3u.Uploader.prototype._uploadChunk = function(number, retries) {
 
   var chunk = uploader._chunks[number];
 
-  uploader._chunkUploadsInProgress += 1;
   chunk.uploading = true;
   chunk.uploadComplete = false;
 
@@ -548,7 +546,6 @@ bs3u.Uploader.prototype._uploadChunkSuccess = function(attempts, response, numbe
     chunk.uploading = false;
     chunk.uploadComplete = true;
     delete uploader._chunkXHRs[number];
-    uploader._chunkUploadsInProgress -= 1;
     uploader._log("Chunk " + number +  " has finished uploading");
     uploader._notifyChunkUploaded(number, totalChunks);
 
@@ -879,6 +876,22 @@ bs3u.Uploader.prototype._allETagsAvailable = function() {
   return true;
 };
 
+// Returns the number of chunk uploads currently in progress
+bs3u.Uploader.prototype._chunkUploadsInProgress = function() {
+  var uploader = this;
+  var count = 0;
+  var chunk;
+
+  for (var chunkNumber in uploader._chunks) {
+    chunk = uploader._chunks[chunkNumber];
+    if (chunk.uploading === true) {
+      count += 1;
+    }
+  }
+
+  return count;
+};
+
 bs3u.Uploader.prototype._resetData = function() {
   var uploader = this;
   // Need to keep uploader.settings, uploader.file, and uploader._chunks around
@@ -892,7 +905,6 @@ bs3u.Uploader.prototype._resetData = function() {
   uploader._chunkSignatures = {};
   uploader._chunkXHRs = {};
   uploader._chunkProgress = {};
-  uploader._chunkUploadsInProgress = 0;
 };
 
 // Since none of the XHR requests are configured with a timeout, we need to
@@ -947,7 +959,7 @@ bs3u.Uploader.prototype._startBandwidthMonitor = function() {
   var newConcurrentChunks;
 
   // calculate the number of possible concurrent chunks based on upload speed.
-  // i.e. can all chunks finish within 15 minutes, before signatures go state.
+  // i.e. can all chunks finish within 15 minutes, before signatures go stale.
   var id = setInterval(function(){
     if (!uploader._isUploading()) {
       uploader._log("Stopping the bandwidth monitor");
@@ -957,19 +969,19 @@ bs3u.Uploader.prototype._startBandwidthMonitor = function() {
 
     newConcurrentChunks = uploader._calculateOptimalConcurrentChunks(monitorStartTime, initialMaxChunks);
     uploader._log("Optimal concurrent chunks for connection is ", newConcurrentChunks);
-    uploader._log("Number of concurrent uploads in progress is ", uploader._chunkUploadsInProgress);
+    uploader._log("Number of concurrent uploads in progress is ", uploader._chunkUploadsInProgress());
     uploader.settings.maxConcurrentChunks = newConcurrentChunks;
 
     // If you are under-utilizing your connection
-    if (newConcurrentChunks >= uploader._chunkUploadsInProgress) {
-      if (newConcurrentChunks > uploader._chunkUploadsInProgress) {
+    if (newConcurrentChunks >= uploader._chunkUploadsInProgress()) {
+      if (newConcurrentChunks > uploader._chunkUploadsInProgress()) {
         uploader._log("More concurrent upload spots are available");
         uploader._uploadChunks();
       }
     } else {
       uploader._log("There are more concurrent uploads than your connection can support");
-      for (var number in uploader._chunkXHRs) {
-        if (uploader._chunkUploadsInProgress > newConcurrentChunks) {
+      for (var number in uploader._chunks) {
+        if (uploader._chunkUploadsInProgress() > newConcurrentChunks) {
           uploader._abortChunkUpload(number);
         }
       }
@@ -986,7 +998,6 @@ bs3u.Uploader.prototype._abortChunkUpload = function(number) {
     uploader._chunkXHRs[number].abort();
     chunk.uploading = false;
     chunk.uploadComplete = false;
-    uploader._chunkUploadsInProgress -= 1;
   }
 };
 
