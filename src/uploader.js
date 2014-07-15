@@ -772,6 +772,8 @@ bs3u.Uploader.prototype._completeUpload = function(retries) {
   var totalChunks = Object.keys(uploader._chunks);
   var chunkNumber;
 
+  // Order is important here, so iterating "the old fashioned way" to make sure
+  // we maintain ascending order for this payload.
   for (var i = 0; i < totalChunks.length; i++) {
     chunkNumber = i + 1;
     body += "<Part>";
