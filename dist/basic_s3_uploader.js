@@ -1,9 +1,9 @@
 var bs3u = {
   version: {
-    full: "1.0.9",
+    full: "1.0.10",
     major: "1",
     minor: "0",
-    patch: "9"
+    patch: "10"
   }
 };
 
@@ -738,7 +738,12 @@ bs3u.Uploader.prototype._collectInvalidChunks = function(parts) {
     var expectedSize = uploadedChunk.endRange - uploadedChunk.startRange;
 
     if (!uploadedChunk || eTag != uploadedChunk.eTag || size != expectedSize) {
+      uploader._log('About to add chunk ' + number + ' to the invalidParts.');
       invalidParts.push(number);
+      // ensure that uploadComplete has the correct value (see _uploadChunks)
+      uploadedChunk.uploadComplete = false;
+      // invalidate the eTag to prevent extraneous calls to _verifyAllChunksUploaded
+      uploadedChunk.eTag = null;
     }
   }
 
@@ -799,10 +804,21 @@ bs3u.Uploader.prototype._verifyAllChunksUploadedError = function(attempts, respo
 // Iterates over the list of invalid chunks and calls _retryChunk.
 bs3u.Uploader.prototype._handleInvalidChunks = function(invalidParts) {
   var uploader = this;
-  for (var i = 0; i < invalidParts.length; i++) {
-    var chunkNumber = invalidParts[i];
-    uploader._retryChunk(chunkNumber);
-  }
+  // delay retry so uploader has time to register that an upload spot might
+  // already have been taken by a previous retry
+  (function delayLoop (i, _invalidParts) {
+    setTimeout(
+      function() {
+        if (uploader._uploadSpotAvailable()) {
+          var chunkNumber = _invalidParts[i];
+          uploader._log('About to retry invalid chunk: ' + chunkNumber);
+          uploader._retryChunk(chunkNumber);
+          --i;
+          if (i >= 0) { delayLoop(i, _invalidParts); }
+        }
+      }, 2000
+    );
+  })(invalidParts.length - 1, invalidParts);
 };
 
 // Determines if S3 is missing any chunks that were sent, then retries uploading
@@ -868,6 +884,8 @@ bs3u.Uploader.prototype._completeUpload = function(retries) {
   var totalChunks = Object.keys(uploader._chunks);
   var chunkNumber;
 
+  // Order is important here, so iterating "the old fashioned way" to make sure
+  // we maintain ascending order for this payload.
   for (var i = 0; i < totalChunks.length; i++) {
     chunkNumber = i + 1;
     body += "<Part>";
