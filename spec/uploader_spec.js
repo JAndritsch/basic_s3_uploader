@@ -1620,7 +1620,7 @@ describe("bs3u.Uploader", function() {
   });
 
   describe("_collectInvalidChunks", function() {
-    var mockFile, mockSettings, uploader, xml, xmlString, partsFromS3;
+    var mockFile, mockSettings, uploader, xml, xmlString, partsFromS3, invalidParts;
 
     xmlString = "<Parts>";
     xmlString += "<Part><PartNumber>1</PartNumber><ETag>\"invalid-eTag\"</ETag><Size>1000</Size></Part>";
@@ -1648,17 +1648,27 @@ describe("bs3u.Uploader", function() {
 
       uploader = new bs3u.Uploader(mockFile, mockSettings);
       uploader._chunks = {
-        1: { startRange: 0, endRange: 1000, eTag: '"chunk-1-eTag"' },
-        2: { startRange: 1000, endRange: 2000, eTag: '"chunk-2-eTag"' },
-        3: { startRange: 2000, endRange: 3000, eTag: '"chunk-3-eTag"' }
+        1: { startRange: 0, endRange: 1000, eTag: '"chunk-1-eTag"', uploadComplete: true },
+        2: { startRange: 1000, endRange: 2000, eTag: '"chunk-2-eTag"', uploadComplete: true },
+        3: { startRange: 2000, endRange: 3000, eTag: '"chunk-3-eTag"', uploadComplete: true }
       };
+      invalidParts = uploader._collectInvalidChunks(partsFromS3);
     });
 
     it("returns an array of part numbers that have an invalid size or etag", function() {
-      var invalidParts = uploader._collectInvalidChunks(partsFromS3);
       expect(invalidParts.length).toEqual(2);
       expect(invalidParts[0]).toEqual(1);
       expect(invalidParts[1]).toEqual(2);
+    });
+
+    it("sets the eTag to null for any invalid chunks", function() {
+      expect(uploader._chunks[1].eTag).toBeNull();
+      expect(uploader._chunks[2].eTag).toBeNull();
+    });
+
+    it("sets the 'uploadComplete' status to 'false' for any invalid chunks", function() {
+      expect(uploader._chunks[1].uploadComplete).toBeFalsy();
+      expect(uploader._chunks[2].uploadComplete).toBeFalsy();
     });
   });
 
@@ -1878,15 +1888,19 @@ describe("bs3u.Uploader", function() {
       mockSettings = {};
       uploader = new bs3u.Uploader(mockFile, mockSettings);
       spyOn(uploader, '_retryChunk');
+      spyOn(window, 'setTimeout').and.callFake(function(callback, delay) {
+        callback();
+      });
+      spyOn(uploader, '_uploadSpotAvailable').and.returnValue(true);
 
       uploader._handleInvalidChunks([1, 3, 5]);
     });
 
     it('calls _retryChunk for each invalid chunk number given', function() {
       expect(uploader._retryChunk.calls.count()).toEqual(3);
-      expect(uploader._retryChunk.calls.argsFor(0)[0]).toEqual(1);
+      expect(uploader._retryChunk.calls.argsFor(0)[0]).toEqual(5);
       expect(uploader._retryChunk.calls.argsFor(1)[0]).toEqual(3);
-      expect(uploader._retryChunk.calls.argsFor(2)[0]).toEqual(5);
+      expect(uploader._retryChunk.calls.argsFor(2)[0]).toEqual(1);
     });
   });
 
