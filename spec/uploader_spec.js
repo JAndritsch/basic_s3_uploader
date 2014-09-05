@@ -74,6 +74,7 @@ describe("bs3u.Uploader", function() {
         encrypted: true,
         maxRetries: 5,
         maxFileSize: 10000,
+        retryWaitTime: 3000,
         acl: "private",
         signatureBackend: "/",
         initSignaturePath: "initSignature",
@@ -108,6 +109,7 @@ describe("bs3u.Uploader", function() {
       expect(uploader.settings.chunkSize).toEqual(mockSettings.chunkSize);
       expect(uploader.settings.encrypted).toEqual(mockSettings.encrypted);
       expect(uploader.settings.maxRetries).toEqual(mockSettings.maxRetries);
+      expect(uploader.settings.retryWaitTime).toEqual(mockSettings.retryWaitTime);
       expect(uploader.settings.maxFileSize).toEqual(mockSettings.maxFileSize);
       expect(uploader.settings.acl).toEqual(mockSettings.acl);
       expect(uploader.settings.signatureBackend).toEqual(mockSettings.signatureBackend);

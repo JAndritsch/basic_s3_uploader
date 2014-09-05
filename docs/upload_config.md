@@ -43,6 +43,12 @@ Below are all the upload settings that can be configured.
       <td>5</td>
     </tr>
     <tr>
+      <td>retryWaitTime</td>
+      <td>Number</td>
+      <td>The number of milliseconds to wait until the next retry is attempted. Note that this number is multiplied by the number of attempts to prevent spamming retries during connectivity issues.</td>
+      <td>2000</td>
+    </tr>
+    <tr>
       <td>maxFileSize</td>
       <td>Number (bytes)</td>
       <td>The maximum size of the file. AWS currently does not support uploading files larger than 5GB.</td>
