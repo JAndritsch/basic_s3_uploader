@@ -1,5 +1,5 @@
 This page covers the different uploader settings and events that can be configured.
-To seem some of these settings in action, check out the sample app provided in the
+To see some of these settings in action, check out the sample app provided in the
 project repository.
 
 ## Config settings
