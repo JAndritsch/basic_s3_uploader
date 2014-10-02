@@ -85,6 +85,7 @@ describe("bs3u.Uploader", function() {
         log: true,
         customHeaders: { "X-Test-Header": "True" },
         maxConcurrentChunks: 5,
+        usingCloudFront: true,
         key: "my-key-for-this-upload",
         onReady: function() {},
         onStart: function() {},
@@ -121,6 +122,7 @@ describe("bs3u.Uploader", function() {
       expect(uploader.settings.log).toEqual(mockSettings.log);
       expect(uploader.settings.customHeaders).toEqual(mockSettings.customHeaders);
       expect(uploader.settings.maxConcurrentChunks).toEqual(mockSettings.maxConcurrentChunks);
+      expect(uploader.settings.usingCloudFront).toEqual(mockSettings.usingCloudFront);
       expect(uploader.settings.key).toEqual(mockSettings.key);
       expect(uploader.settings.onReady).toEqual(mockSettings.onReady);
       expect(uploader.settings.onStart).toEqual(mockSettings.onStart);
@@ -1576,6 +1578,13 @@ describe("bs3u.Uploader", function() {
       expect(ajaxSettings.params.uploadId).toEqual('upload-id');
       expect(ajaxSettings.headers['x-amz-date']).toEqual('date');
       expect(ajaxSettings.headers.Authorization).toEqual('AWS my-access-key:list-signature');
+    });
+
+    it("specially configures the url when the host provided is to a CloudFront distribution", function() {
+      uploader.settings.usingCloudFront = true;
+      uploader._verifyAllChunksUploaded();
+      var ajaxSettings = bs3u.Ajax.calls.argsFor(0)[0];
+      expect(ajaxSettings.url).toEqual('http://my-bucket.s3.amazonaws.com/my-upload-key');
     });
 
     it("adds the XHR object to the _XHRs list", function() {

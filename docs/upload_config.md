@@ -103,6 +103,12 @@ Below are all the upload settings that can be configured.
       <td>http://{bucket}.s3.amazonaws.com</td>
     </tr>
     <tr>
+      <td>usingCloudFront</td>
+      <td>Boolean</td>
+      <td>Tells the uploader that the provided host is for a CloudFront distribution. This has some special internal meaning for how the uploader manages some of the requests.</td>
+      <td>false</td>
+    </tr>
+    <tr>
       <td>awsAccessKey</td>
       <td>String</td>
       <td>Your public AWS access key (not your secret key!)</td>

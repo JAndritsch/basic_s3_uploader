@@ -1,9 +1,9 @@
 var bs3u = {
   version: {
-    full: "1.0.11",
+    full: "1.0.12",
     major: "1",
     minor: "0",
-    patch: "11"
+    patch: "12"
   }
 };
 
@@ -172,6 +172,10 @@ bs3u.Uploader.prototype._configureUploader = function(settings) {
   // number of attempts. For example, the first retry will wait for 2 seconds before attempting, whereaas the
   // 3rd retry will wait for 6 seconds. Formala: (waitTime * attempts).
   uploader.settings.retryWaitTime           = settings.retryWaitTime || 2000;
+  // If the host is specified and the host is for a CloudFront distribution, set
+  // this flag to true. The uploader has to do some things a bit differently when
+  // uploading against CloudFront.
+  uploader.settings.usingCloudFront         = settings.usingCloudFront || false;
 
   // Generates a default key to use for the upload if none was provided.
   var defaultKey = "/" + uploader.settings.bucket + "/" + new Date().getTime() + "_" + uploader.file.name;
@@ -699,8 +703,17 @@ bs3u.Uploader.prototype._verifyAllChunksUploaded = function(retries) {
 
   uploader._log("Verifying all chunks have been uploaded");
 
+  // CloudFront does not support the List Parts method, so we must go directly
+  // to the bucket in order to verify everything was uploaded correctly.
+  var host;
+  if (uploader.settings.usingCloudFront) {
+    host = "http://" + uploader.settings.bucket + "." + "s3.amazonaws.com";
+  } else {
+    host = uploader.settings.host;
+  }
+
   var ajax = new bs3u.Ajax({
-    url: uploader.settings.host + "/" + uploader.settings.key,
+    url: host + "/" + uploader.settings.key,
     method: "GET",
     params: {
       uploadId: uploader._uploadId,
