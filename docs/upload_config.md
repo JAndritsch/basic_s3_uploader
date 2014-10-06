@@ -106,7 +106,7 @@ Below are all the upload settings that can be configured.
       <td>ssl</td>
       <td>Boolean</td>
       <td>
-        If set to true, the uploader will perform its against against S3 using https.
+        If set to true, the uploader will perform actions against S3 using https.
         Otherwise, it defaults to http. Note: this option is not needed if manually
         configuring the host.
       </td>
