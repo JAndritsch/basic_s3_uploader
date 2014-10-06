@@ -103,6 +103,16 @@ Below are all the upload settings that can be configured.
       <td>http://{bucket}.s3.amazonaws.com</td>
     </tr>
     <tr>
+      <td>ssl</td>
+      <td>Boolean</td>
+      <td>
+        If set to true, the uploader will perform its against against S3 using https.
+        Otherwise, it defaults to http. Note: this option is not needed if manually
+        configuring the host.
+      </td>
+      <td>false</td>
+    </tr>
+    <tr>
       <td>usingCloudFront</td>
       <td>Boolean</td>
       <td>Tells the uploader that the provided host is for a CloudFront distribution. This has some special internal meaning for how the uploader manages some of the requests.</td>
