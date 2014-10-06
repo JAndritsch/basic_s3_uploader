@@ -1,9 +1,9 @@
 var bs3u = {
   version: {
-    full: "1.0.12",
+    full: "1.0.13",
     major: "1",
     minor: "0",
-    patch: "12"
+    patch: "13"
   }
 };
 
@@ -153,8 +153,15 @@ bs3u.Uploader.prototype._configureUploader = function(settings) {
   uploader.settings.remainingSignaturesPath = settings.remainingSignaturesPath || "/get_remaining_signatures";
   // The name of your S3 bucket
   uploader.settings.bucket                  = settings.bucket || "your-bucket-name";
+  // If not setting a host, set to true if uploading using ssl.
+  uploader.settings.ssl                     = settings.ssl || false;
+  if (uploader.settings.ssl) {
+    uploader.settings.protocol = "https://";
+  } else {
+    uploader.settings.protocol = "http://";
+  }
   // The host name is not required but can be explicitly set.
-  uploader.settings.host                    = settings.host || "http://" + uploader.settings.bucket + "." + "s3.amazonaws.com";
+  uploader.settings.host                    = settings.host || uploader.settings.protocol + uploader.settings.bucket + "." + "s3.amazonaws.com";
   // Your AWS Access Key. NOTE: This is not your secret access key!
   uploader.settings.awsAccessKey            = settings.awsAccessKey || "YOUR_AWS_ACCESS_KEY_ID";
   // If true, you will see logging output in your browser's web inspector.
@@ -707,7 +714,7 @@ bs3u.Uploader.prototype._verifyAllChunksUploaded = function(retries) {
   // to the bucket in order to verify everything was uploaded correctly.
   var host;
   if (uploader.settings.usingCloudFront) {
-    host = "http://" + uploader.settings.bucket + "." + "s3.amazonaws.com";
+    host = uploader.settings.protocol + uploader.settings.bucket + "." + "s3.amazonaws.com";
   } else {
     host = uploader.settings.host;
   }

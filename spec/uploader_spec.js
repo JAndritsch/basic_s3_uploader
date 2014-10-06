@@ -80,6 +80,7 @@ describe("bs3u.Uploader", function() {
         initSignaturePath: "initSignature",
         remainingSignaturesPath: "remainingSignatures",
         bucket: "my-bucket",
+        ssl: true,
         host: "http://my-fake-host.com",
         awsAccessKey: "my-access-key",
         log: true,
@@ -117,6 +118,7 @@ describe("bs3u.Uploader", function() {
       expect(uploader.settings.initSignaturePath).toEqual(mockSettings.initSignaturePath);
       expect(uploader.settings.remainingSignaturesPath).toEqual(mockSettings.remainingSignaturesPath);
       expect(uploader.settings.bucket).toEqual(mockSettings.bucket);
+      expect(uploader.settings.ssl).toEqual(mockSettings.ssl);
       expect(uploader.settings.host).toEqual(mockSettings.host);
       expect(uploader.settings.awsAccessKey).toEqual(mockSettings.awsAccessKey);
       expect(uploader.settings.log).toEqual(mockSettings.log);
@@ -147,12 +149,15 @@ describe("bs3u.Uploader", function() {
       expect(uploader.settings.initSignaturePath).toEqual("/get_init_signature");
       expect(uploader.settings.remainingSignaturesPath).toEqual("/get_remaining_signatures");
       expect(uploader.settings.bucket).toEqual("your-bucket-name");
+      expect(uploader.settings.ssl).toBeFalsy();
       expect(uploader.settings.host).toEqual("http://" + uploader.settings.bucket + "." + "s3.amazonaws.com");
       expect(uploader.settings.awsAccessKey).toEqual("YOUR_AWS_ACCESS_KEY_ID");
       expect(uploader.settings.log).toBeFalsy();
       expect(uploader.settings.customHeaders).toEqual({});
       expect(uploader.settings.maxConcurrentChunks).toEqual(5);
       expect(uploader.settings.key).toEqual("/" + uploader.settings.bucket + "/timestamp_" + uploader.file.name);
+      expect(uploader.settings.usingCloudFront).toBeFalsy();
+      expect(uploader.settings.retryWaitTime).toEqual(2000);
       expect(uploader.settings.onReady).toBeDefined();
       expect(uploader.settings.onStart).toBeDefined();
       expect(uploader.settings.onProgress).toBeDefined();
@@ -161,6 +166,20 @@ describe("bs3u.Uploader", function() {
       expect(uploader.settings.onError).toBeDefined();
       expect(uploader.settings.onRetry).toBeDefined();
       expect(uploader.settings.onCancel).toBeDefined();
+    });
+
+    it("sets the protocol to http:// if settings.ssl is false", function() {
+      uploader = new bs3u.Uploader(mockFile, {
+        ssl: false
+      });
+      expect(uploader.settings.protocol).toEqual("http://");
+    });
+
+    it("sets the protocol to https:// if settings.ssl is true", function() {
+      uploader = new bs3u.Uploader(mockFile, {
+        ssl: true
+      });
+      expect(uploader.settings.protocol).toEqual("https://");
     });
 
   });
@@ -1581,10 +1600,11 @@ describe("bs3u.Uploader", function() {
     });
 
     it("specially configures the url when the host provided is to a CloudFront distribution", function() {
+      uploader.settings.protocol = "https://";
       uploader.settings.usingCloudFront = true;
       uploader._verifyAllChunksUploaded();
       var ajaxSettings = bs3u.Ajax.calls.argsFor(0)[0];
-      expect(ajaxSettings.url).toEqual('http://my-bucket.s3.amazonaws.com/my-upload-key');
+      expect(ajaxSettings.url).toEqual('https://my-bucket.s3.amazonaws.com/my-upload-key');
     });
 
     it("adds the XHR object to the _XHRs list", function() {
