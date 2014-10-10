@@ -51,8 +51,8 @@ Below are all the upload settings that can be configured.
     <tr>
       <td>maxFileSize</td>
       <td>Number (bytes)</td>
-      <td>The maximum size of the file. AWS currently does not support uploading files larger than 5GB.</td>
-      <td>5GB</td>
+      <td>The maximum size of the file. AWS currently does not support uploading files larger than 5 terabytes.</td>
+      <td>5TB</td>
     </tr>
     <tr>
       <td>acl</td>

@@ -143,7 +143,7 @@ describe("bs3u.Uploader", function() {
       expect(uploader.settings.chunkSize).toEqual(1024 * 1024 * 10);
       expect(uploader.settings.encrypted).toBeFalsy();
       expect(uploader.settings.maxRetries).toEqual(5);
-      expect(uploader.settings.maxFileSize).toEqual(1024 * 1024 * 1024 * 5);
+      expect(uploader.settings.maxFileSize).toEqual(1024 * 1024 * 1024 * 1024 * 5);
       expect(uploader.settings.acl).toEqual("public-read");
       expect(uploader.settings.signatureBackend).toEqual("");
       expect(uploader.settings.initSignaturePath).toEqual("/get_init_signature");
