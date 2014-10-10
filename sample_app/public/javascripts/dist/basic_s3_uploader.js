@@ -1,9 +1,9 @@
 var bs3u = {
   version: {
-    full: "1.0.13",
+    full: "1.0.14",
     major: "1",
     minor: "0",
-    patch: "13"
+    patch: "14"
   }
 };
 
@@ -133,8 +133,8 @@ bs3u.Uploader.prototype._configureUploader = function(settings) {
   // as long as it's within the retry limit.
   uploader.settings.maxRetries              = settings.maxRetries || 5;
   // The maximum file size allowed for this upload. AWS currently does not support uploading files
-  // larger than 5 gigabytes.
-  uploader.settings.maxFileSize             = settings.maxFileSize || 1024 * 1024 * 1024 * 5; // 5GB
+  // larger than 5 terabytes.
+  uploader.settings.maxFileSize             = settings.maxFileSize || 1024 * 1024 * 1024 * 1024 * 5; // 5TB
   // The ACL (Access Control List) policy. Valid options are as follows:
     // authenticated-read
     // bucket-owner-full-control
