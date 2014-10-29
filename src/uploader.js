@@ -477,7 +477,7 @@ bs3u.Uploader.prototype._uploadChunks = function() {
 
   for(var chunkNumber = 1; chunkNumber < totalChunks + 1; chunkNumber++) {
     var chunk = uploader._chunks[chunkNumber];
-    if (!chunk.uploading && !chunk.uploadComplete && uploader._uploadSpotAvailable()) {
+    if (!chunk.uploading && !chunk.uploadComplete && uploader._uploadSpotAvailable() && chunk.attempts === undefined) {
       uploader._log("Starting the XHR upload for chunk " + chunkNumber);
       uploader._uploadChunk(chunkNumber);
     }
