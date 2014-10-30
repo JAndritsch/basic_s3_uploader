@@ -1,9 +1,9 @@
 var bs3u = {
   version: {
-    full: "1.0.14",
+    full: "1.0.15",
     major: "1",
     minor: "0",
-    patch: "14"
+    patch: "15"
   }
 };
 
@@ -683,7 +683,6 @@ bs3u.Uploader.prototype._uploadChunkSuccess = function(attempts, response, numbe
 bs3u.Uploader.prototype._uploadChunkError = function(attempts, response, number) {
   var uploader = this;
   var chunk = uploader._chunks[number];
-  uploader._abortChunkUpload(number);
 
   uploader._log("Retrying to upload chunk " + number);
   setTimeout(function() {
@@ -694,6 +693,7 @@ bs3u.Uploader.prototype._uploadChunkError = function(attempts, response, number)
       chunk: chunk
     };
     uploader._notifyUploadRetry(attempts, data);
+    uploader._abortChunkUpload(number);
     uploader._retryChunk(number);
   }, uploader.settings.retryWaitTime * attempts);
 };
