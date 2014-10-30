@@ -1216,11 +1216,7 @@ bs3u.Uploader.prototype._requiresFirefoxHack = function() {
 bs3u.Uploader.prototype._log = function(msg, object) {
   msg = "[BasicS3Uploader] " + msg;
   if (this.settings.log) {
-    if (object) {
-      console.debug(msg, object);
-    } else {
-      console.debug(msg);
-    }
+    console.debug(msg, object);
   }
 };
 
