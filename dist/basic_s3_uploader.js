@@ -1,9 +1,9 @@
 var bs3u = {
   version: {
-    full: "1.0.15",
+    full: "1.0.16",
     major: "1",
     minor: "0",
-    patch: "15"
+    patch: "16"
   }
 };
 
@@ -377,7 +377,7 @@ bs3u.Uploader.prototype._getInitSignatureError = function(attempts, response) {
       };
       uploader._notifyUploadRetry(attempts, data);
       uploader._getInitSignature(attempts);
-    }, uploader.settings.retryWaitTime * attempts);
+    }, uploader._timeToWaitBeforeNextRetry(attempts));
   } else {
     var errorCode = 2;
     uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
@@ -462,7 +462,7 @@ bs3u.Uploader.prototype._initiateUploadError = function(attempts, response) {
       };
       uploader._notifyUploadRetry(attempts, data);
       uploader._initiateUpload(attempts);
-    }, uploader.settings.retryWaitTime * attempts);
+    }, uploader._timeToWaitBeforeNextRetry(attempts));
   } else {
     var errorCode = 3;
     uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
@@ -556,7 +556,7 @@ bs3u.Uploader.prototype._getRemainingSignaturesError = function(attempts, respon
       };
       uploader._notifyUploadRetry(attempts, data);
       uploader._getRemainingSignatures(attempts, successCallback);
-    }, uploader.settings.retryWaitTime * attempts);
+    }, uploader._timeToWaitBeforeNextRetry(attempts));
   } else {
     var errorCode = 4;
     uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
@@ -695,7 +695,7 @@ bs3u.Uploader.prototype._uploadChunkError = function(attempts, response, number)
     uploader._notifyUploadRetry(attempts, data);
     uploader._abortChunkUpload(number);
     uploader._retryChunk(number);
-  }, uploader.settings.retryWaitTime * attempts);
+  }, uploader._timeToWaitBeforeNextRetry(attempts));
 };
 
 // Calls the S3 "List chunks" API and compares the result to the chunks the uploader
@@ -815,7 +815,7 @@ bs3u.Uploader.prototype._verifyAllChunksUploadedError = function(attempts, respo
       uploader._getRemainingSignatures(0, function() {
         uploader._verifyAllChunksUploaded(attempts);
       });
-    }, uploader.settings.retryWaitTime * attempts);
+    }, uploader._timeToWaitBeforeNextRetry(attempts));
   } else {
     var errorCode = 6;
     uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
@@ -986,7 +986,7 @@ bs3u.Uploader.prototype._completeUploadError = function(attempts, response) {
       uploader._getRemainingSignatures(0, function() {
         uploader._completeUpload(attempts);
       });
-    }, uploader.settings.retryWaitTime * attempts);
+    }, uploader._timeToWaitBeforeNextRetry(attempts));
   } else {
     var errorCode = 8;
     uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
@@ -1141,6 +1141,11 @@ bs3u.Uploader.prototype._abortChunkUpload = function(number) {
     chunk.uploading = false;
     chunk.uploadComplete = false;
   }
+};
+
+bs3u.Uploader.prototype._timeToWaitBeforeNextRetry = function(attempts) {
+  var uploader = this;
+  return uploader.settings.retryWaitTime * attempts;
 };
 
 bs3u.Uploader.prototype._calculateOptimalConcurrentChunks = function(time, initialMaxChunks) {
