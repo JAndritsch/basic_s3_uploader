@@ -34,7 +34,6 @@ describe("bs3u.Signer", function() {
       expected += "content-type;host;x-amz-content-sha256;x-amz-date\n";
       // hashed payload
       expected += hashedPayload;
-
       expect(result).toEqual(expected);
     });
 

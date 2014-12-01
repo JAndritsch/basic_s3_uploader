@@ -111,5 +111,5 @@ bs3u.Signer.prototype._signedHeaders = function(headers) {
   for (var i in sortedNames) {
     signedHeadersString += sortedNames[i] + ";";
   }
-  return signedHeadersString;
+  return signedHeadersString.substring(0, signedHeadersString.length - 1);
 };
