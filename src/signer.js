@@ -104,19 +104,21 @@ bs3u.Signer.prototype._canonicalQueryString = function(url) {
   var name;
   for (var x in sortedNames) {
     name = sortedNames[x]; 
-    sortedQueryString += name + "=" + paramsHash[name] + "&";
+    sortedQueryString += encodeURIComponent(name) + "=" + encodeURIComponent(paramsHash[name]) + "&";
   }
 
   return sortedQueryString.substring(0, sortedQueryString.length - 1);
 };
 
 bs3u.Signer.prototype._canonicalHeaders = function(headers) {
-  var sortedNames = Object.keys(headers).sort();
+  var sortedNames = Object.keys(headers).map(function(header) {
+    return header.toLowerCase();
+  }).sort();
   var canonicalHeadersString = "";
   var name;
   for (var i in sortedNames) {
     name = sortedNames[i];
-    canonicalHeadersString += name + ":" + headers[name] + "\n";
+    canonicalHeadersString += name + ":" + headers[name].trim() + "\n";
   }
   return canonicalHeadersString;
 };
