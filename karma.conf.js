@@ -10,10 +10,12 @@ module.exports = function(config) {
     // list of files / patterns to load in the browser
     files: [
       'src/bs3u.js',
-      'src/uploader.js',
       'src/ajax.js',
-      'spec/uploader_spec.js',
+      'src/signer.js',
+      'src/uploader.js',
       'spec/ajax_spec.js',
+      'spec/signer_spec.js',
+      'spec/uploader_spec.js',
     ],
 
     // test results reporter to use
