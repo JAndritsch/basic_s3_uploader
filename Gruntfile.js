@@ -47,6 +47,7 @@ module.exports = function(grunt) {
       src: [
         'src/bs3u.js',
         'src/ajax.js',
+        'src/signer.js',
         'src/uploader.js'
       ],
       dest: 'dist/basic_s3_uploader.js',
