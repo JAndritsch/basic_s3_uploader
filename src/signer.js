@@ -1,6 +1,9 @@
-bs3u.Signer = function() {};
+bs3u.Signer = function(config) {
+  this.date = config.date || new Date();
+  this.region = config.region;
+};
 
-bs3u.Signer.prototype.generateCanonicalRequest = function(method, url, headers, hashedPayload) {
+bs3u.Signer.prototype.generateCanonicalRequest = function(method, url, headers, payload) {
   var signer = this;
   var request = "";
   request += method + "\n";
@@ -8,10 +11,24 @@ bs3u.Signer.prototype.generateCanonicalRequest = function(method, url, headers, 
   request += signer._canonicalQueryString(url) + "\n";
   request += signer._canonicalHeaders(headers) + "\n";
   request += signer._signedHeaders(headers) + "\n";
-  request += hashedPayload;
+  request += signer._sha256(payload);
   return request;
 };
 
+bs3u.Signer.prototype.generateStringToSign = function(canonicalRequest) {
+  var signer = this;
+
+  var stringToSign = "AWS4-HMAC-SHA256\n";
+  stringToSign += signer.formatDate(this.date) + "\n";
+  stringToSign += signer._scope() + "\n";
+  stringToSign += signer._sha256(canonicalRequest);
+
+  return stringToSign;
+};
+
+bs3u.Signer.prototype.formatDate = function(date) {
+  return date.toISOString().replace(/[:\-]|\.\d{3}/g, ''); 
+};
 
 // private
 
@@ -112,4 +129,28 @@ bs3u.Signer.prototype._signedHeaders = function(headers) {
     signedHeadersString += sortedNames[i] + ";";
   }
   return signedHeadersString.substring(0, signedHeadersString.length - 1);
+};
+
+/*
+Scope binds the resulting signature to a specific date, an AWS region, and a
+service. Thus, your resulting signature will work only in the specific region
+and for a specific service. The signature is valid for seven days after the
+specified date.
+*/
+bs3u.Signer.prototype._scope = function() {
+  var signer = this;
+  var year = this.date.getFullYear().toString();
+  var month = (this.date.getMonth() + 1).toString();
+  var day = this.date.getDay().toString();
+
+  if (month.length < 2) { month = "0" + month; }
+  if (day.length < 2) { day = "0" + day; }
+
+  var formatted = year + month + day;
+
+  return formatted + "/" + signer.region + "/s3/aws4_request";
+};
+
+bs3u.Signer.prototype._sha256 = function(value) {
+  return CryptoJS.SHA256(value).toString();
 };

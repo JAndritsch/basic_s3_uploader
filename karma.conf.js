@@ -9,6 +9,7 @@ module.exports = function(config) {
 
     // list of files / patterns to load in the browser
     files: [
+      'lib/CryptoJS/sha256-min.js',
       'src/bs3u.js',
       'src/uri.js',
       'src/ajax.js',
