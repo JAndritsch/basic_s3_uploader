@@ -45,7 +45,8 @@ module.exports = function(grunt) {
     },
     dist: {
       src: [
-        'lib/CryptoJS/sha256-min.js',
+        'lib/CryptoJS/sha256.js',
+        'lib/CryptoJS/hmac-sha256.js',
         'src/bs3u.js',
         'src/uri.js',
         'src/ajax.js',
