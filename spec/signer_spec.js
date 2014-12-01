@@ -13,7 +13,7 @@ describe("bs3u.Signer", function() {
         "host": "s3.amazonaws.com",
         "content-type": "quicktime/mov",
         "x-amz-date": "20130708T220855Z",
-        "x-amz-content-sha256": hashedPayload + "\n"
+        "x-amz-content-sha256": hashedPayload
       };
     });
 
@@ -24,12 +24,12 @@ describe("bs3u.Signer", function() {
       // uri path
       expected += "/examplebucket/file.mov\n";
       // query string (sorted)
-      expected += "awesome=true&test=&upload=thing\n";
+      expected += "awesome=true&test=&upload=things\n";
       // headers
-      expected += "host:s3.amazonaws.com\n";
       expected += "content-type:quicktime/mov\n";
+      expected += "host:s3.amazonaws.com\n";
       expected += "x-amz-content-sha256:" + hashedPayload + "\n";
-      expected += "x-amz-date:20130708T220855Z\n";
+      expected += "x-amz-date:20130708T220855Z\n\n";
       // signed headers (sorted)
       expected += "content-type;host;x-amz-content-sha256;x-amz-date\n";
       // hashed payload

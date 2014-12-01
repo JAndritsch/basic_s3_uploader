@@ -1,16 +1,14 @@
-bs3u.Signer = function() {
-};
+bs3u.Signer = function() {};
 
 bs3u.Signer.prototype.generateCanonicalRequest = function(method, url, headers, hashedPayload) {
   var signer = this;
   var request = "";
   request += method + "\n";
-  request += signer._canonicalURI(url);
-  request += signer._canonicalQueryString(url);
-  request += signer._canonicalHeaders(headers);
-  request += signer._signedHeaders(headers);
+  request += signer._canonicalURI(url) + "\n";
+  request += signer._canonicalQueryString(url) + "\n";
+  request += signer._canonicalHeaders(headers) + "\n";
+  request += signer._signedHeaders(headers) + "\n";
   request += hashedPayload;
-
   return request;
 };
 
@@ -30,6 +28,7 @@ For example, in the URI:
 encode the "/".
 */
 bs3u.Signer.prototype._canonicalURI = function(url) {
+  return new bs3u.URI(url).pathname();
 };
 
 /*
@@ -47,6 +46,26 @@ the query string is:
   marker=someMarker&max-keys=20&prefix=somePrefix
 */
 bs3u.Signer.prototype._canonicalQueryString = function(url) {
+  var queryString = new bs3u.URI(url).queryString().replace("?", "");
+  var params = queryString.split("&");
+  var paramsHash = {};
+  var sortedQueryString = "";
+
+  var parts;
+  for (var i = 0; i < params.length; i++) {
+    parts = params[i].split("=");
+    paramsHash[parts[0]] = parts[1] || "";
+  }
+
+  var sortedNames = Object.keys(paramsHash).sort();
+
+  var name;
+  for (var x in sortedNames) {
+    name = sortedNames[x]; 
+    sortedQueryString += name + "=" + paramsHash[name] + "&";
+  }
+
+  return sortedQueryString.substring(0, sortedQueryString.length - 1);
 };
 
 /*
@@ -67,6 +86,14 @@ The CanonicalHeaders list must include the following:
 
 */
 bs3u.Signer.prototype._canonicalHeaders = function(headers) {
+  var sortedNames = Object.keys(headers).sort();
+  var canonicalHeadersString = "";
+  var name;
+  for (var i in sortedNames) {
+    name = sortedNames[i];
+    canonicalHeadersString += name + ":" + headers[name] + "\n";
+  }
+  return canonicalHeadersString;
 };
 
 /*
@@ -77,4 +104,12 @@ you included in the CanonicalHeaders string. For example:
     awesome;the-dude
 */
 bs3u.Signer.prototype._signedHeaders = function(headers) {
+  var sortedNames = Object.keys(headers).map(function(header) {
+    return header.toLowerCase();
+  }).sort();
+  var signedHeadersString = "";
+  for (var i in sortedNames) {
+    signedHeadersString += sortedNames[i] + ";";
+  }
+  return signedHeadersString;
 };

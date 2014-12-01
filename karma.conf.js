@@ -10,6 +10,7 @@ module.exports = function(config) {
     // list of files / patterns to load in the browser
     files: [
       'src/bs3u.js',
+      'src/uri.js',
       'src/ajax.js',
       'src/signer.js',
       'src/uploader.js',
