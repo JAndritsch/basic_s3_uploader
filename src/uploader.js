@@ -72,7 +72,7 @@ bs3u.Uploader.prototype._configureUploader = function(settings) {
     uploader.settings.protocol = "http://";
   }
   // The region where your bucket is located. This is needed for signature generation.
-  uploader.settings.region                  = settings.region;
+  uploader.settings.region                  = settings.region || "your-region";
 
   var defaultHost = uploader.settings.protocol + uploader.settings.bucket + "." + "s3-" + uploader.settings.region + ".amazonaws.com";
 
