@@ -1,3 +1,83 @@
+/*
+CryptoJS v3.1.2
+code.google.com/p/crypto-js
+(c) 2009-2013 by Jeff Mott. All rights reserved.
+code.google.com/p/crypto-js/wiki/License
+*/
+var CryptoJS=CryptoJS||function(h,s){var f={},t=f.lib={},g=function(){},j=t.Base={extend:function(a){g.prototype=this;var c=new g;a&&c.mixIn(a);c.hasOwnProperty("init")||(c.init=function(){c.$super.init.apply(this,arguments)});c.init.prototype=c;c.$super=this;return c},create:function(){var a=this.extend();a.init.apply(a,arguments);return a},init:function(){},mixIn:function(a){for(var c in a)a.hasOwnProperty(c)&&(this[c]=a[c]);a.hasOwnProperty("toString")&&(this.toString=a.toString)},clone:function(){return this.init.prototype.extend(this)}},
+q=t.WordArray=j.extend({init:function(a,c){a=this.words=a||[];this.sigBytes=c!=s?c:4*a.length},toString:function(a){return(a||u).stringify(this)},concat:function(a){var c=this.words,d=a.words,b=this.sigBytes;a=a.sigBytes;this.clamp();if(b%4)for(var e=0;e<a;e++)c[b+e>>>2]|=(d[e>>>2]>>>24-8*(e%4)&255)<<24-8*((b+e)%4);else if(65535<d.length)for(e=0;e<a;e+=4)c[b+e>>>2]=d[e>>>2];else c.push.apply(c,d);this.sigBytes+=a;return this},clamp:function(){var a=this.words,c=this.sigBytes;a[c>>>2]&=4294967295<<
+32-8*(c%4);a.length=h.ceil(c/4)},clone:function(){var a=j.clone.call(this);a.words=this.words.slice(0);return a},random:function(a){for(var c=[],d=0;d<a;d+=4)c.push(4294967296*h.random()|0);return new q.init(c,a)}}),v=f.enc={},u=v.Hex={stringify:function(a){var c=a.words;a=a.sigBytes;for(var d=[],b=0;b<a;b++){var e=c[b>>>2]>>>24-8*(b%4)&255;d.push((e>>>4).toString(16));d.push((e&15).toString(16))}return d.join("")},parse:function(a){for(var c=a.length,d=[],b=0;b<c;b+=2)d[b>>>3]|=parseInt(a.substr(b,
+2),16)<<24-4*(b%8);return new q.init(d,c/2)}},k=v.Latin1={stringify:function(a){var c=a.words;a=a.sigBytes;for(var d=[],b=0;b<a;b++)d.push(String.fromCharCode(c[b>>>2]>>>24-8*(b%4)&255));return d.join("")},parse:function(a){for(var c=a.length,d=[],b=0;b<c;b++)d[b>>>2]|=(a.charCodeAt(b)&255)<<24-8*(b%4);return new q.init(d,c)}},l=v.Utf8={stringify:function(a){try{return decodeURIComponent(escape(k.stringify(a)))}catch(c){throw Error("Malformed UTF-8 data");}},parse:function(a){return k.parse(unescape(encodeURIComponent(a)))}},
+x=t.BufferedBlockAlgorithm=j.extend({reset:function(){this._data=new q.init;this._nDataBytes=0},_append:function(a){"string"==typeof a&&(a=l.parse(a));this._data.concat(a);this._nDataBytes+=a.sigBytes},_process:function(a){var c=this._data,d=c.words,b=c.sigBytes,e=this.blockSize,f=b/(4*e),f=a?h.ceil(f):h.max((f|0)-this._minBufferSize,0);a=f*e;b=h.min(4*a,b);if(a){for(var m=0;m<a;m+=e)this._doProcessBlock(d,m);m=d.splice(0,a);c.sigBytes-=b}return new q.init(m,b)},clone:function(){var a=j.clone.call(this);
+a._data=this._data.clone();return a},_minBufferSize:0});t.Hasher=x.extend({cfg:j.extend(),init:function(a){this.cfg=this.cfg.extend(a);this.reset()},reset:function(){x.reset.call(this);this._doReset()},update:function(a){this._append(a);this._process();return this},finalize:function(a){a&&this._append(a);return this._doFinalize()},blockSize:16,_createHelper:function(a){return function(c,d){return(new a.init(d)).finalize(c)}},_createHmacHelper:function(a){return function(c,d){return(new w.HMAC.init(a,
+d)).finalize(c)}}});var w=f.algo={};return f}(Math);
+(function(h){for(var s=CryptoJS,f=s.lib,t=f.WordArray,g=f.Hasher,f=s.algo,j=[],q=[],v=function(a){return 4294967296*(a-(a|0))|0},u=2,k=0;64>k;){var l;a:{l=u;for(var x=h.sqrt(l),w=2;w<=x;w++)if(!(l%w)){l=!1;break a}l=!0}l&&(8>k&&(j[k]=v(h.pow(u,0.5))),q[k]=v(h.pow(u,1/3)),k++);u++}var a=[],f=f.SHA256=g.extend({_doReset:function(){this._hash=new t.init(j.slice(0))},_doProcessBlock:function(c,d){for(var b=this._hash.words,e=b[0],f=b[1],m=b[2],h=b[3],p=b[4],j=b[5],k=b[6],l=b[7],n=0;64>n;n++){if(16>n)a[n]=
+c[d+n]|0;else{var r=a[n-15],g=a[n-2];a[n]=((r<<25|r>>>7)^(r<<14|r>>>18)^r>>>3)+a[n-7]+((g<<15|g>>>17)^(g<<13|g>>>19)^g>>>10)+a[n-16]}r=l+((p<<26|p>>>6)^(p<<21|p>>>11)^(p<<7|p>>>25))+(p&j^~p&k)+q[n]+a[n];g=((e<<30|e>>>2)^(e<<19|e>>>13)^(e<<10|e>>>22))+(e&f^e&m^f&m);l=k;k=j;j=p;p=h+r|0;h=m;m=f;f=e;e=r+g|0}b[0]=b[0]+e|0;b[1]=b[1]+f|0;b[2]=b[2]+m|0;b[3]=b[3]+h|0;b[4]=b[4]+p|0;b[5]=b[5]+j|0;b[6]=b[6]+k|0;b[7]=b[7]+l|0},_doFinalize:function(){var a=this._data,d=a.words,b=8*this._nDataBytes,e=8*a.sigBytes;
+d[e>>>5]|=128<<24-e%32;d[(e+64>>>9<<4)+14]=h.floor(b/4294967296);d[(e+64>>>9<<4)+15]=b;a.sigBytes=4*d.length;this._process();return this._hash},clone:function(){var a=g.clone.call(this);a._hash=this._hash.clone();return a}});s.SHA256=g._createHelper(f);s.HmacSHA256=g._createHmacHelper(f)})(Math);
+
+/*
+CryptoJS v3.1.2
+code.google.com/p/crypto-js
+(c) 2009-2013 by Jeff Mott. All rights reserved.
+code.google.com/p/crypto-js/wiki/License
+*/
+(function () {
+    // Check if typed arrays are supported
+    if (typeof ArrayBuffer != 'function') {
+        return;
+    }
+
+    // Shortcuts
+    var C = CryptoJS;
+    var C_lib = C.lib;
+    var WordArray = C_lib.WordArray;
+
+    // Reference original init
+    var superInit = WordArray.init;
+
+    // Augment WordArray.init to handle typed arrays
+    var subInit = WordArray.init = function (typedArray) {
+        // Convert buffers to uint8
+        if (typedArray instanceof ArrayBuffer) {
+            typedArray = new Uint8Array(typedArray);
+        }
+
+        // Convert other array views to uint8
+        if (
+            typedArray instanceof Int8Array ||
+            typedArray instanceof Uint8ClampedArray ||
+            typedArray instanceof Int16Array ||
+            typedArray instanceof Uint16Array ||
+            typedArray instanceof Int32Array ||
+            typedArray instanceof Uint32Array ||
+            typedArray instanceof Float32Array ||
+            typedArray instanceof Float64Array
+        ) {
+            typedArray = new Uint8Array(typedArray.buffer, typedArray.byteOffset, typedArray.byteLength);
+        }
+
+        // Handle Uint8Array
+        if (typedArray instanceof Uint8Array) {
+            // Shortcut
+            var typedArrayByteLength = typedArray.byteLength;
+
+            // Extract bytes
+            var words = [];
+            for (var i = 0; i < typedArrayByteLength; i++) {
+                words[i >>> 2] |= typedArray[i] << (24 - (i % 4) * 8);
+            }
+
+            // Initialize this word array
+            superInit.call(this, words, typedArrayByteLength);
+        } else {
+            // Else call normal init
+            superInit.apply(this, arguments);
+        }
+    };
+
+    subInit.prototype = WordArray;
+}());
+
 var bs3u = {
   version: {
     full: "1.0.16",
@@ -106,6 +186,10 @@ bs3u.Uploader = function(file, settings) {
   uploader._XHRs = [];
   uploader._chunkXHRs = {};
   uploader._chunkProgress = {};
+  uploader._initHeaders = {};
+  uploader._chunkHeaders = {};
+  uploader._listHeaders = {};
+  uploader._completeHeaders = {};
   uploader._signatureTimeout = 15 * 60000;
   uploader._configureUploader(settings);
   uploader._notifyUploaderReady();
@@ -147,10 +231,10 @@ bs3u.Uploader.prototype._configureUploader = function(settings) {
   // The root path to your signature backend. If you plan on defining the necessary
   // routes at the root of your application, leave this blank.
   uploader.settings.signatureBackend        = settings.signatureBackend || "";
-  // The path for which the upload init signature can be retrieved.
-  uploader.settings.initSignaturePath       = settings.initSignaturePath || "/get_init_signature";
-  // The path for which all other signatures can be retrieved.
-  uploader.settings.remainingSignaturesPath = settings.remainingSignaturesPath || "/get_remaining_signatures";
+  // Where the upload init headers can be retrieved.
+  uploader.settings.initHeadersPath         = settings.initHeadersPath || "/get_init_headers";
+  // Wwhere the upload chunk headers can be retrieved.
+  uploader.settings.chunkHeadersPath        = settings.chunkHeadersPath || "/get_chunk_headers";
   // The name of your S3 bucket
   uploader.settings.bucket                  = settings.bucket || "your-bucket-name";
   // If not setting a host, set to true if uploading using ssl.
@@ -160,8 +244,13 @@ bs3u.Uploader.prototype._configureUploader = function(settings) {
   } else {
     uploader.settings.protocol = "http://";
   }
+  // The region where your bucket is located. This is needed for signature generation.
+  uploader.settings.region                  = settings.region;
+
+  var defaultHost = uploader.settings.protocol + uploader.settings.bucket + "." + "s3-" + uploader.settings.region + ".amazonaws.com";
+
   // The host name is not required but can be explicitly set.
-  uploader.settings.host                    = settings.host || uploader.settings.protocol + uploader.settings.bucket + "." + "s3.amazonaws.com";
+  uploader.settings.host                    = settings.host || defaultHost;
   // Your AWS Access Key. NOTE: This is not your secret access key!
   uploader.settings.awsAccessKey            = settings.awsAccessKey || "YOUR_AWS_ACCESS_KEY_ID";
   // If true, you will see logging output in your browser's web inspector.
@@ -236,7 +325,7 @@ bs3u.Uploader.prototype.startUpload = function() {
       uploader._createChunks();
       uploader._notifyUploadStarted();
       uploader._setUploading();
-      uploader._getInitSignature();
+      uploader._getInitHeaders();
     } else {
       var errorCode = 1;
       uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
@@ -310,73 +399,70 @@ bs3u.Uploader.prototype._createChunks = function() {
   uploader._log("Total chunks to upload:", Object.keys(chunks).length);
 };
 
-// Call to the provided signature backend to get the init signature.
-// The response should look something like:
-//    { signature: "some-signature", date: "the date for this request" }
-bs3u.Uploader.prototype._getInitSignature = function(retries) {
+// Call to the provided signature backend to get the init headers.
+// The response should contain all necessary headers to authenticate the request.
+bs3u.Uploader.prototype._getInitHeaders = function(retries) {
   var uploader = this;
   var attempts = retries || 0;
 
-  uploader._log("Getting the init signature");
+  uploader._log("Getting the init headers");
   var ajax = new bs3u.Ajax({
-    url: uploader.settings.signatureBackend + uploader.settings.initSignaturePath,
+    url: uploader.settings.signatureBackend + uploader.settings.initHeadersPath,
     method: "GET",
     params: {
       key: uploader.settings.key,
-      filename: uploader.file.name,
-      filesize: uploader.file.size,
-      mime_type: uploader.settings.contentType,
-      bucket: uploader.settings.bucket,
+      content_type: uploader.settings.contentType,
       acl: uploader.settings.acl,
-      encrypted: uploader.settings.encrypted
+      encrypted: uploader.settings.encrypted,
+      payload: uploader._sha256(""),
+      region: uploader.settings.region,
+      host: uploader.settings.host,
     },
     headers: uploader.settings.customHeaders,
   });
 
   ajax.onSuccess(function(response) {
-    uploader._getInitSignatureSuccess(attempts, response);
+    uploader._getInitHeadersSuccess(attempts, response);
   });
 
   ajax.onError(function(response) {
-    uploader._getInitSignatureError(attempts, response);
+    uploader._getInitHeadersError(attempts, response);
   });
 
   ajax.onTimeout(function(response) {
-    uploader._getInitSignatureError(attempts, response);
+    uploader._getInitHeadersError(attempts, response);
   });
 
   ajax.send();
   uploader._XHRs.push(ajax);
 };
 
-// The success callback for getting an init signature
-bs3u.Uploader.prototype._getInitSignatureSuccess = function(attempts, response) {
+// The success callback for getting init headers
+bs3u.Uploader.prototype._getInitHeadersSuccess = function(attempts, response) {
   var uploader = this;
   if (response.target.status == 200) {
-    uploader._log("Init signature retrieved");
-    var json = JSON.parse(response.target.responseText);
-    uploader._initSignature = json.signature;
-    uploader._date = json.date;
+    uploader._log("Init headers retrieved");
+    uploader._initHeaders = JSON.parse(response.target.responseText);
     uploader._initiateUpload();
   } else {
     uploader._log("Server returned a non-200. Deferring to error handler!");
-    uploader._getInitSignatureError(attempts, response);
+    uploader._getInitHeadersError(attempts, response);
   }
 };
 
-// The error callback for getting an init signature
-bs3u.Uploader.prototype._getInitSignatureError = function(attempts, response) {
+// The error callback for getting a init headers
+bs3u.Uploader.prototype._getInitHeadersError = function(attempts, response) {
   var uploader = this;
   if (uploader._retryAvailable(attempts)) {
     attempts += 1;
-    uploader._log("Attempting to retry retrieval of init signature.");
+    uploader._log("Attempting to retry retrieval of init headers.");
     setTimeout(function() {
       var data = {
-        action: "getInitSignature",
+        action: "getInitHeaders",
         xhr: response
       };
       uploader._notifyUploadRetry(attempts, data);
-      uploader._getInitSignature(attempts);
+      uploader._getInitHeaders(attempts);
     }, uploader._timeToWaitBeforeNextRetry(attempts));
   } else {
     var errorCode = 2;
@@ -392,25 +478,13 @@ bs3u.Uploader.prototype._getInitSignatureError = function(attempts, response) {
 bs3u.Uploader.prototype._initiateUpload = function(retries) {
   var uploader = this;
   var attempts = retries || 0;
-  var authorization = "AWS " + uploader.settings.awsAccessKey + ":" + uploader._initSignature;
 
   uploader._log("Initiating the upload");
-
-  var headers = {
-    "x-amz-date": uploader._date,
-    "x-amz-acl": uploader.settings.acl,
-    "Authorization": authorization,
-    "Content-Disposition": "attachment; filename=" + uploader.file.name
-  };
-
-  if (uploader.settings.encrypted) {
-    headers["x-amz-server-side-encryption"] = "AES256";
-  }
 
   var ajax = new bs3u.Ajax({
     url: uploader.settings.host + "/" + uploader.settings.key + "?uploads",
     method: "POST",
-    headers: headers
+    headers: uploader._initHeaders
   });
 
   ajax.onSuccess(function(response) {
@@ -436,13 +510,9 @@ bs3u.Uploader.prototype._initiateUploadSuccess = function(attempts, response) {
     uploader._log("Upload initiated.");
     var xml = response.target.responseXML;
     uploader._uploadId = xml.getElementsByTagName('UploadId')[0].textContent;
-
-    uploader._getRemainingSignatures(0, function() {
-      uploader._uploadChunks();
-      uploader._startProgressWatcher();
-      uploader._startBandwidthMonitor();
-    });
-
+    uploader._uploadChunks();
+    uploader._startProgressWatcher();
+    uploader._startBandwidthMonitor();
   } else {
     uploader._log("Initiate upload error. Deferring to error handler.");
     uploader._initiateUploadError(attempts, response);
@@ -472,100 +542,6 @@ bs3u.Uploader.prototype._initiateUploadError = function(attempts, response) {
   }
 };
 
-// Using the UploadId, retrieve the remaining signatures required for uploads
-// from the signature backend. The response should include all chunk signatures,
-// a "list parts" signature, and a "complete" signature. A sample response might
-// look something like this:
-//
-// {
-//   chunk_signatures: {
-//     1: { signature: "signature", date: "date" },
-//     2: { signature: "signature", date: "date" },
-//     3: { signature: "signature", date: "date" },
-//   },
-//   complete_signature: { signature: "signature", date: "date" },
-//   list_signature: { signature: "signature", date: "date" }
-// }
-//
-// Note that for the chunk_signatures section, the key corresponds to the
-// part number (or chunk number).
-bs3u.Uploader.prototype._getRemainingSignatures = function(retries, successCallback) {
-  var uploader = this;
-  var attempts = retries || 0;
-
-  uploader._log("Attempting to get the remaining upload signatures");
-
-  var ajax = new bs3u.Ajax({
-    url: uploader.settings.signatureBackend + uploader.settings.remainingSignaturesPath,
-    method: "GET",
-    params: {
-      upload_id: uploader._uploadId,
-      total_chunks: Object.keys(uploader._chunks).length,
-      mime_type: uploader.settings.contentType,
-      bucket: uploader.settings.bucket,
-      key: uploader.settings.key
-    },
-    headers: uploader.settings.customHeaders
-  });
-
-  ajax.onSuccess(function(response) {
-    uploader._getRemainingSignaturesSuccess(attempts, response, successCallback);
-  });
-
-  ajax.onError(function(response) {
-    uploader._getRemainingSignaturesError(attempts, response, successCallback);
-  });
-
-  ajax.onTimeout(function(response) {
-    uploader._getRemainingSignaturesError(attempts, response, successCallback);
-  });
-
-  ajax.send();
-  uploader._XHRs.push(ajax);
-};
-
-// The success callback for getting the remaining signatures
-bs3u.Uploader.prototype._getRemainingSignaturesSuccess = function(attempts, response, successCallback) {
-  var uploader = this;
-  if (response.target.status == 200) {
-    uploader._log("Remaining signatures have been retrieved");
-    var json = JSON.parse(response.target.responseText);
-
-    uploader._chunkSignatures = json.chunk_signatures;
-    uploader._completeSignature = json.complete_signature;
-    uploader._listSignature = json.list_signature;
-
-    if (successCallback) { successCallback(); }
-
-  } else {
-    uploader._log("Failed to get remaining signatures. Deferring to error handler");
-    uploader._getRemainingSignaturesError(attempts, response, successCallback);
-  }
-};
-
-// The error callback for getting the remaining signatures
-bs3u.Uploader.prototype._getRemainingSignaturesError = function(attempts, response, successCallback) {
-  var uploader = this;
-  if (uploader._retryAvailable(attempts)) {
-    attempts += 1;
-    uploader._log("Retrying retrieval of remaining signatures");
-    setTimeout(function() {
-      var data = {
-        action: "getRemainingSignatures",
-        xhr: response
-      };
-      uploader._notifyUploadRetry(attempts, data);
-      uploader._getRemainingSignatures(attempts, successCallback);
-    }, uploader._timeToWaitBeforeNextRetry(attempts));
-  } else {
-    var errorCode = 4;
-    uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
-    uploader._setFailed();
-    uploader._resetData();
-    uploader._log("Uploader error!", uploader.errors[errorCode]);
-  }
-};
-
 // Iterate over all chunks and start all uploads simultaneously
 bs3u.Uploader.prototype._uploadChunks = function() {
   var uploader = this;
@@ -575,8 +551,89 @@ bs3u.Uploader.prototype._uploadChunks = function() {
     var chunk = uploader._chunks[chunkNumber];
     if (!chunk.uploading && !chunk.uploadComplete && uploader._uploadSpotAvailable()) {
       uploader._log("Starting the XHR upload for chunk " + chunkNumber);
-      uploader._uploadChunk(chunkNumber);
+      chunk.uploading = true;
+      chunk.uploadComplete = false;
+      uploader._getChunkHeaders(chunkNumber);
     }
+  }
+};
+
+bs3u.Uploader.prototype._getChunkHeaders = function(number, retries) {
+  var uploader = this;
+  var attempts = retries || 0;
+  var chunk = uploader._chunks[number];
+
+  uploader._log("Getting chunk " + number + " headers");
+
+  var body = uploader.file.slice(chunk.startRange, chunk.endRange);
+  var fileReader = new FileReader();
+
+  fileReader.onloadend = function() {
+    var ajax = new bs3u.Ajax({
+      url: uploader.settings.signatureBackend + uploader.settings.chunkHeadersPath,
+      method: "GET",
+      params: {
+        key: uploader.settings.key,
+        content_type: uploader.settings.contentType,
+        payload: uploader._sha256(CryptoJS.lib.WordArray.create(fileReader.result)),
+        part_number: number,
+        upload_id: uploader._uploadId,
+        region: uploader.settings.region,
+        host: uploader.settings.host,
+      },
+      headers: uploader.settings.customHeaders,
+    });
+
+    ajax.onSuccess(function(response) {
+      uploader._getChunkHeadersSuccess(number, response);
+    });
+
+    ajax.onError(function(response) {
+      uploader._getChunkHeadersError(attempts, number, response);
+    });
+
+    ajax.onTimeout(function(response) {
+      uploader._getChunkHeadersError(attempts, number, response);
+    });
+
+    ajax.send();
+    uploader._XHRs.push(ajax);
+  };
+
+  fileReader.readAsArrayBuffer(body);
+};
+
+bs3u.Uploader.prototype._getChunkHeadersSuccess = function(number, response) {
+  var uploader = this;
+  if (response.target.status == 200) {
+    uploader._log("Chunk " + number + " headers retrieved");
+    uploader._chunkHeaders[number] = JSON.parse(response.target.responseText);
+    uploader._uploadChunk(number);
+  } else {
+    uploader._log("Server returned a non-200. Deferring to error handler!");
+    uploader._getChunkHeadersError(attempts, number, response);
+  }
+};
+
+bs3u.Uploader.prototype._getChunkHeadersError = function(attempts, number, response) {
+  var uploader = this;
+  if (uploader._retryAvailable(attempts)) {
+    attempts += 1;
+    uploader._log("Attempting to retry retrieval of chunk " + number + " headers.");
+    setTimeout(function() {
+      var data = {
+        action: "getChunkHeaders",
+        xhr: response
+      };
+      uploader._notifyUploadRetry(attempts, data);
+      uploader._getChunkHeaders(number, attempts);
+    }, uploader._timeToWaitBeforeNextRetry(attempts));
+  } else {
+    var errorCode = 4;
+    uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
+    uploader._setFailed();
+    uploader._resetData();
+    uploader._log("Uploader error!", uploader.errors[errorCode]);
   }
 };
 
@@ -596,13 +653,6 @@ bs3u.Uploader.prototype._uploadChunk = function(number, retries) {
   var attempts = retries || 0;
 
   var chunk = uploader._chunks[number];
-
-  chunk.uploading = true;
-  chunk.uploadComplete = false;
-
-  var signature = uploader._chunkSignatures[number].signature;
-  var date = uploader._chunkSignatures[number].date;
-  var authorization = "AWS " + uploader.settings.awsAccessKey + ":" + signature;
   var body = uploader.file.slice(chunk.startRange, chunk.endRange);
 
   var ajax = new bs3u.Ajax({
@@ -612,12 +662,7 @@ bs3u.Uploader.prototype._uploadChunk = function(number, retries) {
       uploadId: uploader._uploadId,
       partNumber: number,
     },
-    headers: {
-      "x-amz-date": date,
-      "Authorization": authorization,
-      "Content-Disposition": "attachment; filename=" + uploader.file.name,
-      "Content-Type": uploader.settings.contentType,
-    }
+    headers: uploader._chunkHeaders[number]
   });
 
   ajax.onProgress(function(response) {
@@ -1041,10 +1086,10 @@ bs3u.Uploader.prototype._resetData = function() {
   uploader._XHRs = [];
   uploader._date = null;
   uploader._uploadId = null;
-  uploader._initSignature = null;
-  uploader._listSignature = null;
-  uploader._completeSignature = null;
-  uploader._chunkSignatures = {};
+  uploader._initHeaders = {};
+  uploader._listHeaders = {};
+  uploader._completeHeaders = {};
+  uploader._chunkHeaders = {};
   uploader._chunkXHRs = {};
   uploader._chunkProgress = {};
 };
@@ -1314,6 +1359,10 @@ bs3u.Uploader.prototype._requiresFirefoxHack = function() {
   return navigator.userAgent.indexOf("Firefox") !== -1;
 };
 
+bs3u.Uploader.prototype._sha256 = function(value) {
+  return CryptoJS.SHA256(value).toString();
+};
+
 bs3u.Uploader.prototype._log = function(msg, object) {
   msg = "[BasicS3Uploader] " + msg;
   if (this.settings.log) {
@@ -1325,9 +1374,9 @@ bs3u.Uploader.prototype.errors = {
   // code: description
   0: "The file could not be uploaded because it exceeds the maximum file size allowed.",
   1: "The file could not be uploaded because it cannot be read",
-  2: "Max number of retries have been met. Unable to get init signature!",
+  2: "Max number of retries have been met. Unable to get init headers!",
   3: "Max number of retries have been met. Unable to initiate an upload request!",
-  4: "Max number of retries have been met. Unable to retrieve remaining signatures!",
+  4: "Max number of retries have been met. Unable to get chunk headers!",
   5: "Max number of retries have been met. Upload of chunk has failed!",
   6: "Max number of retries have been met. Unable to verify all chunks have uploaded!",
   7: "Max number of retries has been met. Cannot retry uploading chunk!",

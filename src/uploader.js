@@ -10,6 +10,10 @@ bs3u.Uploader = function(file, settings) {
   uploader._XHRs = [];
   uploader._chunkXHRs = {};
   uploader._chunkProgress = {};
+  uploader._initHeaders = {};
+  uploader._chunkHeaders = {};
+  uploader._listHeaders = {};
+  uploader._completeHeaders = {};
   uploader._signatureTimeout = 15 * 60000;
   uploader._configureUploader(settings);
   uploader._notifyUploaderReady();
@@ -51,10 +55,10 @@ bs3u.Uploader.prototype._configureUploader = function(settings) {
   // The root path to your signature backend. If you plan on defining the necessary
   // routes at the root of your application, leave this blank.
   uploader.settings.signatureBackend        = settings.signatureBackend || "";
-  // The path for which the upload init headers can be retrieved.
+  // Where the upload init headers can be retrieved.
   uploader.settings.initHeadersPath         = settings.initHeadersPath || "/get_init_headers";
-  // The path for which all other signatures can be retrieved.
-  uploader.settings.remainingSignaturesPath = settings.remainingSignaturesPath || "/get_remaining_signatures";
+  // Wwhere the upload chunk headers can be retrieved.
+  uploader.settings.chunkHeadersPath        = settings.chunkHeadersPath || "/get_chunk_headers";
   // The name of your S3 bucket
   uploader.settings.bucket                  = settings.bucket || "your-bucket-name";
   // If not setting a host, set to true if uploading using ssl.
@@ -330,13 +334,9 @@ bs3u.Uploader.prototype._initiateUploadSuccess = function(attempts, response) {
     uploader._log("Upload initiated.");
     var xml = response.target.responseXML;
     uploader._uploadId = xml.getElementsByTagName('UploadId')[0].textContent;
-
-    uploader._getRemainingSignatures(0, function() {
-      uploader._uploadChunks();
-      uploader._startProgressWatcher();
-      uploader._startBandwidthMonitor();
-    });
-
+    uploader._uploadChunks();
+    uploader._startProgressWatcher();
+    uploader._startBandwidthMonitor();
   } else {
     uploader._log("Initiate upload error. Deferring to error handler.");
     uploader._initiateUploadError(attempts, response);
@@ -366,100 +366,6 @@ bs3u.Uploader.prototype._initiateUploadError = function(attempts, response) {
   }
 };
 
-// Using the UploadId, retrieve the remaining signatures required for uploads
-// from the signature backend. The response should include all chunk signatures,
-// a "list parts" signature, and a "complete" signature. A sample response might
-// look something like this:
-//
-// {
-//   chunk_signatures: {
-//     1: { signature: "signature", date: "date" },
-//     2: { signature: "signature", date: "date" },
-//     3: { signature: "signature", date: "date" },
-//   },
-//   complete_signature: { signature: "signature", date: "date" },
-//   list_signature: { signature: "signature", date: "date" }
-// }
-//
-// Note that for the chunk_signatures section, the key corresponds to the
-// part number (or chunk number).
-bs3u.Uploader.prototype._getRemainingSignatures = function(retries, successCallback) {
-  var uploader = this;
-  var attempts = retries || 0;
-
-  uploader._log("Attempting to get the remaining upload signatures");
-
-  var ajax = new bs3u.Ajax({
-    url: uploader.settings.signatureBackend + uploader.settings.remainingSignaturesPath,
-    method: "GET",
-    params: {
-      upload_id: uploader._uploadId,
-      total_chunks: Object.keys(uploader._chunks).length,
-      mime_type: uploader.settings.contentType,
-      bucket: uploader.settings.bucket,
-      key: uploader.settings.key
-    },
-    headers: uploader.settings.customHeaders
-  });
-
-  ajax.onSuccess(function(response) {
-    uploader._getRemainingSignaturesSuccess(attempts, response, successCallback);
-  });
-
-  ajax.onError(function(response) {
-    uploader._getRemainingSignaturesError(attempts, response, successCallback);
-  });
-
-  ajax.onTimeout(function(response) {
-    uploader._getRemainingSignaturesError(attempts, response, successCallback);
-  });
-
-  ajax.send();
-  uploader._XHRs.push(ajax);
-};
-
-// The success callback for getting the remaining signatures
-bs3u.Uploader.prototype._getRemainingSignaturesSuccess = function(attempts, response, successCallback) {
-  var uploader = this;
-  if (response.target.status == 200) {
-    uploader._log("Remaining signatures have been retrieved");
-    var json = JSON.parse(response.target.responseText);
-
-    uploader._chunkSignatures = json.chunk_signatures;
-    uploader._completeSignature = json.complete_signature;
-    uploader._listSignature = json.list_signature;
-
-    if (successCallback) { successCallback(); }
-
-  } else {
-    uploader._log("Failed to get remaining signatures. Deferring to error handler");
-    uploader._getRemainingSignaturesError(attempts, response, successCallback);
-  }
-};
-
-// The error callback for getting the remaining signatures
-bs3u.Uploader.prototype._getRemainingSignaturesError = function(attempts, response, successCallback) {
-  var uploader = this;
-  if (uploader._retryAvailable(attempts)) {
-    attempts += 1;
-    uploader._log("Retrying retrieval of remaining signatures");
-    setTimeout(function() {
-      var data = {
-        action: "getRemainingSignatures",
-        xhr: response
-      };
-      uploader._notifyUploadRetry(attempts, data);
-      uploader._getRemainingSignatures(attempts, successCallback);
-    }, uploader._timeToWaitBeforeNextRetry(attempts));
-  } else {
-    var errorCode = 4;
-    uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
-    uploader._setFailed();
-    uploader._resetData();
-    uploader._log("Uploader error!", uploader.errors[errorCode]);
-  }
-};
-
 // Iterate over all chunks and start all uploads simultaneously
 bs3u.Uploader.prototype._uploadChunks = function() {
   var uploader = this;
@@ -469,8 +375,89 @@ bs3u.Uploader.prototype._uploadChunks = function() {
     var chunk = uploader._chunks[chunkNumber];
     if (!chunk.uploading && !chunk.uploadComplete && uploader._uploadSpotAvailable()) {
       uploader._log("Starting the XHR upload for chunk " + chunkNumber);
-      uploader._uploadChunk(chunkNumber);
+      chunk.uploading = true;
+      chunk.uploadComplete = false;
+      uploader._getChunkHeaders(chunkNumber);
     }
+  }
+};
+
+bs3u.Uploader.prototype._getChunkHeaders = function(number, retries) {
+  var uploader = this;
+  var attempts = retries || 0;
+  var chunk = uploader._chunks[number];
+
+  uploader._log("Getting chunk " + number + " headers");
+
+  var body = uploader.file.slice(chunk.startRange, chunk.endRange);
+  var fileReader = new FileReader();
+
+  fileReader.onloadend = function() {
+    var ajax = new bs3u.Ajax({
+      url: uploader.settings.signatureBackend + uploader.settings.chunkHeadersPath,
+      method: "GET",
+      params: {
+        key: uploader.settings.key,
+        content_type: uploader.settings.contentType,
+        payload: uploader._sha256(CryptoJS.lib.WordArray.create(fileReader.result)),
+        part_number: number,
+        upload_id: uploader._uploadId,
+        region: uploader.settings.region,
+        host: uploader.settings.host,
+      },
+      headers: uploader.settings.customHeaders,
+    });
+
+    ajax.onSuccess(function(response) {
+      uploader._getChunkHeadersSuccess(number, response);
+    });
+
+    ajax.onError(function(response) {
+      uploader._getChunkHeadersError(attempts, number, response);
+    });
+
+    ajax.onTimeout(function(response) {
+      uploader._getChunkHeadersError(attempts, number, response);
+    });
+
+    ajax.send();
+    uploader._XHRs.push(ajax);
+  };
+
+  fileReader.readAsArrayBuffer(body);
+};
+
+bs3u.Uploader.prototype._getChunkHeadersSuccess = function(number, response) {
+  var uploader = this;
+  if (response.target.status == 200) {
+    uploader._log("Chunk " + number + " headers retrieved");
+    uploader._chunkHeaders[number] = JSON.parse(response.target.responseText);
+    uploader._uploadChunk(number);
+  } else {
+    uploader._log("Server returned a non-200. Deferring to error handler!");
+    uploader._getChunkHeadersError(attempts, number, response);
+  }
+};
+
+bs3u.Uploader.prototype._getChunkHeadersError = function(attempts, number, response) {
+  var uploader = this;
+  if (uploader._retryAvailable(attempts)) {
+    attempts += 1;
+    uploader._log("Attempting to retry retrieval of chunk " + number + " headers.");
+    setTimeout(function() {
+      var data = {
+        action: "getChunkHeaders",
+        xhr: response
+      };
+      uploader._notifyUploadRetry(attempts, data);
+      uploader._getChunkHeaders(number, attempts);
+    }, uploader._timeToWaitBeforeNextRetry(attempts));
+  } else {
+    var errorCode = 4;
+    uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
+    uploader._setFailed();
+    uploader._resetData();
+    uploader._log("Uploader error!", uploader.errors[errorCode]);
   }
 };
 
@@ -490,13 +477,6 @@ bs3u.Uploader.prototype._uploadChunk = function(number, retries) {
   var attempts = retries || 0;
 
   var chunk = uploader._chunks[number];
-
-  chunk.uploading = true;
-  chunk.uploadComplete = false;
-
-  var signature = uploader._chunkSignatures[number].signature;
-  var date = uploader._chunkSignatures[number].date;
-  var authorization = "AWS " + uploader.settings.awsAccessKey + ":" + signature;
   var body = uploader.file.slice(chunk.startRange, chunk.endRange);
 
   var ajax = new bs3u.Ajax({
@@ -506,12 +486,7 @@ bs3u.Uploader.prototype._uploadChunk = function(number, retries) {
       uploadId: uploader._uploadId,
       partNumber: number,
     },
-    headers: {
-      "x-amz-date": date,
-      "Authorization": authorization,
-      "Content-Disposition": "attachment; filename=" + uploader.file.name,
-      "Content-Type": uploader.settings.contentType,
-    }
+    headers: uploader._chunkHeaders[number]
   });
 
   ajax.onProgress(function(response) {
@@ -936,9 +911,9 @@ bs3u.Uploader.prototype._resetData = function() {
   uploader._date = null;
   uploader._uploadId = null;
   uploader._initHeaders = {};
-  uploader._listSignature = null;
-  uploader._completeSignature = null;
-  uploader._chunkSignatures = {};
+  uploader._listHeaders = {};
+  uploader._completeHeaders = {};
+  uploader._chunkHeaders = {};
   uploader._chunkXHRs = {};
   uploader._chunkProgress = {};
 };
@@ -1223,9 +1198,9 @@ bs3u.Uploader.prototype.errors = {
   // code: description
   0: "The file could not be uploaded because it exceeds the maximum file size allowed.",
   1: "The file could not be uploaded because it cannot be read",
-  2: "Max number of retries have been met. Unable to get init signature!",
+  2: "Max number of retries have been met. Unable to get init headers!",
   3: "Max number of retries have been met. Unable to initiate an upload request!",
-  4: "Max number of retries have been met. Unable to retrieve remaining signatures!",
+  4: "Max number of retries have been met. Unable to get chunk headers!",
   5: "Max number of retries have been met. Upload of chunk has failed!",
   6: "Max number of retries have been met. Unable to verify all chunks have uploaded!",
   7: "Max number of retries has been met. Cannot retry uploading chunk!",
