@@ -384,6 +384,8 @@ bs3u.Uploader.prototype._uploadChunks = function() {
   }
 };
 
+// Call to the provided signature backend to get the chunk headers.
+// The response should contain all necessary headers to authenticate the request.
 bs3u.Uploader.prototype._getChunkHeaders = function(number, retries) {
   var uploader = this;
   var attempts = retries || 0;
@@ -550,6 +552,8 @@ bs3u.Uploader.prototype._uploadChunkSuccess = function(attempts, response, numbe
   }
 };
 
+// Call to the provided signature backend to get the list headers.
+// The response should contain all necessary headers to authenticate the request.
 bs3u.Uploader.prototype._getListHeaders = function(retries) {
   var uploader = this;
   var attempts = retries || 0;
@@ -736,6 +740,8 @@ bs3u.Uploader.prototype._verifyAllChunksUploadedSuccess = function(attempts, res
   }
 };
 
+// Call to the provided signature backend to get the complete headers.
+// The response should contain all necessary headers to authenticate the request.
 bs3u.Uploader.prototype._getCompleteHeaders = function(retries) {
   var uploader = this;
   var attempts = retries || 0;

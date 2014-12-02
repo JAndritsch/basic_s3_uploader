@@ -551,14 +551,15 @@ describe("bs3u.Uploader", function() {
 
   });
 
-  describe("_getInitSignature", function() {
+  describe("_getInitHeaders", function() {
     var mockFile, mockSettings, uploader;
 
     beforeEach(function() {
       mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
       mockSettings = {
         signatureBackend: "/signatures",
-        initSignaturePath: "/get_init_signature",
+        initHeadersPath: "/get_init_signature",
+        region: "us-east-1",
         key: "my-upload-key",
         contentType: "video/quicktime",
         bucket: "some-bucket",
@@ -571,65 +572,64 @@ describe("bs3u.Uploader", function() {
     });
 
     it("creates and configures a new Ajax request", function() {
-      uploader._getInitSignature();
+      uploader._getInitHeaders();
       expect(bs3u.Ajax).toHaveBeenCalled();
 
       ajaxSettings = bs3u.Ajax.calls.argsFor(0)[0];
 
-      expect(ajaxSettings.url).toEqual(mockSettings.signatureBackend + mockSettings.initSignaturePath);
+      expect(ajaxSettings.url).toEqual(mockSettings.signatureBackend + mockSettings.initHeadersPath);
       expect(ajaxSettings.method).toEqual("GET");
       expect(ajaxSettings.headers).toEqual(mockSettings.customHeaders);
       expect(ajaxSettings.params.key).toEqual(mockSettings.key);
-      expect(ajaxSettings.params.filename).toEqual(mockFile.name);
-      expect(ajaxSettings.params.filesize).toEqual(mockFile.size);
-      expect(ajaxSettings.params.mime_type).toEqual(mockSettings.contentType);
-      expect(ajaxSettings.params.bucket).toEqual(mockSettings.bucket);
+      expect(ajaxSettings.params.content_type).toEqual(mockSettings.contentType);
+      expect(ajaxSettings.params.payload).toEqual(uploader._sha256(""));
+      expect(ajaxSettings.params.region).toEqual(mockSettings.region);
       expect(ajaxSettings.params.acl).toEqual(mockSettings.acl);
       expect(ajaxSettings.params.encrypted).toEqual(mockSettings.encrypted);
     });
 
     it("registers the success callback", function() {
-      spyOn(uploader, '_getInitSignatureSuccess');
+      spyOn(uploader, '_getInitHeadersSuccess');
       var attempts = 1;
-      uploader._getInitSignature(attempts);
+      uploader._getInitHeaders(attempts);
       var callback = mockAjaxClass.onSuccess.calls.argsFor(0)[0];
       var mockResponse = { target: { status: 200 } };
       callback(mockResponse);
-      expect(uploader._getInitSignatureSuccess).toHaveBeenCalledWith(attempts, mockResponse);
+      expect(uploader._getInitHeadersSuccess).toHaveBeenCalledWith(attempts, mockResponse);
     });
 
     it("registers the error callback", function() {
-      spyOn(uploader, '_getInitSignatureError');
+      spyOn(uploader, '_getInitHeadersError');
       var attempts = 1;
-      uploader._getInitSignature(attempts);
+      uploader._getInitHeaders(attempts);
       var callback = mockAjaxClass.onError.calls.argsFor(0)[0];
       var mockResponse = { target: { status: 500 } };
       callback(mockResponse);
-      expect(uploader._getInitSignatureError).toHaveBeenCalledWith(attempts, mockResponse);
+      expect(uploader._getInitHeadersError).toHaveBeenCalledWith(attempts, mockResponse);
     });
 
     it("registers the timeout callback", function() {
-      spyOn(uploader, '_getInitSignatureError');
+      spyOn(uploader, '_getInitHeadersError');
       var attempts = 1;
-      uploader._getInitSignature(attempts);
+      uploader._getInitHeaders(attempts);
       var callback = mockAjaxClass.onTimeout.calls.argsFor(0)[0];
       var mockResponse = { target: { status: 500 } };
       callback(mockResponse);
-      expect(uploader._getInitSignatureError).toHaveBeenCalledWith(attempts, mockResponse);
+      expect(uploader._getInitHeadersError).toHaveBeenCalledWith(attempts, mockResponse);
     });
 
     it("sends the request", function() {
-      uploader._getInitSignature();
+      uploader._getInitHeaders();
       expect(mockAjaxClass.send).toHaveBeenCalled();
     });
 
     it("pushes the xhr request into the _XHRs array", function() {
-      uploader._getInitSignature();
+      uploader._getInitHeaders();
       expect(uploader._XHRs[0]).toEqual(mockAjaxClass);
     });
   });
 
-  describe("_getInitSignatureSuccess", function() {
+  describe("_getInitHeadersSuccess", function() {
     var uploader, mockFile, mockSettings, mockResponse, attempts;
 
     beforeEach(function() {
@@ -637,7 +637,7 @@ describe("bs3u.Uploader", function() {
       mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
       mockSettings = {
         signatureBackend: "/signatures",
-        initSignaturePath: "/get_init_signature",
+        initHeadersPath: "/get_init_signature",
         key: "my-upload-key",
         contentType: "video/quicktime",
         bucket: "some-bucket",
@@ -654,16 +654,15 @@ describe("bs3u.Uploader", function() {
         mockResponse = {
           target: {
             status: 200,
-            responseText: "{\"signature\": \"init-signature\", \"date\": \"signature-date\"}"
+            responseText: "{\"Authorization\": \"auth-header\", \"x-amz-date\": \"date\"}"
           }
         };
         spyOn(uploader, '_initiateUpload');
-        uploader._getInitSignatureSuccess(attempts, mockResponse);
+        uploader._getInitHeadersSuccess(attempts, mockResponse);
       });
 
       it("parses and stores the init signature and date from the response body", function() {
-        expect(uploader._initSignature).toEqual("init-signature");
-        expect(uploader._date).toEqual("signature-date");
+        expect(uploader._initHeaders).toEqual(JSON.parse(mockResponse.target.responseText));
       });
 
       it("initiates the upload", function() {
@@ -678,17 +677,17 @@ describe("bs3u.Uploader", function() {
             status: 500
           }
         };
-        spyOn(uploader, '_getInitSignatureError');
-        uploader._getInitSignatureSuccess(attempts, mockResponse);
+        spyOn(uploader, '_getInitHeadersError');
+        uploader._getInitHeadersSuccess(attempts, mockResponse);
       });
 
       it("calls the error handler", function() {
-        expect(uploader._getInitSignatureError).toHaveBeenCalledWith(attempts, mockResponse);
+        expect(uploader._getInitHeadersError).toHaveBeenCalledWith(attempts, mockResponse);
       });
     });
   });
 
-  describe("_getInitSignatureError", function() {
+  describe("_getInitHeadersError", function() {
     var uploader, mockFile, mockSettings, mockResponse, attempts;
 
     beforeEach(function() {
@@ -701,7 +700,7 @@ describe("bs3u.Uploader", function() {
       };
       mockSettings = {
         signatureBackend: "/signatures",
-        initSignaturePath: "/get_init_signature",
+        initHeadersPath: "/get_init_headers",
         key: "my-upload-key",
         contentType: "video/quicktime",
         bucket: "some-bucket",
@@ -720,17 +719,17 @@ describe("bs3u.Uploader", function() {
     describe("when a retry is available", function() {
       beforeEach(function() {
         spyOn(uploader, '_notifyUploadRetry');
-        spyOn(uploader, '_getInitSignature');
+        spyOn(uploader, '_getInitHeaders');
         spyOn(uploader, '_retryAvailable').and.returnValue(true);
-        uploader._getInitSignatureError(attempts, mockResponse);
+        uploader._getInitHeadersError(attempts, mockResponse);
       });
 
       it("notifies about the retry", function() {
         expect(uploader._notifyUploadRetry).toHaveBeenCalledWith(attempts + 1, jasmine.any(Object));
       });
 
-      it("calls _getInitSignature with attempts incremented by 1", function() {
-        expect(uploader._getInitSignature).toHaveBeenCalledWith(attempts + 1);
+      it("calls _getInitHeaders with attempts incremented by 1", function() {
+        expect(uploader._getInitHeaders).toHaveBeenCalledWith(attempts + 1);
       });
     });
 
@@ -740,7 +739,7 @@ describe("bs3u.Uploader", function() {
         spyOn(uploader, '_setFailed');
         spyOn(uploader, '_resetData');
         spyOn(uploader, '_retryAvailable').and.returnValue(false);
-        uploader._getInitSignatureError(attempts, mockResponse);
+        uploader._getInitHeadersError(attempts, mockResponse);
       });
 
       it("notifies about the upload error", function() {
