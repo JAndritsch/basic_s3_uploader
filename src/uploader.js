@@ -51,8 +51,8 @@ bs3u.Uploader.prototype._configureUploader = function(settings) {
   // The root path to your signature backend. If you plan on defining the necessary
   // routes at the root of your application, leave this blank.
   uploader.settings.signatureBackend        = settings.signatureBackend || "";
-  // The path for which the upload init signature can be retrieved.
-  uploader.settings.initSignaturePath       = settings.initSignaturePath || "/get_init_signature";
+  // The path for which the upload init headers can be retrieved.
+  uploader.settings.initHeadersPath         = settings.initHeadersPath || "/get_init_headers";
   // The path for which all other signatures can be retrieved.
   uploader.settings.remainingSignaturesPath = settings.remainingSignaturesPath || "/get_remaining_signatures";
   // The name of your S3 bucket
@@ -64,8 +64,13 @@ bs3u.Uploader.prototype._configureUploader = function(settings) {
   } else {
     uploader.settings.protocol = "http://";
   }
+  // The region where your bucket is located. This is needed for signature generation.
+  uploader.settings.region                  = settings.region;
+
+  var defaultHost = uploader.settings.protocol + uploader.settings.bucket + "." + "s3-" + uploader.settings.region + ".amazonaws.com";
+
   // The host name is not required but can be explicitly set.
-  uploader.settings.host                    = settings.host || uploader.settings.protocol + uploader.settings.bucket + "." + "s3.amazonaws.com";
+  uploader.settings.host                    = settings.host || defaultHost;
   // Your AWS Access Key. NOTE: This is not your secret access key!
   uploader.settings.awsAccessKey            = settings.awsAccessKey || "YOUR_AWS_ACCESS_KEY_ID";
   // If true, you will see logging output in your browser's web inspector.
@@ -140,7 +145,7 @@ bs3u.Uploader.prototype.startUpload = function() {
       uploader._createChunks();
       uploader._notifyUploadStarted();
       uploader._setUploading();
-      uploader._getInitSignature();
+      uploader._getInitHeaders();
     } else {
       var errorCode = 1;
       uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
@@ -214,73 +219,70 @@ bs3u.Uploader.prototype._createChunks = function() {
   uploader._log("Total chunks to upload:", Object.keys(chunks).length);
 };
 
-// Call to the provided signature backend to get the init signature.
-// The response should look something like:
-//    { signature: "some-signature", date: "the date for this request" }
-bs3u.Uploader.prototype._getInitSignature = function(retries) {
+// Call to the provided signature backend to get the init headers.
+// The response should contain all necessary headers to authenticate the request.
+bs3u.Uploader.prototype._getInitHeaders = function(retries) {
   var uploader = this;
   var attempts = retries || 0;
 
-  uploader._log("Getting the init signature");
+  uploader._log("Getting the init headers");
   var ajax = new bs3u.Ajax({
-    url: uploader.settings.signatureBackend + uploader.settings.initSignaturePath,
+    url: uploader.settings.signatureBackend + uploader.settings.initHeadersPath,
     method: "GET",
     params: {
       key: uploader.settings.key,
-      filename: uploader.file.name,
-      filesize: uploader.file.size,
-      mime_type: uploader.settings.contentType,
-      bucket: uploader.settings.bucket,
+      content_type: uploader.settings.contentType,
       acl: uploader.settings.acl,
-      encrypted: uploader.settings.encrypted
+      encrypted: uploader.settings.encrypted,
+      payload: uploader._sha256(""),
+      region: uploader.settings.region,
+      host: uploader.settings.host,
     },
     headers: uploader.settings.customHeaders,
   });
 
   ajax.onSuccess(function(response) {
-    uploader._getInitSignatureSuccess(attempts, response);
+    uploader._getInitHeadersSuccess(attempts, response);
   });
 
   ajax.onError(function(response) {
-    uploader._getInitSignatureError(attempts, response);
+    uploader._getInitHeadersError(attempts, response);
   });
 
   ajax.onTimeout(function(response) {
-    uploader._getInitSignatureError(attempts, response);
+    uploader._getInitHeadersError(attempts, response);
   });
 
   ajax.send();
   uploader._XHRs.push(ajax);
 };
 
-// The success callback for getting an init signature
-bs3u.Uploader.prototype._getInitSignatureSuccess = function(attempts, response) {
+// The success callback for getting init headers
+bs3u.Uploader.prototype._getInitHeadersSuccess = function(attempts, response) {
   var uploader = this;
   if (response.target.status == 200) {
-    uploader._log("Init signature retrieved");
-    var json = JSON.parse(response.target.responseText);
-    uploader._initSignature = json.signature;
-    uploader._date = json.date;
+    uploader._log("Init headers retrieved");
+    uploader._initHeaders = JSON.parse(response.target.responseText);
     uploader._initiateUpload();
   } else {
     uploader._log("Server returned a non-200. Deferring to error handler!");
-    uploader._getInitSignatureError(attempts, response);
+    uploader._getInitHeadersError(attempts, response);
   }
 };
 
-// The error callback for getting an init signature
-bs3u.Uploader.prototype._getInitSignatureError = function(attempts, response) {
+// The error callback for getting a init headers
+bs3u.Uploader.prototype._getInitHeadersError = function(attempts, response) {
   var uploader = this;
   if (uploader._retryAvailable(attempts)) {
     attempts += 1;
-    uploader._log("Attempting to retry retrieval of init signature.");
+    uploader._log("Attempting to retry retrieval of init headers.");
     setTimeout(function() {
       var data = {
-        action: "getInitSignature",
+        action: "getInitHeaders",
         xhr: response
       };
       uploader._notifyUploadRetry(attempts, data);
-      uploader._getInitSignature(attempts);
+      uploader._getInitHeaders(attempts);
     }, uploader._timeToWaitBeforeNextRetry(attempts));
   } else {
     var errorCode = 2;
@@ -296,25 +298,13 @@ bs3u.Uploader.prototype._getInitSignatureError = function(attempts, response) {
 bs3u.Uploader.prototype._initiateUpload = function(retries) {
   var uploader = this;
   var attempts = retries || 0;
-  var authorization = "AWS " + uploader.settings.awsAccessKey + ":" + uploader._initSignature;
 
   uploader._log("Initiating the upload");
-
-  var headers = {
-    "x-amz-date": uploader._date,
-    "x-amz-acl": uploader.settings.acl,
-    "Authorization": authorization,
-    "Content-Disposition": "attachment; filename=" + uploader.file.name
-  };
-
-  if (uploader.settings.encrypted) {
-    headers["x-amz-server-side-encryption"] = "AES256";
-  }
 
   var ajax = new bs3u.Ajax({
     url: uploader.settings.host + "/" + uploader.settings.key + "?uploads",
     method: "POST",
-    headers: headers
+    headers: uploader._initHeaders
   });
 
   ajax.onSuccess(function(response) {
@@ -945,7 +935,7 @@ bs3u.Uploader.prototype._resetData = function() {
   uploader._XHRs = [];
   uploader._date = null;
   uploader._uploadId = null;
-  uploader._initSignature = null;
+  uploader._initHeaders = {};
   uploader._listSignature = null;
   uploader._completeSignature = null;
   uploader._chunkSignatures = {};
