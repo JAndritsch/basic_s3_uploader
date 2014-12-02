@@ -910,7 +910,7 @@ describe("bs3u.Uploader", function() {
       };
       mockSettings = {
         signatureBackend: "/signatures",
-        initSignaturePath: "/get_init_signature",
+        initHeadersPath: "/get_init_signature",
         key: "my-upload-key",
         contentType: "video/quicktime",
         bucket: "some-bucket",
@@ -1047,7 +1047,6 @@ describe("bs3u.Uploader", function() {
         contentType: "video/quicktime",
         bucket: "my-bucket",
         signatureBackend: "/signatures",
-        remainingSignaturesPath: "/remaining"
 
       };
       uploader = new bs3u.Uploader(mockFile, mockSettings);
@@ -1409,7 +1408,6 @@ describe("bs3u.Uploader", function() {
         contentType: "video/quicktime",
         bucket: "my-bucket",
         signatureBackend: "/signatures",
-        remainingSignaturesPath: "/remaining"
       };
 
       uploader = new bs3u.Uploader(mockFile, mockSettings);
@@ -1454,7 +1452,6 @@ describe("bs3u.Uploader", function() {
         contentType: "video/quicktime",
         bucket: "my-bucket",
         signatureBackend: "/signatures",
-        remainingSignaturesPath: "/remaining"
 
       };
       uploader = new bs3u.Uploader(mockFile, mockSettings);
@@ -1462,7 +1459,7 @@ describe("bs3u.Uploader", function() {
         1: { startRange: 0, endRange: 1000, uploading: false, uploadComplete: false, eTag: '"chunk-1-eTag"' },
         2: { startRange: 1000, endRange: 2000, uploading: false, uploadComplete: false, eTag: '"chunk-2-eTag"' }
       };
-      uploader._listSignature = { signature: 'list-signature', date: 'date' };
+      uploader._listHeaders = { Authorization: "auth header" };
     });
 
     describe("a 200 response", function() {
@@ -1588,7 +1585,6 @@ describe("bs3u.Uploader", function() {
         contentType: "video/quicktime",
         bucket: "my-bucket",
         signatureBackend: "/signatures",
-        remainingSignaturesPath: "/remaining"
       };
       uploader = new bs3u.Uploader(mockFile, mockSettings);
     });
@@ -1782,8 +1778,6 @@ describe("bs3u.Uploader", function() {
         contentType: "video/quicktime",
         bucket: "my-bucket",
         signatureBackend: "/signatures",
-        remainingSignaturesPath: "/remaining"
-
       };
       uploader = new bs3u.Uploader(mockFile, mockSettings);
       uploader._uploadId = "upload-id";
@@ -1873,8 +1867,6 @@ describe("bs3u.Uploader", function() {
         contentType: "video/quicktime",
         bucket: "my-bucket",
         signatureBackend: "/signatures",
-        remainingSignaturesPath: "/remaining"
-
       };
       uploader = new bs3u.Uploader(mockFile, mockSettings);
       uploader._uploadId = "upload-id";
@@ -1882,7 +1874,7 @@ describe("bs3u.Uploader", function() {
         1: { startRange: 0, endRange: 1000, uploading: false, uploadComplete: false },
         2: { startRange: 1000, endRange: 2000, uploading: false, uploadComplete: false }
       };
-      uploader._completeSignature = { signature: 'complete-signature', date: 'date' };
+      uploader._completeHeaders = { Authorization: "auth header" };
       uploader._eTags = {
         1: '"chunk-1-eTag"',
         2: '"chunk-2-eTag"',
@@ -1956,8 +1948,6 @@ describe("bs3u.Uploader", function() {
         contentType: "video/quicktime",
         bucket: "my-bucket",
         signatureBackend: "/signatures",
-        remainingSignaturesPath: "/remaining"
-
       };
       uploader = new bs3u.Uploader(mockFile, mockSettings);
       uploader._uploadId = "upload-id";
@@ -1965,7 +1955,7 @@ describe("bs3u.Uploader", function() {
         1: { startRange: 0, endRange: 1000, uploading: false, uploadComplete: false },
         2: { startRange: 1000, endRange: 2000, uploading: false, uploadComplete: false }
       };
-      uploader._completeSignature = { signature: 'complete-signature', date: 'date' };
+      uploader._completeHeaders = { Authorization: "auth header" };
       uploader._eTags = {
         1: '"chunk-1-eTag"',
         2: '"chunk-2-eTag"',
