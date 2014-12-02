@@ -565,7 +565,7 @@ bs3u.Uploader.prototype._getListHeaders = function(retries) {
       content_type: uploader.settings.contentType,
       payload: uploader._sha256(""),
       region: uploader.settings.region,
-      upload_id: uploader.settings.uploadId,
+      upload_id: uploader._uploadId,
       host: uploader.settings.host,
     },
     headers: uploader.settings.customHeaders,
@@ -729,12 +729,85 @@ bs3u.Uploader.prototype._verifyAllChunksUploadedSuccess = function(attempts, res
       uploader._handleInvalidChunks(invalidParts);
     } else {
       uploader._log("All chunks have been uploaded");
-      uploader._completeUpload();
+      uploader._getCompleteHeaders();
     }
 
   } else {
     uploader._log("Chunk verification has failed. Deferring to error handler");
     uploader._verifyAllChunksUploadedError(attempts, response);
+  }
+};
+
+bs3u.Uploader.prototype._getCompleteHeaders = function(retries) {
+  var uploader = this;
+  var attempts = retries || 0;
+
+  uploader._log("Getting the complete headers");
+
+  var payload = uploader._generateCompletePayload();
+
+  var ajax = new bs3u.Ajax({
+    url: uploader.settings.signatureBackend + uploader.settings.completeHeadersPath,
+    method: "GET",
+    params: {
+      key: uploader.settings.key,
+      content_type: uploader.settings.contentType,
+      payload: uploader._sha256(payload),
+      region: uploader.settings.region,
+      upload_id: uploader._uploadId,
+      host: uploader.settings.host,
+    },
+    headers: uploader.settings.customHeaders,
+  });
+
+  ajax.onSuccess(function(response) {
+    uploader._getCompleteHeadersSuccess(attempts, response);
+  });
+
+  ajax.onError(function(response) {
+    uploader._getCompleteHeadersError(attempts, response);
+  });
+
+  ajax.onTimeout(function(response) {
+    uploader._getCompleteHeadersError(attempts, response);
+  });
+
+  ajax.send();
+  uploader._XHRs.push(ajax);
+};
+
+bs3u.Uploader.prototype._getCompleteHeadersSuccess = function(attempts, response) {
+  var uploader = this;
+  if (response.target.status == 200) {
+    uploader._log("complete headers retrieved");
+    uploader._completeHeaders = JSON.parse(response.target.responseText);
+    uploader._completeUpload();
+  } else {
+    uploader._log("Server returned a non-200. Deferring to error handler!");
+    uploader._getCompleteHeadersError(attempts, response);
+  }
+};
+
+bs3u.Uploader.prototype._getCompleteHeadersError = function(attempts, response) {
+  var uploader = this;
+
+  if (uploader._retryAvailable(attempts)) {
+    attempts += 1;
+    uploader._log("Attempting to retry retrieval of complete headers.");
+    setTimeout(function() {
+      var data = {
+        action: "getCompleteHeaders",
+        xhr: response
+      };
+      uploader._notifyUploadRetry(attempts, data);
+      uploader._getCompleteHeaders(attempts);
+    }, uploader._timeToWaitBeforeNextRetry(attempts));
+  } else {
+    var errorCode = 10;
+    uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
+    uploader._setFailed();
+    uploader._resetData();
+    uploader._log("Uploader error!", uploader.errors[errorCode]);
   }
 };
 
@@ -749,9 +822,7 @@ bs3u.Uploader.prototype._verifyAllChunksUploadedError = function(attempts, respo
         xhr: response
       };
       uploader._notifyUploadRetry(attempts, data);
-      uploader._getRemainingSignatures(0, function() {
-        uploader._verifyAllChunksUploaded(attempts);
-      });
+      uploader._verifyAllChunksUploaded(attempts);
     }, uploader._timeToWaitBeforeNextRetry(attempts));
   } else {
     var errorCode = 6;
@@ -811,15 +882,9 @@ bs3u.Uploader.prototype._retryChunk = function(chunkNumber) {
     chunkAttempts += 1;
     uploader._chunks[chunkNumber].attempts = chunkAttempts;
 
-    // Signatures have might have gone stale, so retrieve the new signatures
-    // for the remaining chunks.
-    uploader._log("Fetching new signatures for chunk retry");
-
-    uploader._getRemainingSignatures(0, function() {
-      if (uploader._uploadSpotAvailable()) {
-        uploader._uploadChunk(chunkNumber, chunkAttempts);
-      }
-    });
+    if (uploader._uploadSpotAvailable()) {
+      uploader._uploadChunk(chunkNumber, chunkAttempts);
+    }
 
   } else {
     var errorCode = 7;
@@ -830,21 +895,12 @@ bs3u.Uploader.prototype._retryChunk = function(chunkNumber) {
   }
 };
 
-// Completes the multipart upload, effectively assembling all chunks together
-// into one file.
-bs3u.Uploader.prototype._completeUpload = function(retries) {
+bs3u.Uploader.prototype._generateCompletePayload = function() {
   var uploader = this;
-  var attempts = retries || 0;
-  var signature = uploader._completeSignature.signature;
 
-  uploader._log("About to complete the upload");
-
-  var authorization = "AWS " + uploader.settings.awsAccessKey + ":" + signature;
   var body = "<CompleteMultipartUpload>";
-
   var totalChunks = Object.keys(uploader._chunks);
   var chunkNumber;
-
   // Order is important here, so iterating "the old fashioned way" to make sure
   // we maintain ascending order for this payload.
   for (var i = 0; i < totalChunks.length; i++) {
@@ -854,8 +910,19 @@ bs3u.Uploader.prototype._completeUpload = function(retries) {
     body += "<ETag>" + uploader._chunks[chunkNumber].eTag + "</ETag>";
     body += "</Part>";
   }
-
   body += "</CompleteMultipartUpload>";
+  return body;
+};
+
+// Completes the multipart upload, effectively assembling all chunks together
+// into one file.
+bs3u.Uploader.prototype._completeUpload = function(retries) {
+  var uploader = this;
+  var attempts = retries || 0;
+
+  uploader._log("About to complete the upload");
+
+  var body = uploader._generateCompletePayload();
 
   // Hack: Firefox requires the data in the form of a blob
   if(uploader._requiresFirefoxHack()) {
@@ -868,12 +935,7 @@ bs3u.Uploader.prototype._completeUpload = function(retries) {
     params: {
       uploadId: uploader._uploadId
     },
-    headers: {
-      "x-amz-date": uploader._completeSignature.date,
-      "Authorization": authorization,
-      "Content-Type": uploader.settings.contentType,
-      "Content-Disposition": "attachment; filename=" + uploader.file.name
-    }
+    headers: uploader._completeHeaders
   });
 
   ajax.onSuccess(function(response) {
@@ -920,9 +982,7 @@ bs3u.Uploader.prototype._completeUploadError = function(attempts, response) {
         xhr: response
       };
       uploader._notifyUploadRetry(attempts, data);
-      uploader._getRemainingSignatures(0, function() {
-        uploader._completeUpload(attempts);
-      });
+      uploader._completeUpload(attempts);
     }, uploader._timeToWaitBeforeNextRetry(attempts));
   } else {
     var errorCode = 8;
@@ -1274,6 +1334,7 @@ bs3u.Uploader.prototype.errors = {
   7: "Max number of retries has been met. Cannot retry uploading chunk!",
   8: "Max number of retries have been met. Unable to complete multipart upload!",
   9: "Max number of retries have been met. Unable to get list headers!",
+  10: "Max number of retries have been met. Unable to get complete headers!",
 
 };
 
