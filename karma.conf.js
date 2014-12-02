@@ -10,14 +10,10 @@ module.exports = function(config) {
     // list of files / patterns to load in the browser
     files: [
       'lib/CryptoJS/sha256.js',
-      'lib/CryptoJS/hmac-sha256.js',
       'src/bs3u.js',
-      'src/uri.js',
       'src/ajax.js',
-      'src/signer.js',
       'src/uploader.js',
       'spec/ajax_spec.js',
-      'spec/signer_spec.js',
       'spec/uploader_spec.js',
     ],
 

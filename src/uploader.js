@@ -1218,6 +1218,10 @@ bs3u.Uploader.prototype._requiresFirefoxHack = function() {
   return navigator.userAgent.indexOf("Firefox") !== -1;
 };
 
+bs3u.Uploader.prototype._sha256 = function(value) {
+  return CryptoJS.SHA256(value).toString();
+};
+
 bs3u.Uploader.prototype._log = function(msg, object) {
   msg = "[BasicS3Uploader] " + msg;
   if (this.settings.log) {
