@@ -768,7 +768,6 @@ describe("bs3u.Uploader", function() {
         encrypted: false,
         maxRetries: 3,
         awsAccessKey: 'my-access-key',
-
       };
       uploader = new bs3u.Uploader(mockFile, mockSettings);
     });
@@ -783,8 +782,7 @@ describe("bs3u.Uploader", function() {
       var ajaxSettings;
 
       beforeEach(function() {
-        uploader._date = "today";
-        uploader._initSignature = "init-signature";
+        uploader._initHeaders = { Authorization: "auth headers" };
       });
 
       it("properly configures the url, method, and headers for the call", function() {
@@ -793,28 +791,7 @@ describe("bs3u.Uploader", function() {
 
         expect(ajaxSettings.url).toEqual("some-host/my-upload-key?uploads");
         expect(ajaxSettings.method).toEqual("POST");
-        expect(ajaxSettings.headers['x-amz-date']).toEqual('today');
-        expect(ajaxSettings.headers['x-amz-acl']).toEqual('private');
-        expect(ajaxSettings.headers.Authorization).toEqual('AWS my-access-key:init-signature');
-        expect(ajaxSettings.headers['Content-Disposition']).toEqual('attachment; filename=myfile');
-      });
-
-      describe("non-encrypted upload", function() {
-        it("does not set the encryption header", function() {
-          uploader.settings.encrypted = false;
-          uploader._initiateUpload();
-          ajaxSettings = bs3u.Ajax.calls.argsFor(0)[0];
-          expect(ajaxSettings.headers['x-amz-server-side-encryption']).toBeUndefined();
-        });
-      });
-
-      describe("an encrypted upload", function() {
-        it("sets the encryption header", function() {
-          uploader.settings.encrypted = true;
-          uploader._initiateUpload();
-          ajaxSettings = bs3u.Ajax.calls.argsFor(0)[0];
-          expect(ajaxSettings.headers['x-amz-server-side-encryption']).toEqual("AES256");
-        });
+        expect(ajaxSettings.headers).toEqual(uploader._initHeaders);
       });
     });
 
@@ -885,7 +862,6 @@ describe("bs3u.Uploader", function() {
         };
         spyOn(uploader, '_uploadChunks');
         spyOn(uploader, '_startProgressWatcher');
-        spyOn(uploader, '_startBandwidthMonitor');
         uploader._initiateUploadSuccess(attempts, mockResponse);
       });
 
@@ -899,10 +875,6 @@ describe("bs3u.Uploader", function() {
 
       it("starts the progress watcher interval", function() {
         expect(uploader._startProgressWatcher).toHaveBeenCalled();
-      });
-
-      it("starts the bandwidth monitor interval", function() {
-        expect(uploader._startBandwidthMonitor).toHaveBeenCalled();
       });
     });
 
@@ -998,7 +970,11 @@ describe("bs3u.Uploader", function() {
     var mockFile, uploader;
 
     beforeEach(function() {
-      mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
+      mockFile = {
+        name: "myfile",
+        type: "video/quicktime",
+        size: 1000,
+      };
       uploader = new bs3u.Uploader(mockFile, {});
       uploader._chunks = {
         1: { uploading: false, uploadComplete: false },
@@ -1006,7 +982,7 @@ describe("bs3u.Uploader", function() {
         3: { uploading: false, uploadComplete: true },
         4: { uploading: false, uploadComplete: false },
       };
-      spyOn(uploader, '_uploadChunk');
+      spyOn(uploader, '_getChunkHeaders');
     });
 
     describe("when there is an upload spot available", function() {
@@ -1016,9 +992,9 @@ describe("bs3u.Uploader", function() {
       });
 
       it("uploads a chunk if its not already uploading and not already complete", function() {
-        expect(uploader._uploadChunk.calls.count()).toEqual(2);
-        expect(uploader._uploadChunk.calls.argsFor(0)[0]).toEqual(1);
-        expect(uploader._uploadChunk.calls.argsFor(1)[0]).toEqual(4);
+        expect(uploader._getChunkHeaders.calls.count()).toEqual(2);
+        expect(uploader._getChunkHeaders.calls.argsFor(0)[0]).toEqual(1);
+        expect(uploader._getChunkHeaders.calls.argsFor(1)[0]).toEqual(4);
       });
     });
 
@@ -1029,7 +1005,7 @@ describe("bs3u.Uploader", function() {
       });
 
       it("won't upload any chunks", function() {
-        expect(uploader._uploadChunk.calls.count()).toEqual(0);
+        expect(uploader._getChunkHeaders.calls.count()).toEqual(0);
       });
     });
 
@@ -1079,15 +1055,9 @@ describe("bs3u.Uploader", function() {
       uploader._chunks = {
         1: { startRange: 0, endRange: 1000, uploading: false, uploadComplete: false }
       };
-      uploader._chunkSignatures = {
-        1: { signature: 'chunk-signature', date: 'date' }
+      uploader._chunkHeaders = {
+        1: { Authorization: 'auth header'}
       };
-    });
-
-    it("sets the correct statuses for the chunk", function() {
-      uploader._uploadChunk(1);
-      expect(uploader._chunks[1].uploading).toBeTruthy();
-      expect(uploader._chunks[1].uploadComplete).toBeFalsy();
     });
 
     it("properly configures the url, method, params, and headers for the call", function() {
@@ -1097,10 +1067,7 @@ describe("bs3u.Uploader", function() {
       expect(ajaxSettings.method).toEqual('PUT');
       expect(ajaxSettings.params.uploadId).toEqual('upload-id');
       expect(ajaxSettings.params.partNumber).toEqual(1);
-      expect(ajaxSettings.headers['x-amz-date']).toEqual('date');
-      expect(ajaxSettings.headers.Authorization).toEqual('AWS my-access-key:chunk-signature');
-      expect(ajaxSettings.headers['Content-Disposition']).toEqual('attachment; filename=myfile');
-      expect(ajaxSettings.headers['Content-Type']).toEqual('video/quicktime');
+      expect(ajaxSettings.headers).toEqual(uploader._chunkHeaders[1]);
     });
 
     it("registers the progress callback", function() {
@@ -1249,12 +1216,12 @@ describe("bs3u.Uploader", function() {
       describe("when all eTags are available", function() {
         beforeEach(function() {
           spyOn(uploader, '_allETagsAvailable').and.returnValue(true);
-          spyOn(uploader, '_verifyAllChunksUploaded');
+          spyOn(uploader, '_getListHeaders');
           uploader._uploadChunkSuccess(attempts, mockResponse, chunkNumber);
         });
 
-        it("verifies that all chunks have been uploaded", function() {
-          expect(uploader._verifyAllChunksUploaded).toHaveBeenCalled();
+        it("retrieves the list headers", function() {
+          expect(uploader._getListHeaders).toHaveBeenCalled();
         });
       });
 
@@ -1342,7 +1309,6 @@ describe("bs3u.Uploader", function() {
         contentType: "video/quicktime",
         bucket: "my-bucket",
         signatureBackend: "/signatures",
-        remainingSignaturesPath: "/remaining"
 
       };
       uploader = new bs3u.Uploader(mockFile, mockSettings);
@@ -1351,7 +1317,7 @@ describe("bs3u.Uploader", function() {
         1: { startRange: 0, endRange: 1000, uploading: false, uploadComplete: false },
         2: { startRange: 1000, endRange: 2000, uploading: false, uploadComplete: false }
       };
-      uploader._listSignature = { signature: 'list-signature', date: 'date' };
+      uploader._listHeaders = { Authorization: "auth header" };
       uploader._eTags = {
         1: '"chunk-1-eTag"',
         2: '"chunk-2-eTag"',
@@ -1365,8 +1331,7 @@ describe("bs3u.Uploader", function() {
       expect(ajaxSettings.url).toEqual('some-host/my-upload-key');
       expect(ajaxSettings.method).toEqual('GET');
       expect(ajaxSettings.params.uploadId).toEqual('upload-id');
-      expect(ajaxSettings.headers['x-amz-date']).toEqual('date');
-      expect(ajaxSettings.headers.Authorization).toEqual('AWS my-access-key:list-signature');
+      expect(ajaxSettings.headers).toEqual(uploader._listHeaders);
     });
 
     it("specially configures the url when the host provided is to a CloudFront distribution", function() {
@@ -1574,12 +1539,12 @@ describe("bs3u.Uploader", function() {
               responseXML: xml
             }
           };
-          spyOn(uploader, '_completeUpload');
+          spyOn(uploader, '_getCompleteHeaders');
           uploader._verifyAllChunksUploadedSuccess(attempts, mockResponse);
         });
 
-        it("calls _completeUpload", function() {
-          expect(uploader._completeUpload).toHaveBeenCalled();
+        it("retrieves upload complete headers", function() {
+          expect(uploader._getCompleteHeaders).toHaveBeenCalled();
         });
       });
     });
@@ -1826,7 +1791,7 @@ describe("bs3u.Uploader", function() {
         1: { startRange: 0, endRange: 1000, uploading: false, uploadComplete: false, eTag: '"chunk-1-eTag"' },
         2: { startRange: 1000, endRange: 2000, uploading: false, uploadComplete: false, eTag: '"chunk-2-eTag"' }
       };
-      uploader._completeSignature = { signature: 'complete-signature', date: 'date' };
+      uploader._completeHeaders = { Authroization: "auth header" };
       spyOn(uploader, '_requiresFirefoxHack').and.returnValue(false);
     });
 
@@ -1842,10 +1807,7 @@ describe("bs3u.Uploader", function() {
       expect(ajaxSettings.url).toEqual('some-host/my-upload-key');
       expect(ajaxSettings.method).toEqual('POST');
       expect(ajaxSettings.params.uploadId).toEqual('upload-id');
-      expect(ajaxSettings.headers['x-amz-date']).toEqual('date');
-      expect(ajaxSettings.headers.Authorization).toEqual('AWS my-access-key:complete-signature');
-      expect(ajaxSettings.headers['Content-Type']).toEqual('video/quicktime');
-      expect(ajaxSettings.headers['Content-Disposition']).toEqual('attachment; filename=myfile');
+      expect(ajaxSettings.headers).toEqual(uploader._completeHeaders);
     });
 
     it("registers the success callback", function() {
