@@ -1,8 +1,8 @@
 var bs3u = {
   version: {
-    full: "1.0.16",
-    major: "1",
+    full: "2.0.0",
+    major: "2",
     minor: "0",
-    patch: "16"
+    patch: "0"
   }
 };
