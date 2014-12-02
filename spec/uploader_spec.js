@@ -49,6 +49,22 @@ describe("bs3u.Uploader", function() {
       expect(uploader._chunkProgress).toEqual({});
     });
 
+    it("creates a hash to hold init headers", function() {
+      expect(uploader._initHeaders).toEqual({});
+    });
+
+    it("creates a hash to hold chunk headers", function() {
+      expect(uploader._chunkHeaders).toEqual({});
+    });
+
+    it("creates a hash to hold list headers", function() {
+      expect(uploader._listHeaders).toEqual({});
+    });
+
+    it("creates a hash to hold complete headers", function() {
+      expect(uploader._completeHeaders).toEqual({});
+    });
+
     it("configures the uploader using the provided settings", function() {
       expect(bs3u.Uploader.prototype._configureUploader).toHaveBeenCalled();
     });
