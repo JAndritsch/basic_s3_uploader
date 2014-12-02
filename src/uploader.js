@@ -1318,7 +1318,11 @@ bs3u.Uploader.prototype._sha256 = function(value) {
 bs3u.Uploader.prototype._log = function(msg, object) {
   msg = "[BasicS3Uploader] " + msg;
   if (this.settings.log) {
-    console.debug(msg, object);
+    if (object) {
+      console.debug(msg, object);
+    } else {
+      console.debug(msg);
+    }
   }
 };
 
