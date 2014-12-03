@@ -552,7 +552,6 @@ bs3u.Uploader.prototype._uploadChunks = function() {
   for(var chunkNumber = 1; chunkNumber < totalChunks + 1; chunkNumber++) {
     var chunk = uploader._chunks[chunkNumber];
     if (!chunk.uploading && !chunk.uploadComplete && uploader._uploadSpotAvailable()) {
-      uploader._log("Starting the XHR upload for chunk " + chunkNumber);
       chunk.uploading = true;
       chunk.uploadComplete = false;
       uploader._getChunkHeaders(chunkNumber);
@@ -660,6 +659,8 @@ bs3u.Uploader.prototype._uploadChunk = function(number, retries) {
 
   var chunk = uploader._chunks[number];
   var body = uploader.file.slice(chunk.startRange, chunk.endRange);
+
+  uploader._log("Starting the XHR upload for chunk " + number);
 
   var ajax = new bs3u.Ajax({
     url: uploader.settings.host + "/" + uploader.settings.key,
