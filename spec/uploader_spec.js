@@ -1558,6 +1558,212 @@ describe("bs3u.Uploader", function() {
     });
   });
 
+  describe("_getListHeaders", function() {
+    var mockFile, mockSettings, uploader;
+
+    beforeEach(function() {
+      mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
+      mockSettings = {
+        signatureBackend: "/signatures",
+        listHeadersPath: "/get_list_headers",
+        region: "us-east-1",
+        key: "my-upload-key",
+        contentType: "video/quicktime",
+        bucket: "some-bucket",
+        acl: "private",
+        encrypted: false,
+        customHeaders: { "X-Derp": "Yes" },
+        maxRetries: 3
+      };
+      uploader = new bs3u.Uploader(mockFile, mockSettings);
+      uploader._uploadId = "some-upload-id";
+    });
+
+    it("creates and configures a new Ajax request", function() {
+      uploader._getListHeaders();
+      expect(bs3u.Ajax).toHaveBeenCalled();
+
+      ajaxSettings = bs3u.Ajax.calls.argsFor(0)[0];
+
+      expect(ajaxSettings.url).toEqual(mockSettings.signatureBackend + mockSettings.listHeadersPath);
+      expect(ajaxSettings.method).toEqual("GET");
+      expect(ajaxSettings.headers).toEqual(mockSettings.customHeaders);
+      expect(ajaxSettings.params.key).toEqual(mockSettings.key);
+      expect(ajaxSettings.params.content_type).toEqual(mockSettings.contentType);
+      expect(ajaxSettings.params.payload).toEqual(uploader._sha256(""));
+      expect(ajaxSettings.params.region).toEqual(mockSettings.region);
+      expect(ajaxSettings.params.host).toEqual(uploader.settings.host);
+      expect(ajaxSettings.params.upload_id).toEqual(uploader._uploadId);
+    });
+
+    it("registers the success callback", function() {
+      spyOn(uploader, '_getListHeadersSuccess');
+      var attempts = 1;
+      uploader._getListHeaders(attempts);
+      var callback = mockAjaxClass.onSuccess.calls.argsFor(0)[0];
+      var mockResponse = { target: { status: 200 } };
+      callback(mockResponse);
+      expect(uploader._getListHeadersSuccess).toHaveBeenCalledWith(attempts, mockResponse);
+    });
+
+    it("registers the error callback", function() {
+      spyOn(uploader, '_getListHeadersError');
+      var attempts = 1;
+      uploader._getListHeaders(attempts);
+      var callback = mockAjaxClass.onError.calls.argsFor(0)[0];
+      var mockResponse = { target: { status: 500 } };
+      callback(mockResponse);
+      expect(uploader._getListHeadersError).toHaveBeenCalledWith(attempts, mockResponse);
+    });
+
+    it("registers the timeout callback", function() {
+      spyOn(uploader, '_getListHeadersError');
+      var attempts = 1;
+      uploader._getListHeaders(attempts);
+      var callback = mockAjaxClass.onTimeout.calls.argsFor(0)[0];
+      var mockResponse = { target: { status: 500 } };
+      callback(mockResponse);
+      expect(uploader._getListHeadersError).toHaveBeenCalledWith(attempts, mockResponse);
+    });
+
+    it("sends the request", function() {
+      uploader._getListHeaders();
+      expect(mockAjaxClass.send).toHaveBeenCalled();
+    });
+
+    it("pushes the xhr request into the _XHRs array", function() {
+      uploader._getListHeaders();
+      expect(uploader._XHRs[0]).toEqual(mockAjaxClass);
+    });
+  });
+
+  describe("_getListHeadersSuccess", function() {
+    var uploader, mockFile, mockSettings, mockResponse, attempts;
+
+    beforeEach(function() {
+      attempts = 0;
+      mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
+      mockSettings = {
+        signatureBackend: "/signatures",
+        listHeadersPath: "/get_list_headers",
+        key: "my-upload-key",
+        contentType: "video/quicktime",
+        bucket: "some-bucket",
+        acl: "private",
+        encrypted: false,
+        customHeaders: { "X-Derp": "Yes" },
+        maxRetries: 3
+      };
+      uploader = new bs3u.Uploader(mockFile, mockSettings);
+    });
+
+    describe("a 200 response", function() {
+      beforeEach(function() {
+        mockResponse = {
+          target: {
+            status: 200,
+            responseText: "{\"Authorization\": \"auth-header\", \"x-amz-date\": \"date\"}"
+          }
+        };
+        spyOn(uploader, '_verifyAllChunksUploaded');
+        uploader._getListHeadersSuccess(attempts, mockResponse);
+      });
+
+      it("parses and stores the list headers from the response body", function() {
+        expect(uploader._listHeaders).toEqual(JSON.parse(mockResponse.target.responseText));
+      });
+
+      it("verifies that all chunks were uploaded", function() {
+        expect(uploader._verifyAllChunksUploaded).toHaveBeenCalled();
+      });
+    });
+
+    describe("a non-200 response", function() {
+      beforeEach(function() {
+        mockResponse = {
+          target: {
+            status: 500
+          }
+        };
+        spyOn(uploader, '_getListHeadersError');
+        uploader._getListHeadersSuccess(attempts, mockResponse);
+      });
+
+      it("calls the error handler", function() {
+        expect(uploader._getListHeadersError).toHaveBeenCalledWith(attempts, mockResponse);
+      });
+    });
+  });
+
+  describe("_getListHeadersError", function() {
+    var uploader, mockFile, mockSettings, mockResponse, attempts;
+
+    beforeEach(function() {
+      attempts = 2;
+      mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
+      mockResponse = {
+        target: {
+          status: 500
+        }
+      };
+      mockSettings = {
+        signatureBackend: "/signatures",
+        listHeadersPath: "/get_list_headers",
+        key: "my-upload-key",
+        contentType: "video/quicktime",
+        bucket: "some-bucket",
+        acl: "private",
+        encrypted: false,
+        customHeaders: { "X-Derp": "Yes" },
+        maxRetries: 3
+      };
+      spyOn(window, 'setTimeout').and.callFake(function(callback, time) {
+        callback();
+      });
+
+      uploader = new bs3u.Uploader(mockFile, mockSettings);
+    });
+
+    describe("when a retry is available", function() {
+      beforeEach(function() {
+        spyOn(uploader, '_notifyUploadRetry');
+        spyOn(uploader, '_getListHeaders');
+        spyOn(uploader, '_retryAvailable').and.returnValue(true);
+        uploader._getListHeadersError(attempts, mockResponse);
+      });
+
+      it("notifies about the retry", function() {
+        expect(uploader._notifyUploadRetry).toHaveBeenCalledWith(attempts + 1, jasmine.any(Object));
+      });
+
+      it("calls _getListHeaders with attempts incremented by 1", function() {
+        expect(uploader._getListHeaders).toHaveBeenCalledWith(attempts + 1);
+      });
+    });
+
+    describe("when no retries are available", function() {
+      beforeEach(function() {
+        spyOn(uploader, '_notifyUploadError');
+        spyOn(uploader, '_setFailed');
+        spyOn(uploader, '_resetData');
+        spyOn(uploader, '_retryAvailable').and.returnValue(false);
+        uploader._getListHeadersError(attempts, mockResponse);
+      });
+
+      it("notifies about the upload error", function() {
+        expect(uploader._notifyUploadError).toHaveBeenCalledWith(9, uploader.errors[9]);
+      });
+
+      it("sets the uploader to a failed state", function() {
+        expect(uploader._setFailed).toHaveBeenCalled();
+      });
+
+      it("resets the uploader data", function() {
+        expect(uploader._resetData).toHaveBeenCalled();
+      });
+    });
+  });
+
   describe("_verifyAllChunksUploaded", function() {
     var mockFile, mockSettings, uploader;
 
@@ -1901,6 +2107,216 @@ describe("bs3u.Uploader", function() {
     });
   });
 
+  describe("_getCompleteHeaders", function() {
+    var mockFile, mockSettings, uploader;
+
+    beforeEach(function() {
+      mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
+      mockSettings = {
+        signatureBackend: "/signatures",
+        completeHeadersPath: "/get_complete_headers",
+        region: "us-east-1",
+        key: "my-upload-key",
+        contentType: "video/quicktime",
+        bucket: "some-bucket",
+        acl: "private",
+        encrypted: false,
+        customHeaders: { "X-Derp": "Yes" },
+        maxRetries: 3
+      };
+      uploader = new bs3u.Uploader(mockFile, mockSettings);
+      uploader._uploadId = "some-upload-id";
+      uploader._chunks = {
+        1: { startRange: 0, endRange: 1000, uploading: false, uploadComplete: false, eTag: '"chunk-1-eTag"' },
+        2: { startRange: 1000, endRange: 2000, uploading: false, uploadComplete: false, eTag: '"chunk-2-eTag"' }
+      };
+    });
+
+    it("creates and configures a new Ajax request", function() {
+      uploader._getCompleteHeaders();
+      expect(bs3u.Ajax).toHaveBeenCalled();
+
+      ajaxSettings = bs3u.Ajax.calls.argsFor(0)[0];
+
+      expect(ajaxSettings.url).toEqual(mockSettings.signatureBackend + mockSettings.completeHeadersPath);
+      expect(ajaxSettings.method).toEqual("GET");
+      expect(ajaxSettings.headers).toEqual(mockSettings.customHeaders);
+      expect(ajaxSettings.params.key).toEqual(mockSettings.key);
+      expect(ajaxSettings.params.content_type).toEqual(mockSettings.contentType);
+      expect(ajaxSettings.params.payload).toEqual(uploader._sha256(uploader._generateCompletePayload()));
+      expect(ajaxSettings.params.region).toEqual(mockSettings.region);
+      expect(ajaxSettings.params.host).toEqual(uploader.settings.host);
+      expect(ajaxSettings.params.upload_id).toEqual(uploader._uploadId);
+    });
+
+    it("registers the success callback", function() {
+      spyOn(uploader, '_getCompleteHeadersSuccess');
+      var attempts = 1;
+      uploader._getCompleteHeaders(attempts);
+      var callback = mockAjaxClass.onSuccess.calls.argsFor(0)[0];
+      var mockResponse = { target: { status: 200 } };
+      callback(mockResponse);
+      expect(uploader._getCompleteHeadersSuccess).toHaveBeenCalledWith(attempts, mockResponse);
+    });
+
+    it("registers the error callback", function() {
+      spyOn(uploader, '_getCompleteHeadersError');
+      var attempts = 1;
+      uploader._getCompleteHeaders(attempts);
+      var callback = mockAjaxClass.onError.calls.argsFor(0)[0];
+      var mockResponse = { target: { status: 500 } };
+      callback(mockResponse);
+      expect(uploader._getCompleteHeadersError).toHaveBeenCalledWith(attempts, mockResponse);
+    });
+
+    it("registers the timeout callback", function() {
+      spyOn(uploader, '_getCompleteHeadersError');
+      var attempts = 1;
+      uploader._getCompleteHeaders(attempts);
+      var callback = mockAjaxClass.onTimeout.calls.argsFor(0)[0];
+      var mockResponse = { target: { status: 500 } };
+      callback(mockResponse);
+      expect(uploader._getCompleteHeadersError).toHaveBeenCalledWith(attempts, mockResponse);
+    });
+
+    it("sends the request", function() {
+      uploader._getCompleteHeaders();
+      expect(mockAjaxClass.send).toHaveBeenCalled();
+    });
+
+    it("pushes the xhr request into the _XHRs array", function() {
+      uploader._getCompleteHeaders();
+      expect(uploader._XHRs[0]).toEqual(mockAjaxClass);
+    });
+  });
+
+  describe("_getCompleteHeadersSuccess", function() {
+    var uploader, mockFile, mockSettings, mockResponse, attempts;
+
+    beforeEach(function() {
+      attempts = 0;
+      mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
+      mockSettings = {
+        signatureBackend: "/signatures",
+        completeHeadersPath: "/get_complete_headers",
+        key: "my-upload-key",
+        contentType: "video/quicktime",
+        bucket: "some-bucket",
+        acl: "private",
+        encrypted: false,
+        customHeaders: { "X-Derp": "Yes" },
+        maxRetries: 3
+      };
+      uploader = new bs3u.Uploader(mockFile, mockSettings);
+    });
+
+    describe("a 200 response", function() {
+      beforeEach(function() {
+        mockResponse = {
+          target: {
+            status: 200,
+            responseText: "{\"Authorization\": \"auth-header\", \"x-amz-date\": \"date\"}"
+          }
+        };
+        spyOn(uploader, '_completeUpload');
+        uploader._getCompleteHeadersSuccess(attempts, mockResponse);
+      });
+
+      it("parses and stores the complete headers from the response body", function() {
+        expect(uploader._completeHeaders).toEqual(JSON.parse(mockResponse.target.responseText));
+      });
+
+      it("completes the upload", function() {
+        expect(uploader._completeUpload).toHaveBeenCalled();
+      });
+    });
+
+    describe("a non-200 response", function() {
+      beforeEach(function() {
+        mockResponse = {
+          target: {
+            status: 500
+          }
+        };
+        spyOn(uploader, '_getCompleteHeadersError');
+        uploader._getCompleteHeadersSuccess(attempts, mockResponse);
+      });
+
+      it("calls the error handler", function() {
+        expect(uploader._getCompleteHeadersError).toHaveBeenCalledWith(attempts, mockResponse);
+      });
+    });
+  });
+
+  describe("_getCompleteHeadersError", function() {
+    var uploader, mockFile, mockSettings, mockResponse, attempts;
+
+    beforeEach(function() {
+      attempts = 2;
+      mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
+      mockResponse = {
+        target: {
+          status: 500
+        }
+      };
+      mockSettings = {
+        signatureBackend: "/signatures",
+        listHeadersPath: "/get_list_headers",
+        key: "my-upload-key",
+        contentType: "video/quicktime",
+        bucket: "some-bucket",
+        acl: "private",
+        encrypted: false,
+        customHeaders: { "X-Derp": "Yes" },
+        maxRetries: 3
+      };
+      spyOn(window, 'setTimeout').and.callFake(function(callback, time) {
+        callback();
+      });
+
+      uploader = new bs3u.Uploader(mockFile, mockSettings);
+    });
+
+    describe("when a retry is available", function() {
+      beforeEach(function() {
+        spyOn(uploader, '_notifyUploadRetry');
+        spyOn(uploader, '_getCompleteHeaders');
+        spyOn(uploader, '_retryAvailable').and.returnValue(true);
+        uploader._getCompleteHeadersError(attempts, mockResponse);
+      });
+
+      it("notifies about the retry", function() {
+        expect(uploader._notifyUploadRetry).toHaveBeenCalledWith(attempts + 1, jasmine.any(Object));
+      });
+
+      it("calls _getCompleteHeaders with attempts incremented by 1", function() {
+        expect(uploader._getCompleteHeaders).toHaveBeenCalledWith(attempts + 1);
+      });
+    });
+
+    describe("when no retries are available", function() {
+      beforeEach(function() {
+        spyOn(uploader, '_notifyUploadError');
+        spyOn(uploader, '_setFailed');
+        spyOn(uploader, '_resetData');
+        spyOn(uploader, '_retryAvailable').and.returnValue(false);
+        uploader._getCompleteHeadersError(attempts, mockResponse);
+      });
+
+      it("notifies about the upload error", function() {
+        expect(uploader._notifyUploadError).toHaveBeenCalledWith(10, uploader.errors[10]);
+      });
+
+      it("sets the uploader to a failed state", function() {
+        expect(uploader._setFailed).toHaveBeenCalled();
+      });
+
+      it("resets the uploader data", function() {
+        expect(uploader._resetData).toHaveBeenCalled();
+      });
+    });
+  });
+
   describe("_handleInvalidChunks", function() {
     var mockFile, mockSettings, uploader;
 
@@ -2028,6 +2444,36 @@ describe("bs3u.Uploader", function() {
     });
   });
 
+  describe("_generateCompletePayload", function() {
+    var mockFile, mockSettings, uploader;
+
+    beforeEach(function() {
+      mockSettings = {};
+      mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
+      uploader = new bs3u.Uploader(mockFile, mockSettings);
+      uploader._chunks = {
+        1: { startRange: 0, endRange: 1000, uploading: false, uploadComplete: false, eTag: '"chunk-1-eTag"' },
+        2: { startRange: 1000, endRange: 2000, uploading: false, uploadComplete: false, eTag: '"chunk-2-eTag"' }
+      };
+    });
+
+    it("generates the proper XML payload for the complete upload request", function() {
+      var result = uploader._generateCompletePayload();
+      var expected;
+      expected = "<CompleteMultipartUpload>";
+      expected +=   "<Part>";
+      expected +=     "<PartNumber>1</PartNumber>";
+      expected +=     "<ETag>\"chunk-1-eTag\"</ETag>";
+      expected +=   "</Part>";
+      expected +=   "<Part>";
+      expected +=     "<PartNumber>2</PartNumber>";
+      expected +=     "<ETag>\"chunk-2-eTag\"</ETag>";
+      expected +=   "</Part>";
+      expected += "</CompleteMultipartUpload>";
+      expect(result).toEqual(expected);
+    });
+  });
+
   describe("_completeUpload", function() {
     var mockFile, mockSettings, uploader;
 
@@ -2052,6 +2498,7 @@ describe("bs3u.Uploader", function() {
         2: { startRange: 1000, endRange: 2000, uploading: false, uploadComplete: false, eTag: '"chunk-2-eTag"' }
       };
       uploader._completeHeaders = { Authroization: "auth header" };
+      spyOn(uploader, '_generateCompletePayload').and.returnValue("payload");
       spyOn(uploader, '_requiresFirefoxHack').and.returnValue(false);
     });
 
@@ -2102,18 +2549,7 @@ describe("bs3u.Uploader", function() {
 
     it("sends the ajax request", function() {
       uploader._completeUpload();
-      var body;
-      body = "<CompleteMultipartUpload>";
-      body +=   "<Part>";
-      body +=     "<PartNumber>1</PartNumber>";
-      body +=     "<ETag>\"chunk-1-eTag\"</ETag>";
-      body +=   "</Part>";
-      body +=   "<Part>";
-      body +=     "<PartNumber>2</PartNumber>";
-      body +=     "<ETag>\"chunk-2-eTag\"</ETag>";
-      body +=   "</Part>";
-      body += "</CompleteMultipartUpload>";
-      expect(mockAjaxClass.send).toHaveBeenCalledWith(body);
+      expect(mockAjaxClass.send).toHaveBeenCalledWith("payload");
     });
   });
 
