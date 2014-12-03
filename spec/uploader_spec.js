@@ -3279,4 +3279,66 @@ describe("bs3u.Uploader", function() {
     });
   });
 
+  describe("_encryptText", function() {
+    var mockFile, mockSettings, uploader, callback;
+
+    beforeEach(function() {
+      callback = jasmine.createSpy();
+      mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
+      mockSettings = {};
+      uploader = new bs3u.Uploader(mockFile, mockSettings);
+    });
+
+    describe("when configured to use web workers", function() {
+      var mockWorker;
+
+      beforeEach(function() {
+        uploader.settings.useWebWorkers = true;
+        uploader.settings.uploaderFilePath = "/path/to/basic_s3_uploader.js";
+        uploader.settings.workerFilePath = "/path/to/basic_s3_worker.js";
+
+        mockWorker = {
+          postMessage: function(data) {}
+        };
+        spyOn(window, 'Worker').and.returnValue(mockWorker);
+        spyOn(mockWorker, 'postMessage');
+
+        uploader._encryptText("some text", callback);
+      });
+
+      it("creates a web worker with the proper script", function() {
+        expect(window.Worker).toHaveBeenCalledWith("/path/to/basic_s3_worker.js");
+      });
+
+      it("defines 'onmessage' on the worker to execute the callback with the encrypted data", function() {
+        var event = {
+          data: "encrypted text!"
+        };
+        mockWorker.onmessage(event);
+        expect(callback).toHaveBeenCalledWith("encrypted text!");
+      });
+
+      it("executes 'postMessage' on the worker with proper data", function() {
+        var expectedData = {
+          text: "some text",
+          uploaderFilePath: "/path/to/basic_s3_uploader.js"
+        };
+        expect(mockWorker.postMessage).toHaveBeenCalledWith(expectedData);
+      });
+    });
+
+    describe("when not using web workers", function() {
+      beforeEach(function() {
+        uploader.settings.useWebWorkers = false;
+        spyOn(uploader, "_sha256").and.returnValue("encrypted text!");
+        uploader._encryptText("my text", callback);
+      });
+
+      it("passes the encrypted text directly to the provided callback", function() {
+        expect(callback).toHaveBeenCalledWith("encrypted text!");
+      });
+    });
+
+  });
+
 });
