@@ -574,7 +574,7 @@ describe("bs3u.Uploader", function() {
       mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
       mockSettings = {
         signatureBackend: "/signatures",
-        initHeadersPath: "/get_init_signature",
+        initHeadersPath: "/get_init_headers",
         region: "us-east-1",
         key: "my-upload-key",
         contentType: "video/quicktime",
@@ -602,6 +602,7 @@ describe("bs3u.Uploader", function() {
       expect(ajaxSettings.params.region).toEqual(mockSettings.region);
       expect(ajaxSettings.params.acl).toEqual(mockSettings.acl);
       expect(ajaxSettings.params.encrypted).toEqual(mockSettings.encrypted);
+      expect(ajaxSettings.params.host).toEqual(uploader.settings.host);
     });
 
     it("registers the success callback", function() {
@@ -653,7 +654,7 @@ describe("bs3u.Uploader", function() {
       mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
       mockSettings = {
         signatureBackend: "/signatures",
-        initHeadersPath: "/get_init_signature",
+        initHeadersPath: "/get_init_headers",
         key: "my-upload-key",
         contentType: "video/quicktime",
         bucket: "some-bucket",
@@ -677,7 +678,7 @@ describe("bs3u.Uploader", function() {
         uploader._getInitHeadersSuccess(attempts, mockResponse);
       });
 
-      it("parses and stores the init signature and date from the response body", function() {
+      it("parses and stores the init headers from the response body", function() {
         expect(uploader._initHeaders).toEqual(JSON.parse(mockResponse.target.responseText));
       });
 
@@ -885,7 +886,7 @@ describe("bs3u.Uploader", function() {
         expect(uploader._uploadId).toEqual('the-upload-id');
       });
 
-      it("begins uploading chunks once the remaining signatures are present", function() {
+      it("begins uploading chunks once the chunk headers are present", function() {
         expect(uploader._uploadChunks).toHaveBeenCalled();
       });
 
@@ -926,7 +927,7 @@ describe("bs3u.Uploader", function() {
       };
       mockSettings = {
         signatureBackend: "/signatures",
-        initHeadersPath: "/get_init_signature",
+        initHeadersPath: "/get_init_headers",
         key: "my-upload-key",
         contentType: "video/quicktime",
         bucket: "some-bucket",
@@ -1012,6 +1013,13 @@ describe("bs3u.Uploader", function() {
         expect(uploader._getChunkHeaders.calls.argsFor(0)[0]).toEqual(1);
         expect(uploader._getChunkHeaders.calls.argsFor(1)[0]).toEqual(4);
       });
+
+      it("sets 'uploading' to true and 'uploadComplete' to false for chunks that have started uploading", function() {
+        expect(uploader._chunks[1].uploading).toBeTruthy();
+        expect(uploader._chunks[1].uploadComplete).toBeFalsy();
+        expect(uploader._chunks[4].uploading).toBeTruthy();
+        expect(uploader._chunks[4].uploadComplete).toBeFalsy();
+      });
     });
 
     describe("when there is not an upload spot available", function() {
@@ -1025,6 +1033,179 @@ describe("bs3u.Uploader", function() {
       });
     });
 
+  });
+
+  describe("_getChunkHeaders", function() {
+    var mockFile, mockSettings, uploader, mockFileReader, wordArray, chunkNumber;
+
+    beforeEach(function() {
+      mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
+      mockSettings = {
+        signatureBackend: "/signatures",
+        chunkHeadersPath: "/get_chunk_headers",
+        region: "us-east-1",
+        key: "my-upload-key",
+        contentType: "video/quicktime",
+        bucket: "some-bucket",
+        acl: "private",
+        encrypted: false,
+        customHeaders: { "X-Derp": "Yes" },
+        maxRetries: 3
+      };
+      uploader = new bs3u.Uploader(mockFile, mockSettings);
+      uploader._chunks = {
+        1: { startRange: 0, endRange: 1024 },
+        2: { startRange: 0, endRange: 1024 },
+      };
+      chunkNumber = 2;
+      uploader.file = {
+        slice: function(start, end) { return "sliced blob"; }
+      };
+      uploader._uploadId = "some-upload-id";
+      mockFileReader = {
+        result: "arrayBuffer",
+        readAsArrayBuffer: function(body) {}
+      };
+      spyOn(mockFileReader, 'readAsArrayBuffer');
+      spyOn(window, 'FileReader').and.returnValue(mockFileReader);
+      spyOn(uploader, '_createWordArray').and.returnValue("wordArray");
+    });
+
+    it("reads the contents of the chunk in order to generate a content SHA", function() {
+      uploader._getChunkHeaders(chunkNumber);
+      expect(mockFileReader.readAsArrayBuffer).toHaveBeenCalledWith("sliced blob");
+    });
+
+    describe("once the file has been read", function() {
+      it("converts the arrayBuffer from readAsArrayBuffer to a wordArray", function() {
+        uploader._getChunkHeaders(chunkNumber);
+        mockFileReader.onloadend();
+        expect(uploader._createWordArray).toHaveBeenCalledWith("arrayBuffer");
+      });
+
+      it("creates and configures a new Ajax request", function() {
+        uploader._getChunkHeaders(chunkNumber);
+        mockFileReader.onloadend();
+        expect(bs3u.Ajax).toHaveBeenCalled();
+
+        ajaxSettings = bs3u.Ajax.calls.argsFor(0)[0];
+
+        expect(ajaxSettings.url).toEqual(mockSettings.signatureBackend + mockSettings.chunkHeadersPath);
+        expect(ajaxSettings.method).toEqual("GET");
+        expect(ajaxSettings.headers).toEqual(mockSettings.customHeaders);
+        expect(ajaxSettings.params.key).toEqual(mockSettings.key);
+        expect(ajaxSettings.params.content_type).toEqual(mockSettings.contentType);
+        expect(ajaxSettings.params.payload).toEqual(uploader._sha256("wordArray"));
+        expect(ajaxSettings.params.region).toEqual(mockSettings.region);
+        expect(ajaxSettings.params.host).toEqual(uploader.settings.host);
+        expect(ajaxSettings.params.upload_id).toEqual(uploader._uploadId);
+        expect(ajaxSettings.params.part_number).toEqual(2);
+      });
+
+      it("registers the success callback", function() {
+        spyOn(uploader, '_getChunkHeadersSuccess');
+        var attempts = 1;
+        uploader._getChunkHeaders(chunkNumber, attempts);
+        mockFileReader.onloadend();
+        var callback = mockAjaxClass.onSuccess.calls.argsFor(0)[0];
+        var mockResponse = { target: { status: 200 } };
+        callback(mockResponse);
+        expect(uploader._getChunkHeadersSuccess).toHaveBeenCalledWith(attempts, chunkNumber, mockResponse);
+      });
+
+      it("registers the error callback", function() {
+        spyOn(uploader, '_getChunkHeadersError');
+        var attempts = 1;
+        uploader._getChunkHeaders(chunkNumber, attempts);
+        mockFileReader.onloadend();
+        var callback = mockAjaxClass.onError.calls.argsFor(0)[0];
+        var mockResponse = { target: { status: 500 } };
+        callback(mockResponse);
+        expect(uploader._getChunkHeadersError).toHaveBeenCalledWith(attempts, chunkNumber, mockResponse);
+      });
+
+      it("registers the timeout callback", function() {
+        spyOn(uploader, '_getChunkHeadersError');
+        var attempts = 1;
+        uploader._getChunkHeaders(chunkNumber, attempts);
+        mockFileReader.onloadend();
+        var callback = mockAjaxClass.onTimeout.calls.argsFor(0)[0];
+        var mockResponse = { target: { status: 500 } };
+        callback(mockResponse);
+        expect(uploader._getChunkHeadersError).toHaveBeenCalledWith(attempts, chunkNumber, mockResponse);
+      });
+
+      it("sends the request", function() {
+        uploader._getChunkHeaders(chunkNumber);
+        mockFileReader.onloadend();
+        expect(mockAjaxClass.send).toHaveBeenCalled();
+      });
+
+      it("pushes the xhr request into the _XHRs array", function() {
+        uploader._getChunkHeaders(chunkNumber);
+        mockFileReader.onloadend();
+        expect(uploader._XHRs[0]).toEqual(mockAjaxClass);
+      });
+    });
+  });
+
+  describe("_getChunkHeadersSuccess", function() {
+    var uploader, mockFile, mockSettings, mockResponse, attempts, chunkNumber;
+
+    beforeEach(function() {
+      attempts = 0;
+      mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
+      mockSettings = {
+        signatureBackend: "/signatures",
+        chunkHeadersPath: "/get_chunk_headers",
+        key: "my-upload-key",
+        contentType: "video/quicktime",
+        bucket: "some-bucket",
+        acl: "private",
+        encrypted: false,
+        customHeaders: { "X-Derp": "Yes" },
+        maxRetries: 3
+      };
+      uploader = new bs3u.Uploader(mockFile, mockSettings);
+      chunkNumber = 3;
+    });
+
+    describe("a 200 response", function() {
+      beforeEach(function() {
+        mockResponse = {
+          target: {
+            status: 200,
+            responseText: "{\"Authorization\": \"auth-header\", \"x-amz-date\": \"date\"}"
+          }
+        };
+        spyOn(uploader, '_uploadChunk');
+        uploader._getChunkHeadersSuccess(attempts, chunkNumber, mockResponse);
+      });
+
+      it("parses and stores the chunk headers from the response body", function() {
+        expect(uploader._chunkHeaders[chunkNumber]).toEqual(JSON.parse(mockResponse.target.responseText));
+      });
+
+      it("uploads the chunk", function() {
+        expect(uploader._uploadChunk).toHaveBeenCalled();
+      });
+    });
+
+    describe("a non-200 response", function() {
+      beforeEach(function() {
+        mockResponse = {
+          target: {
+            status: 500
+          }
+        };
+        spyOn(uploader, '_getChunkHeadersError');
+        uploader._getChunkHeadersSuccess(attempts, chunkNumber, mockResponse);
+      });
+
+      it("calls the error handler", function() {
+        expect(uploader._getChunkHeadersError).toHaveBeenCalledWith(attempts, chunkNumber, mockResponse);
+      });
+    });
   });
 
   describe("_uploadSpotAvailable", function() {
@@ -1044,6 +1225,75 @@ describe("bs3u.Uploader", function() {
     it("returns false if the number of concurrent uploads is equal to the max amount", function() {
       spyOn(uploader, '_chunkUploadsInProgress').and.returnValue(3);
       expect(uploader._uploadSpotAvailable()).toBeFalsy();
+    });
+  });
+
+  describe("_getChunkHeadersError", function() {
+    var uploader, mockFile, mockSettings, mockResponse, attempts, chunkNumber;
+
+    beforeEach(function() {
+      attempts = 2;
+      mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
+      mockResponse = {
+        target: {
+          status: 500
+        }
+      };
+      mockSettings = {
+        signatureBackend: "/signatures",
+        initHeadersPath: "/get_init_headers",
+        key: "my-upload-key",
+        contentType: "video/quicktime",
+        bucket: "some-bucket",
+        acl: "private",
+        encrypted: false,
+        customHeaders: { "X-Derp": "Yes" },
+        maxRetries: 3
+      };
+      spyOn(window, 'setTimeout').and.callFake(function(callback, time) {
+        callback();
+      });
+      uploader = new bs3u.Uploader(mockFile, mockSettings);
+      chunkNumber = 2;
+    });
+
+    describe("when a retry is available", function() {
+      beforeEach(function() {
+        spyOn(uploader, '_notifyUploadRetry');
+        spyOn(uploader, '_getChunkHeaders');
+        spyOn(uploader, '_retryAvailable').and.returnValue(true);
+        uploader._getChunkHeadersError(attempts, chunkNumber, mockResponse);
+      });
+
+      it("notifies about the retry", function() {
+        expect(uploader._notifyUploadRetry).toHaveBeenCalledWith(attempts + 1, jasmine.any(Object));
+      });
+
+      it("calls _getChunkHeaders with attempts incremented by 1", function() {
+        expect(uploader._getChunkHeaders).toHaveBeenCalledWith(chunkNumber, attempts + 1);
+      });
+    });
+
+    describe("when no retries are available", function() {
+      beforeEach(function() {
+        spyOn(uploader, '_notifyUploadError');
+        spyOn(uploader, '_setFailed');
+        spyOn(uploader, '_resetData');
+        spyOn(uploader, '_retryAvailable').and.returnValue(false);
+        uploader._getChunkHeadersError(attempts, chunkNumber, mockResponse);
+      });
+
+      it("notifies about the upload error", function() {
+        expect(uploader._notifyUploadError).toHaveBeenCalledWith(4, uploader.errors[4]);
+      });
+
+      it("sets the uploader to a failed state", function() {
+        expect(uploader._setFailed).toHaveBeenCalled();
+      });
+
+      it("resets the uploader data", function() {
+        expect(uploader._resetData).toHaveBeenCalled();
+      });
     });
   });
 
