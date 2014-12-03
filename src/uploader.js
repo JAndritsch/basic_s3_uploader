@@ -1291,6 +1291,8 @@ bs3u.Uploader.prototype._requiresFirefoxHack = function() {
   return navigator.userAgent.indexOf("Firefox") !== -1;
 };
 
+// Encrypts the provided text, either with the help from web workers or not,
+// and then executes the provided callback with the encrypted text.
 bs3u.Uploader.prototype._encryptText = function(value, callback) {
   var uploader = this;
   if (uploader.settings.useWebWorkers) {

@@ -6,20 +6,18 @@
 *
 *   { 
 *     text: "the text to encrypt",
-*     uploaderSourcePath: "/path/to/basic_s3_uploader.js"
+*     uploaderFilePath: "/path/to/basic_s3_uploader.js"
 *   }
 */
-addEventListener('message', function(e) {
+self.addEventListener('message', function(e) {
   // Import the uploader, which contains the 
   // asmCrypto library.
-  importScripts(e.data.uploaderSourcePath);
+  self.importScripts(e.data.uploaderFilePath);
 
   // Encrypt the value
   var encrypted = asmCrypto.SHA256.hex(e.data.text);
 
   // Send the encrypted data back
-  postMessage(encrypted);
-  // Terminate the worker
-  terminate();
+  self.postMessage(encrypted);
 
 }, false);
