@@ -105,6 +105,18 @@ bs3u.Uploader.prototype._configureUploader = function(settings) {
   // The key for this upload.
   uploader.settings.key = settings.key || defaultKey;
 
+  // If set to true, any SHA256 encryption will be done through web workers. This
+  // will greatly increase performance when requesting headers for each chunk
+  // of the file.
+  uploader.settings.useWebWorkers           = settings.useWebWorkers || false;
+
+  // The following settings are not necessary unless you're using web workers:
+  
+  // The path where the the worker file is located.
+  uploader.settings.workerFilePath          = settings.workerFilePath || "/basic_s3_worker.js";
+  // The path where this file is located. This is needed because the worker imports this file.
+  uploader.settings.uploaderFilePath        = settings.uploaderFilePath || "/basic_s3_uploader.js";
+
   // Events
 
   // Fires when the uploader has been initialized and ready to start uploading.
@@ -233,35 +245,41 @@ bs3u.Uploader.prototype._getInitHeaders = function(retries) {
   var attempts = retries || 0;
 
   uploader._log("Getting the init headers");
-  var ajax = new bs3u.Ajax({
-    url: uploader.settings.signatureBackend + uploader.settings.initHeadersPath,
-    method: "GET",
-    params: {
-      key: uploader.settings.key,
-      content_type: uploader.settings.contentType,
-      acl: uploader.settings.acl,
-      encrypted: uploader.settings.encrypted,
-      payload: uploader._sha256(""),
-      region: uploader.settings.region,
-      host: uploader.settings.host,
-    },
-    headers: uploader.settings.customHeaders,
+
+  uploader._encryptText("", function(encrypted) {
+
+    var ajax = new bs3u.Ajax({
+      url: uploader.settings.signatureBackend + uploader.settings.initHeadersPath,
+      method: "GET",
+      params: {
+        key: uploader.settings.key,
+        content_type: uploader.settings.contentType,
+        acl: uploader.settings.acl,
+        encrypted: uploader.settings.encrypted,
+        payload: encrypted,
+        region: uploader.settings.region,
+        host: uploader.settings.host,
+      },
+      headers: uploader.settings.customHeaders,
+    });
+
+    ajax.onSuccess(function(response) {
+      uploader._getInitHeadersSuccess(attempts, response);
+    });
+
+    ajax.onError(function(response) {
+      uploader._getInitHeadersError(attempts, response);
+    });
+
+    ajax.onTimeout(function(response) {
+      uploader._getInitHeadersError(attempts, response);
+    });
+
+    ajax.send();
+    uploader._XHRs.push(ajax);
+
   });
 
-  ajax.onSuccess(function(response) {
-    uploader._getInitHeadersSuccess(attempts, response);
-  });
-
-  ajax.onError(function(response) {
-    uploader._getInitHeadersError(attempts, response);
-  });
-
-  ajax.onTimeout(function(response) {
-    uploader._getInitHeadersError(attempts, response);
-  });
-
-  ajax.send();
-  uploader._XHRs.push(ajax);
 };
 
 // The success callback for getting init headers
@@ -396,35 +414,41 @@ bs3u.Uploader.prototype._getChunkHeaders = function(number, retries) {
   var fileReader = new FileReader();
 
   fileReader.onloadend = function() {
-    var ajax = new bs3u.Ajax({
-      url: uploader.settings.signatureBackend + uploader.settings.chunkHeadersPath,
-      method: "GET",
-      params: {
-        key: uploader.settings.key,
-        content_type: uploader.settings.contentType,
-        payload: uploader._sha256(fileReader.result),
-        part_number: number,
-        upload_id: uploader._uploadId,
-        region: uploader.settings.region,
-        host: uploader.settings.host,
-      },
-      headers: uploader.settings.customHeaders,
+
+    uploader._encryptText(fileReader.result, function(encrypted) {
+
+      var ajax = new bs3u.Ajax({
+        url: uploader.settings.signatureBackend + uploader.settings.chunkHeadersPath,
+        method: "GET",
+        params: {
+          key: uploader.settings.key,
+          content_type: uploader.settings.contentType,
+          payload: encrypted,
+          part_number: number,
+          upload_id: uploader._uploadId,
+          region: uploader.settings.region,
+          host: uploader.settings.host,
+        },
+        headers: uploader.settings.customHeaders,
+      });
+
+      ajax.onSuccess(function(response) {
+        uploader._getChunkHeadersSuccess(attempts, number, response);
+      });
+
+      ajax.onError(function(response) {
+        uploader._getChunkHeadersError(attempts, number, response);
+      });
+
+      ajax.onTimeout(function(response) {
+        uploader._getChunkHeadersError(attempts, number, response);
+      });
+
+      ajax.send();
+      uploader._XHRs.push(ajax);
+
     });
 
-    ajax.onSuccess(function(response) {
-      uploader._getChunkHeadersSuccess(attempts, number, response);
-    });
-
-    ajax.onError(function(response) {
-      uploader._getChunkHeadersError(attempts, number, response);
-    });
-
-    ajax.onTimeout(function(response) {
-      uploader._getChunkHeadersError(attempts, number, response);
-    });
-
-    ajax.send();
-    uploader._XHRs.push(ajax);
   };
 
   fileReader.readAsArrayBuffer(body);
@@ -560,34 +584,40 @@ bs3u.Uploader.prototype._getListHeaders = function(retries) {
   var attempts = retries || 0;
 
   uploader._log("Getting the list headers");
-  var ajax = new bs3u.Ajax({
-    url: uploader.settings.signatureBackend + uploader.settings.listHeadersPath,
-    method: "GET",
-    params: {
-      key: uploader.settings.key,
-      content_type: uploader.settings.contentType,
-      payload: uploader._sha256(""),
-      region: uploader.settings.region,
-      upload_id: uploader._uploadId,
-      host: uploader.settings.host,
-    },
-    headers: uploader.settings.customHeaders,
+
+  uploader._encryptText("", function(encrypted) {
+
+    var ajax = new bs3u.Ajax({
+      url: uploader.settings.signatureBackend + uploader.settings.listHeadersPath,
+      method: "GET",
+      params: {
+        key: uploader.settings.key,
+        content_type: uploader.settings.contentType,
+        payload: encrypted,
+        region: uploader.settings.region,
+        upload_id: uploader._uploadId,
+        host: uploader.settings.host,
+      },
+      headers: uploader.settings.customHeaders,
+    });
+
+    ajax.onSuccess(function(response) {
+      uploader._getListHeadersSuccess(attempts, response);
+    });
+
+    ajax.onError(function(response) {
+      uploader._getListHeadersError(attempts, response);
+    });
+
+    ajax.onTimeout(function(response) {
+      uploader._getListHeadersError(attempts, response);
+    });
+
+    ajax.send();
+    uploader._XHRs.push(ajax);
+
   });
 
-  ajax.onSuccess(function(response) {
-    uploader._getListHeadersSuccess(attempts, response);
-  });
-
-  ajax.onError(function(response) {
-    uploader._getListHeadersError(attempts, response);
-  });
-
-  ajax.onTimeout(function(response) {
-    uploader._getListHeadersError(attempts, response);
-  });
-
-  ajax.send();
-  uploader._XHRs.push(ajax);
 };
 
 bs3u.Uploader.prototype._getListHeadersSuccess = function(attempts, response) {
@@ -751,34 +781,39 @@ bs3u.Uploader.prototype._getCompleteHeaders = function(retries) {
 
   var payload = uploader._generateCompletePayload();
 
-  var ajax = new bs3u.Ajax({
-    url: uploader.settings.signatureBackend + uploader.settings.completeHeadersPath,
-    method: "GET",
-    params: {
-      key: uploader.settings.key,
-      content_type: uploader.settings.contentType,
-      payload: uploader._sha256(payload),
-      region: uploader.settings.region,
-      upload_id: uploader._uploadId,
-      host: uploader.settings.host,
-    },
-    headers: uploader.settings.customHeaders,
+  uploader._encryptText(payload, function(encrypted) {
+
+    var ajax = new bs3u.Ajax({
+      url: uploader.settings.signatureBackend + uploader.settings.completeHeadersPath,
+      method: "GET",
+      params: {
+        key: uploader.settings.key,
+        content_type: uploader.settings.contentType,
+        payload: encrypted,
+        region: uploader.settings.region,
+        upload_id: uploader._uploadId,
+        host: uploader.settings.host,
+      },
+      headers: uploader.settings.customHeaders,
+    });
+
+    ajax.onSuccess(function(response) {
+      uploader._getCompleteHeadersSuccess(attempts, response);
+    });
+
+    ajax.onError(function(response) {
+      uploader._getCompleteHeadersError(attempts, response);
+    });
+
+    ajax.onTimeout(function(response) {
+      uploader._getCompleteHeadersError(attempts, response);
+    });
+
+    ajax.send();
+    uploader._XHRs.push(ajax);
+
   });
 
-  ajax.onSuccess(function(response) {
-    uploader._getCompleteHeadersSuccess(attempts, response);
-  });
-
-  ajax.onError(function(response) {
-    uploader._getCompleteHeadersError(attempts, response);
-  });
-
-  ajax.onTimeout(function(response) {
-    uploader._getCompleteHeadersError(attempts, response);
-  });
-
-  ajax.send();
-  uploader._XHRs.push(ajax);
 };
 
 bs3u.Uploader.prototype._getCompleteHeadersSuccess = function(attempts, response) {
@@ -1254,6 +1289,22 @@ bs3u.Uploader.prototype._validateFileIsReadable = function(callback) {
 
 bs3u.Uploader.prototype._requiresFirefoxHack = function() {
   return navigator.userAgent.indexOf("Firefox") !== -1;
+};
+
+bs3u.Uploader.prototype._encryptText = function(value, callback) {
+  var uploader = this;
+  if (uploader.settings.useWebWorkers) {
+    var worker = new Worker(uploader.settings.workerFilePath);
+    worker.onmessage = function(e) {
+      callback(e.data);
+    };
+    worker.postMessage({
+      text: value,
+      uploaderFilePath: uploader.settings.uploaderFilePath
+    });
+  } else {
+    callback(uploader._sha256(value));
+  }
 };
 
 bs3u.Uploader.prototype._sha256 = function(value) {

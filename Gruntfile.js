@@ -26,6 +26,14 @@ module.exports = function(grunt) {
           ],
           dest: 'sample_app/public/javascripts/',
           filter: 'isFile'
+        },
+        {
+          expand: false,
+          src: [
+            'src/worker.js',
+          ],
+          dest: 'dist/basic_s3_worker.js',
+          filter: 'isFile'
         }
       ]
     }
@@ -60,9 +68,8 @@ module.exports = function(grunt) {
   grunt.loadNpmTasks('grunt-contrib-watch');
   grunt.loadNpmTasks('grunt-contrib-concat');
 
-  grunt.registerTask('test', ['jshint', 'karma']);
   grunt.registerTask('build', ['test', 'concat', 'copy']);
-
+  grunt.registerTask('test', ['jshint', 'karma']);
   grunt.registerTask('default', ['test']);
 
 };
