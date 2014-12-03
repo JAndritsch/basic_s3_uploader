@@ -1036,7 +1036,7 @@ describe("bs3u.Uploader", function() {
   });
 
   describe("_getChunkHeaders", function() {
-    var mockFile, mockSettings, uploader, mockFileReader, wordArray, chunkNumber;
+    var mockFile, mockSettings, uploader, mockFileReader, chunkNumber;
 
     beforeEach(function() {
       mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
@@ -1068,7 +1068,6 @@ describe("bs3u.Uploader", function() {
       };
       spyOn(mockFileReader, 'readAsArrayBuffer');
       spyOn(window, 'FileReader').and.returnValue(mockFileReader);
-      spyOn(uploader, '_createWordArray').and.returnValue("wordArray");
     });
 
     it("reads the contents of the chunk in order to generate a content SHA", function() {
@@ -1077,12 +1076,6 @@ describe("bs3u.Uploader", function() {
     });
 
     describe("once the file has been read", function() {
-      it("converts the arrayBuffer from readAsArrayBuffer to a wordArray", function() {
-        uploader._getChunkHeaders(chunkNumber);
-        mockFileReader.onloadend();
-        expect(uploader._createWordArray).toHaveBeenCalledWith("arrayBuffer");
-      });
-
       it("creates and configures a new Ajax request", function() {
         uploader._getChunkHeaders(chunkNumber);
         mockFileReader.onloadend();
@@ -1095,7 +1088,7 @@ describe("bs3u.Uploader", function() {
         expect(ajaxSettings.headers).toEqual(mockSettings.customHeaders);
         expect(ajaxSettings.params.key).toEqual(mockSettings.key);
         expect(ajaxSettings.params.content_type).toEqual(mockSettings.contentType);
-        expect(ajaxSettings.params.payload).toEqual(uploader._sha256("wordArray"));
+        expect(ajaxSettings.params.payload).toEqual(uploader._sha256("arrayBuffer"));
         expect(ajaxSettings.params.region).toEqual(mockSettings.region);
         expect(ajaxSettings.params.host).toEqual(uploader.settings.host);
         expect(ajaxSettings.params.upload_id).toEqual(uploader._uploadId);

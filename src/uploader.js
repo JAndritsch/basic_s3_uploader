@@ -396,15 +396,13 @@ bs3u.Uploader.prototype._getChunkHeaders = function(number, retries) {
   var fileReader = new FileReader();
 
   fileReader.onloadend = function() {
-    var wordArray = uploader._createWordArray(fileReader.result);
-
     var ajax = new bs3u.Ajax({
       url: uploader.settings.signatureBackend + uploader.settings.chunkHeadersPath,
       method: "GET",
       params: {
         key: uploader.settings.key,
         content_type: uploader.settings.contentType,
-        payload: uploader._sha256(wordArray),
+        payload: uploader._sha256(fileReader.result),
         part_number: number,
         upload_id: uploader._uploadId,
         region: uploader.settings.region,
@@ -1259,11 +1257,7 @@ bs3u.Uploader.prototype._requiresFirefoxHack = function() {
 };
 
 bs3u.Uploader.prototype._sha256 = function(value) {
-  return CryptoJS.SHA256(value).toString();
-};
-
-bs3u.Uploader.prototype._createWordArray = function(value) {
-  return CryptoJS.lib.WordArray.create(value);
+  return asmCrypto.SHA256.hex(value);
 };
 
 bs3u.Uploader.prototype._log = function(msg, object) {
