@@ -9,8 +9,6 @@ module.exports = function(config) {
 
     // list of files / patterns to load in the browser
     files: [
-      //'lib/CryptoJS/sha256.js',
-      //'lib/CryptoJS/lib-typedarrays.js',
       'lib/asmcrypto.js',
       'src/bs3u.js',
       'src/ajax.js',
