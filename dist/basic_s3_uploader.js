@@ -1379,7 +1379,7 @@ bs3u.Uploader.prototype._validateFileIsReadable = function(callback) {
   };
 
   try {
-    fr.readAsBinaryString(blob);
+    fr.readAsArrayBuffer(blob);
   } catch(error) {
     callback(false);
   }

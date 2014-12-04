@@ -3243,7 +3243,7 @@ describe("bs3u.Uploader", function() {
 
     beforeEach(function() {
       mockFileReader = {
-        readAsBinaryString: function() {
+        readAsArrayBuffer: function() {
           this.onloadend();
         }
       };
@@ -3257,7 +3257,7 @@ describe("bs3u.Uploader", function() {
     describe("set up", function() {
       beforeEach(function() {
         spyOn(mockFile, 'slice').and.callThrough();
-        spyOn(mockFileReader, 'readAsBinaryString');
+        spyOn(mockFileReader, 'readAsArrayBuffer');
       });
 
       it("slices the file into a 1024 byte blob", function() {
@@ -3267,7 +3267,7 @@ describe("bs3u.Uploader", function() {
 
       it("attempts to read a blob of the file", function() {
         uploader._validateFileIsReadable();
-        expect(mockFileReader.readAsBinaryString).toHaveBeenCalledWith('blob');
+        expect(mockFileReader.readAsArrayBuffer).toHaveBeenCalledWith('blob');
       });
     });
 
