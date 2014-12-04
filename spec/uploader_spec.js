@@ -106,6 +106,9 @@ describe("bs3u.Uploader", function() {
         customHeaders: { "X-Test-Header": "True" },
         maxConcurrentChunks: 5,
         usingCloudFront: true,
+        useWebWorkers: true,
+        uploaderFilePath: "/path/to/uploader.js",
+        workerFilePath: "/path/to/worker.js",
         key: "my-key-for-this-upload",
         onReady: function() {},
         onStart: function() {},
@@ -147,6 +150,9 @@ describe("bs3u.Uploader", function() {
       expect(uploader.settings.customHeaders).toEqual(mockSettings.customHeaders);
       expect(uploader.settings.maxConcurrentChunks).toEqual(mockSettings.maxConcurrentChunks);
       expect(uploader.settings.usingCloudFront).toEqual(mockSettings.usingCloudFront);
+      expect(uploader.settings.useWebWorkers).toEqual(mockSettings.useWebWorkers);
+      expect(uploader.settings.uploaderFilePath).toEqual(mockSettings.uploaderFilePath);
+      expect(uploader.settings.workerFilePath).toEqual(mockSettings.workerFilePath);
       expect(uploader.settings.key).toEqual(mockSettings.key);
       expect(uploader.settings.onReady).toEqual(mockSettings.onReady);
       expect(uploader.settings.onStart).toEqual(mockSettings.onStart);
@@ -182,6 +188,9 @@ describe("bs3u.Uploader", function() {
       expect(uploader.settings.maxConcurrentChunks).toEqual(5);
       expect(uploader.settings.key).toEqual("/" + uploader.settings.bucket + "/timestamp_" + uploader.file.name);
       expect(uploader.settings.usingCloudFront).toBeFalsy();
+      expect(uploader.settings.useWebWorkers).toBeFalsy();
+      expect(uploader.settings.uploaderFilePath).toEqual("/basic_s3_uploader.js");
+      expect(uploader.settings.workerFilePath).toEqual("/basic_s3_worker.js");
       expect(uploader.settings.retryWaitTime).toEqual(2000);
       expect(uploader.settings.onReady).toBeDefined();
       expect(uploader.settings.onStart).toBeDefined();
