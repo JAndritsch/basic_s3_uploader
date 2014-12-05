@@ -1,59 +1,18 @@
 # BasicS3Uploader
 
-### What is it?
-
-BasicS3Uploader is a generic Javascript S3 uploader that provides you with the means necessary
-to send files from your machine to an AWS S3 bucket all from the client side. It was designed
-to be very generic, providing only a simple library that can be wrapped in order to facilitate
-chunked uploads from a web browser to the cloud. There is no UI and no additional plugins
-required. You simply instantiate it, give it a file and some settings, then tell
-it to start uploading when you want.
-
-### Why no UI?
-
-There are many great Javascript uploaders out there already, and several of them
-include fancy UI or behaviors such as progress bars and automatic file uploads
-on file selection. While these features may be interesting, they tend to make
-assumptions about how you're supposed to use them. In some cases, these assumptions
-may make it more difficult to use these tools in different ways.
-
-Rather than make decisions for you, BasicS3Uploader provides you with the functionality
-to upload a file to the cloud, but you get to make all the decisions about UI and
-behavior.
-
-### How does it work?
-
-BasicS3Uploader is based off of the [Mule Uploader](https://github.com/cinely/mule-uploader)
-and uses a similar method for gathering the required upload signatures for S3's multipart API.
-Because generating signatures requires the use of your AWS secret access key, this uploader
-requires that you set up a server-side web application that can generate the proper signatures
-for each request.
-
-Similar to Mule, BasicS3Uploader requires you to provide it with the path to your signature
-backend application. You must also configure the backend application so that it defines two different
-routes to access the necessary signatures. These specific paths can be configured for the uploader,
-but default to the following paths:
-
-- /get_init_signature
-- /get_remaining_signatures
-
-For more information about how to generate signatures or how to use the uploader,
-please check out the [documentation page](https://github.com/jandritsch/basic_s3_uploader/wiki/Documentation).
+BasicS3Uploader is a Javascript uploader that uploads files to an S3 bucket directly
+from the client side. It was designed to be very generic and easily customizable.
+You simply configure it, give it a file, and then tell it to start uploading.
 
 ## Features
-
-BasicS3Uploader has a few notable features:
 
 - __Very configurable__: There are many options you can specify when using the uploader.
 These include things like your ACL (Access Control List) or whether you'd like your uploads
 to be encrypted or not.
 
-- __Chunked uploads__: Uploading files in multiple chunks is much more efficient and results
-in more reliable complete uploads.
-
-- __Parallel chunk uploads__: Instead of uploading chunks of a file synchronously,
-BasicS3Uploader uploads the chunks simultaneously. This can result in much faster
-uploads.
+- __Parallel chunk uploads__: Instead of uploading the entire file in a single request,
+this uploader sends the bits in chunks. Up to 5 chunks can be sent at the same time, which
+can result in much faster uploads.
 
 - __Automatic retries__: Should an upload fail in the process, this uploader will
 automatically attempt to retry the upload again, provided it hasn't exceeded the
@@ -64,6 +23,21 @@ do things like calculate upload progress or report upload failures/retries.
 
 - __Extensible__: The code was written to be easy to understand and modify, should
 you find the need for a feature that BasicS3Uploader does not currently provide.
+
+## How does it work?
+
+BasicS3Uploader uses [Amazon's REST API for multipart uploads](http://docs.aws.amazon.com/AmazonS3/latest/dev/UsingRESTAPImpUpload.html).
+Specifically, it only requires these 4 APIs:
+
+- Initiate Multipart Upload
+- Upload Part
+- List Parts
+- Complete Multipart Upload
+
+Each of these APIs require authorization. BasicS3Uploader uses [AWS Signature Version 4](http://docs.aws.amazon.com/AmazonS3/latest/API/sig-v4-authenticating-requests.html) to authorize each request.
+
+In order to generate signatures in a secure manner, a server-side application is required. For more information
+about how to generate signatures or how to use the uploader, check out the [documentation page](https://github.com/jandritsch/basic_s3_uploader/wiki/Documentation).
 
 ## Requirements
 
@@ -77,15 +51,13 @@ There are three requirements in order to get BasicS3Uploader working:
 
 The following browsers have been known to work with this uploader:
 
-- Updated Firefox
-- Updated Chrome
+- Firefox 13+
+- Chrome 20+
 - Safari 6+
 - Internet Explorer 10+
 
 BasicS3Uploader relies on the HTML5 File, Blob, and FileReader APIs. As a result,
-this uploader will not work in browsers that do not fully support them. Unlike some
-uploaders that gracefully degrade and use iframe hacks for older browsers, there's
-no fallback strategy with BasicS3Uploader.
+this uploader will not work in browsers that do not fully support them.
 
 ### S3 Bucket CORS config
 
@@ -114,8 +86,7 @@ else should be the way you see it.
 
 As previously stated, BasicS3Uploader needs to communicate with a server-side application
 in order to retrieve upload signatures. This application can be written in any language
-and use any framework. The only requirement is that it responds to the necessary routes,
-accepts the required data, and can properly generate and return a signature.
+and use any framework.
 
 Check out the sample app and [documentation](https://github.com/JAndritsch/basic_s3_uploader/wiki/Documentation) for more info.
 
