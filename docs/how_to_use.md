@@ -37,7 +37,6 @@ Here are the steps required to use BasicS3Uploader:
 2. Configure your upload settings and register some callbacks in a separate object
 
         var settings = {
-          awsAccessKey: "accessKey",
           bucket: "my-s3-bucket",
           key: "my-awesome-file",
 

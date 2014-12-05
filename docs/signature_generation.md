@@ -1,151 +1,194 @@
-In order to make use of this uploader, you will need a server-side application that
-can handle generating the proper AWS S3 signature for each type of request. The
+In order to use this uploader, you will need a server-side application that
+can handle generating the proper AWS S3 headers for each type of request. The
 AWS multipart upload API has several different operations you can use, however this
 uploader only relies on the following:
 
 - [POST] Initiate Multipart Upload
 - [PUT] Upload a single part
 - [GET] List uploaded parts 
-- [POST] Complete Upload
-
-The process for uploading a file to S3 is as follows:
-
-- Step 1: Get an "upload init" signature from the user-defined backend
-
-- Step 2: Using the init signature, call to S3 API to initiate a multipart upload request.
-If successful, an UploadId is returned.
-
-- Step 3: Using the UploadId, get the remaining signatures from the user-defined
-backend in a single call. The signatures returned include all chunk/part signatures,
-the "list parts" signature, and the "complete upload" signature.
-
-- Step 4: Start uploading each chunk to S3, using the appropriate signature for each chunk.
-
-- Step 5: Once all chunk uploads have completed, check to make sure that S3 has all the
-correct chunks that it was sent.
-
-- Step 6: Call the S3 API to complete the upload using the "complete" signature once all
-chunks have been verified.
-
-For more information on the different types of operations AWS exposes, check out
-[this link](http://docs.aws.amazon.com/AmazonS3/latest/dev/auth-request-sig-v2.html)
-and [this link too](http://docs.aws.amazon.com/AmazonS3/latest/dev/RESTAuthentication.html).
-
-* Note: At this time, BasicS3Uploader only supports v2 signtures, but will eventually
-be upgraded to use v4.
+- [POST] Complete Multipart Upload
 
 ## Your signature backend
 
-As stated before, you need to provide your own signature API for this uploader. 
-The main reason for this is security; you do not want to expose your AWS secret
-access key to the front end (which is used for part of the signing process). To
-work around this limitation, a server-side application needs to fill that position.
+You'll need to provide your own signature API for this uploader. The main reason
+for this is security; you do not want to expose your AWS secret access key to the front end (which is used for part of the signing process). To work around this limitation, a server-side application needs to fill that position.
 
-BasicS3Uploader will request each signature it needs at the right time, however you
-need to handle the response to these requests. The uploader expects the response 
+This API should take care of signing each request and returning the proper headers
+required for the request. The uploader will then use these headers you give it
+when calling the S3 APIs.
+
+BasicS3Uploader will ask for the headers it needs for each specific request, however you
+need to handle responding to these requests. The uploader expects the response 
 type to be in JSON format. 
 
-There are only two actions that you'll need to implement:
+An example response might look something like this:
 
-- One to handle returning the "init" signature. The response should look something like this:
+    {
+      "Authorization": "AWS4-HMAC-SHA256 Credential=AKIAIOSFODNN7EXAMPLE/20130524/us-east-1/s3/aws4_request, SignedHeaders=host;range;x-amz-date, Signature=fe5f80f77d5fa3beca038a248ff027d0445342fe2855ddc963176630326f1024",
+      "x-amz-date": "20140708T220855Z",
+      "x-amz-content-sha256":"e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b785",
+      "content-type": "video/quicktime",
+    }
 
-        { 
-          "signature": "some signature",
-          "date": "some date"
-        }
-
-- And one more to handle returning the remaining signatures (list, each chunk, and complete).
-The response should look something like this:
-
-        // Note that each key in "chunk_signatures" refers to a single part/chunk number (1-based).
-        {
-          chunk_signatures: {
-            1: { signature: "signature", date: "date" },
-            2: { signature: "signature", date: "date" },
-            3: { signature: "signature", date: "date" },
-          },
-          complete_signature: { signature: "signature", date: "date" },
-          list_signature: { signature: "signature", date: "date" }
-        }
+In order to give the headers to BasicS3Uploader, you'll need to create a separate
+endpoint for each API.
 
 How you define these endpoints is up to you, but BasicS3Uploader will, by default,
 attempt to get this information from the following URLs:
 
-- /get_init_signature
-- /get_remaining_signatures
+- `GET /get_init_headers`: Can be configured via `initHeadersPath`.
+- `GET /get_chunk_headers`: Can be configured via `chunkHeadersPath`.
+- `GET /get_list_headers`: Can be configured via `listHeadersPath`.
+- `GET /get_complete_headers`: Can be configured via `completeHeadersPath`.
 
-You can configure this data through the `signatureBackend`, `initSignaturePath`,
-and `remainingSignaturesPath` settings. Check out the [configuration page](https://github.com/jandritsch/basic_s3_uploader/wiki/Configuration) for more
+Check out the [configuration page](https://github.com/jandritsch/basic_s3_uploader/wiki/Configuration) for more
 information on this.
 
-## How to generate signatures
+## How to generate headers
 
-Generating the actual signatures isn't too complicated, but will require a couple
-pieces of data.  When BasicS3Uploader sends a request to retrieve a signature from your API, it
-will send along the following information:
+There are several pieces of data you'll need in order to generate an Authorization
+header. When BasicS3Uploader sends a request to retrieve headers from your API, it
+will send along the following information for you to use:
 
-- __bucket__: The name of the S3 bucket
-- __upload_id__: The upload id. This is only used in the "remaining signatures" call.
+- __host__: The full host URL to the S3 bucket
+- __payload__: The SHA256 encrypted content of the request payload.
+- __upload_id__: The upload id. This is used for every call except "Initiate Multipart Upload".
 - __key__: The upload key chosen for the file.
-- __chunk__: The specific chunk/part number. This is only used in the "remaining signatures" call.
-- __total_chunks__: The number of chunks that will be uploaded. This is only used in the "remaining signatures" call.
-- __mime_type__: The type of the file.
-- __acl__: The Access Control List.
-- __encrypted__: Whether or not the upload should be encrypted.
+- __part_number__: The specific chunk/part number. This is only used in the "Upload Part" call.
+- __content_type__: The type of the file.
+- __acl__: The Access Control List. Only used for "Initiate Multipart Upload".
+- __region__: The region where the bucket is located.
+- __encrypted__: Whether or not the upload should be encrypted. Only used for "Initiate Multipart Upload".
 
-Using this information, you can generate the proper signature by the following sample
-logic (Ruby): 
+The process for creating and signing a request is pretty complicated. More information on that can be
+found here: [Sig V4](http://docs.aws.amazon.com/AmazonS3/latest/API/sig-v4-header-based-auth.html).
 
-    class SignatureGenerator
-    
-      AWS_SECRET_KEY = "YOUR_SECRET_KEY"
-    
-      require 'base64'
-      require 'digest'
-    
-      def initialize(params)
-        @bucket     = params[:bucket]
-        @date       = Time.now.strftime("%a, %d %b %Y %X %Z") # the date format that AWS requires
-        @upload_id  = params[:upload_id]
-        @key        = params[:key]
-        @chunk      = params[:chunk]
-        @mime_type  = params[:mime_type]
-        @acl        = params[:acl]
-        @encrypted  = params[:encrypted]
-      end
-    
-    
-      def encrypted_upload?
-        @encrypted == "true"
-      end
-    
-      def init_signature
-        if encrypted_upload?
-          encode("POST\n\n\n\nx-amz-acl:#{@acl}\nx-amz-date:#{@date}\nx-amz-server-side-encryption:AES256\n/#{@bucket}/#{@key}?uploads")
-        else
-          encode("POST\n\n\n\nx-amz-acl:#{@acl}\nx-amz-date:#{@date}\n/#{@bucket}/#{@key}?uploads")
+Fortunately, Amazon has an SDK in various languages that does the dirty work for you. All you'll have
+to do is use their library. Below is an example of how one might do that in Ruby using their [aws-sdk-core-ruby
+gem](https://github.com/aws/aws-sdk-core-ruby).
+
+    module Aws
+
+      # Patching until it can be fixed. See more info at:
+      #  https://github.com/JAndritsch/aws-sdk-core-ruby/commit/4a538708a01f73be1ae859136f5d80fe6d36afa8
+      module Signers
+        class V4
+          def signed_headers(request)
+            headers = request.headers.keys.map(&:downcase)
+            headers.delete('authorization')
+            headers.sort.join(';')
+          end
         end
       end
-    
-      def part_signature
-        encode("PUT\n\n#{@mime_type}\n\nx-amz-date:#{@date}\n/#{@bucket}/#{@key}?partNumber=#{@chunk}&uploadId=#{@upload_id}")
+
+      class S3UploadRequest
+
+        attr_reader :signer, :headers, :endpoint, :http_method
+
+        def initialize(params)
+          @host          = params[:host]
+          @upload_id     = params[:upload_id]
+          @key           = URI.encode(params[:key])
+          @content_type  = params[:content_type]
+          @encrypted     = params[:encrypted]
+          @acl           = params[:acl]
+          @payload       = params[:payload] # sha256 encrypted
+          @part_number   = params[:part_number]
+          @headers       = default_headers
+          region         = params[:region]
+
+          credentials    = Aws::Credentials.new(AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)
+          @signer        = Aws::Signers::V4.new(credentials, 's3', region)
+        end
+
+        def init
+          @http_method = "POST"
+          @endpoint = URI("#{@host}/#{@key}?uploads")
+          @headers["x-amz-acl"] = @acl
+          @headers["x-amz-server-side-encryption"] = "AES256" if encrypted_upload?
+          signed_headers
+        end
+
+        def part
+          @http_method = "PUT"
+          @endpoint = URI("#{@host}/#{@key}?partNumber=#{@part_number}&uploadId=#{@upload_id}")
+          signed_headers
+        end
+
+        def complete
+          @http_method = "POST"
+          @endpoint = URI("#{@host}/#{@key}?uploadId=#{@upload_id}")
+          signed_headers
+        end
+
+        def list
+          @http_method = "GET"
+          @endpoint = URI("#{@host}/#{@key}?uploadId=#{@upload_id}")
+          signed_headers
+        end
+
+        private
+
+        def default_headers
+          {
+            "X-Amz-Content-Sha256" => @payload,
+            "content-type" => @content_type
+          }
+        end
+
+        def encrypted_upload?
+          @encrypted == "true"
+        end
+
+        def signed_headers
+          headers = @signer.sign(self).headers
+          headers.delete("Host") # The 'host' header cannot be set in Javascript. The browser does it for you automatically.
+          headers
+        end
+
       end
-    
-      def list_signature
-        encode("GET\n\n\n\nx-amz-date:#{@date}\n/#{@bucket}/#{@key}?uploadId=#{@upload_id}")
-      end
-    
-      def complete_signature
-        encode("POST\n\n#{@mime_type}\n\nx-amz-date:#{@date}\n/#{@bucket}/#{@key}?uploadId=#{@upload_id}")
-      end
-    
-      def encode(data)
-        sha1      = OpenSSL::Digest::Digest.new('sha1')
-        hmac      = OpenSSL::HMAC.digest(sha1, AWS_SECRET_KEY, data)
-        Base64.encode64(hmac).gsub("\n", "")
-      end
-    
     end
 
-Check out the sample app provided to see an example of how make use of this logic
-in an API/controller. 
+Once that logic is in place, you'll need to expose it to the uploader. Here is 
+an example of doing that as a controller in Rails:
+
+
+    class UploadSignaturesController < ApplicationController
+
+      respond_to :json
+
+      def get_init_headers
+        render :json => upload_request.init
+      end
+
+      def get_list_headers
+        render :json => upload_request.list
+      end
+
+      def get_complete_headers
+        render :json => upload_request.complete
+      end
+
+      def get_chunk_headers
+        render :json => upload_request.part
+      end
+
+      private
+
+      def upload_request
+        Aws::S3UploadRequest.new(params)
+      end
+
+    end
+
+And here are the necessary additions to the `routes.rb` file:
+
+    resources :upload_signatures do
+      collection do
+        get 'get_init_headers'
+        get 'get_list_headers'
+        get 'get_complete_headers'
+        get 'get_chunk_headers'
+      end
+    end
+

@@ -12,47 +12,22 @@ Below are all the upload settings that can be configured.
     <th>Type</th>
     <th>Description</th>
     <th>Default</th>
+    <th>Required</th>
   </thead>
   <tbody>
     <tr>
-      <td>contentType</td>
+      <td>bucket</td>
       <td>String</td>
-      <td>The content type of the file you're uploading</td>
-      <td>Defaults to the file object's type</td>
+      <td>The name of your S3 bucket</td>
+      <td>your-bucket-name</td>
+      <td>Yes</td>
     </tr>
     <tr>
-      <td>chunkSize</td>
-      <td>Number (bytes)</td>
-      <td>
-        The size of each chunk. AWS requires a chunk size of at least 5MB, but this uploader
-        requires you to specify a chunk size of at least 6MB to be safe. Anything higher is
-        allowed.
-      </td>
-      <td>10MB</td>
-    </tr>
-    <tr>
-      <td>encrypted</td>
-      <td>Boolean</td>
-      <td>If set to true, the upload will be performed using an AES256 encryption.</td>
-      <td>false</td>
-    </tr>
-    <tr>
-      <td>maxRetries</td>
-      <td>Number</td>
-      <td>The maximum number of times a failed AJAX request will retry</td>
-      <td>5</td>
-    </tr>
-    <tr>
-      <td>retryWaitTime</td>
-      <td>Number</td>
-      <td>The number of milliseconds to wait until the next retry is attempted. Note that this number is multiplied by the number of attempts to prevent spamming retries during connectivity issues.</td>
-      <td>2000</td>
-    </tr>
-    <tr>
-      <td>maxFileSize</td>
-      <td>Number (bytes)</td>
-      <td>The maximum size of the file. AWS currently does not support uploading files larger than 5 terabytes.</td>
-      <td>5TB</td>
+      <td>region</td>
+      <td>String</td>
+      <td>The region where your bucket is located</td>
+      <td>your-region</td>
+      <td>Yes</td>
     </tr>
     <tr>
       <td>acl</td>
@@ -71,36 +46,105 @@ Below are all the upload settings that can be configured.
         </ul>
       </td>
       <td>public-read</td>
+      <td>No, but you'll probably want to change it anyways.</td>
+    </tr>
+    <tr>
+      <td>key</td>
+      <td>String</td>
+      <td>What the name of the file to be on S3. This can include subfolders and should
+      be unique. Note: certain characters are not allowed and could cause signature
+      errors. You'll probably want to sanitize any special characters from the 
+      file name.</td>
+      <td>/{bucket}/{timestamp}_{original_file_name}</td>
+      <td>No, but you'll probably want to specify how your uploaded file is named.</td>
+    </tr>
+    <tr>
+      <td>contentType</td>
+      <td>String</td>
+      <td>The content type of the file you're uploading</td>
+      <td>Defaults to the file object's type</td>
+      <td>No</td>
+    </tr>
+    <tr>
+      <td>chunkSize</td>
+      <td>Number (bytes)</td>
+      <td>
+        The size of each chunk. AWS requires a chunk size of at least 5MB, but this uploader
+        requires you to specify a chunk size of at least 6MB to be safe. Anything higher is
+        allowed.
+      </td>
+      <td>10MB</td>
+      <td>No</td>
+    </tr>
+    <tr>
+      <td>encrypted</td>
+      <td>Boolean</td>
+      <td>If set to true, the upload will be performed using an AES256 encryption.</td>
+      <td>false</td>
+      <td>No</td>
+    </tr>
+    <tr>
+      <td>maxRetries</td>
+      <td>Number</td>
+      <td>The maximum number of times a failed AJAX request will retry</td>
+      <td>5</td>
+      <td>No</td>
+    </tr>
+    <tr>
+      <td>retryWaitTime</td>
+      <td>Number</td>
+      <td>The number of milliseconds to wait until the next retry is attempted. Note that this number is multiplied by the number of attempts to prevent spamming retries during connectivity issues.</td>
+      <td>2000</td>
+      <td>No</td>
+    </tr>
+    <tr>
+      <td>maxFileSize</td>
+      <td>Number (bytes)</td>
+      <td>The maximum size of the file. AWS currently does not support uploading files larger than 5 terabytes.</td>
+      <td>5TB</td>
+      <td>No</td>
     </tr>
     <tr>
       <td>signatureBackend</td>
       <td>String</td>
       <td>The root path to your signature backend.</td>
       <td>[empty string]</td>
+      <td>No</td>
     </tr>
     <tr>
-      <td>initSignaturePath</td>
+      <td>initHeadersPath</td>
       <td>String</td>
-      <td>The path to your init signature route. This is a child of signatureBackend.</td>
-      <td>/get_init_signature</td>
+      <td>The path where init headers can be retrieved.</td>
+      <td>/get_init_headers</td>
+      <td>No</td>
     </tr>
     <tr>
-      <td>remaininSignaturesPath</td>
+      <td>chunkHeadersPath</td>
       <td>String</td>
-      <td>The path to your remaining signaturse route. This is a child of signatureBackend.</td>
-      <td>/get_remaining_signatures</td>
+      <td>The path where chunk headers can be retrieved.</td>
+      <td>/get_chunk_headers</td>
+      <td>No</td>
     </tr>
     <tr>
-      <td>bucket</td>
+      <td>listHeadersPath</td>
       <td>String</td>
-      <td>The name of your S3 bucket</td>
-      <td>your-bucket-name</td>
+      <td>The path where list headers can be retrieved.</td>
+      <td>/get_list_headers</td>
+      <td>No</td>
+    </tr>
+    <tr>
+      <td>completeHeadersPath</td>
+      <td>String</td>
+      <td>The path where complete headers can be retrieved.</td>
+      <td>/get_complete_headers</td>
+      <td>No</td>
     </tr>
     <tr>
       <td>host</td>
       <td>String</td>
       <td>Provides an optional override of the host name for uploading to AWS.</td>
-      <td>http://{bucket}.s3.amazonaws.com</td>
+      <td>http://{bucket}.s3-{region}.amazonaws.com</td>
+      <td>No</td>
     </tr>
     <tr>
       <td>ssl</td>
@@ -111,24 +155,21 @@ Below are all the upload settings that can be configured.
         configuring the host.
       </td>
       <td>false</td>
+      <td>No</td>
     </tr>
     <tr>
       <td>usingCloudFront</td>
       <td>Boolean</td>
       <td>Tells the uploader that the provided host is for a CloudFront distribution. This has some special internal meaning for how the uploader manages some of the requests.</td>
       <td>false</td>
-    </tr>
-    <tr>
-      <td>awsAccessKey</td>
-      <td>String</td>
-      <td>Your public AWS access key (not your secret key!)</td>
-      <td>YOUR_AWS_ACCESS_KEY_ID</td>
+      <td>No</td>
     </tr>
     <tr>
       <td>log</td>
       <td>Boolean</td>
       <td>If set to true, the uploader will log its current processing out to the console.</td>
       <td>false</td>
+      <td>No</td>
     </tr>
     <tr>
       <td>customHeaders</td>
@@ -136,6 +177,7 @@ Below are all the upload settings that can be configured.
       <td>An object of keys and values representing any custom headers that need to be sent
       to your signature backend. Note: these do not get sent to AWS.</td>
       <td>{}</td>
+      <td>No</td>
     </tr>
     <tr>
       <td>maxConcurrentChunks</td>
@@ -147,15 +189,30 @@ Below are all the upload settings that can be configured.
         any effect on upload performance. This number must fall within the range of 1-5.
       </td>
       <td>5</td>
+      <td>No</td>
     </tr>
     <tr>
-      <td>key</td>
+      <td>useWebWorkers</td>
+      <td>Boolean</td>
+      <td>If true, web workers will be used when encrypting request payloads. This can
+      greatly improve page responsiveness. If false, workers won't be used and the
+      performance may take a slight hit.</td>
+      <td>false</td>
+      <td>No</td>
+    </tr>
+    <tr>
+      <td>workerFilePath</td>
       <td>String</td>
-      <td>What the name of the file to be on S3. This can include subfolders and should
-      be unique. Note: certain characters are not allowed and could cause signature
-      errors. You'll probably want to sanitize any special characters from the 
-      file name.</td>
-      <td>/{bucket}/{timestamp}_{original_file_name}</td>
+      <td>The relative location where the external worker file is located.</td>
+      <td>/basic_s3_worker.js</td>
+      <td>Only if useWebWorkers is set to true.</td>
+    </tr>
+    <tr>
+      <td>uploderFilePath</td>
+      <td>String</td>
+      <td>The relative location where the Basic S3 Uploader file is located.</td>
+      <td>/basic_s3_uploader.js</td>
+      <td>Only if useWebWorkers is set to true.</td>
     </tr>
   </tbody>
 </table>

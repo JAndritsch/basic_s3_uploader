@@ -131,14 +131,12 @@ In order to run the application, you must have Ruby installed.
 
 #### Step 2: Configure the app
 
-You need to modify the sample app by providing it with your AWS secret access key. This can
-be accomplished by changing the value of `AWS_SECRET_KEY` found in the `s3_upload_request.rb`
-file.
-
-    AWS_SECRET_KEY = "YOUR_SECRET_KEY"
+You need to modify the sample app by providing it with your AWS keys. This can
+be accomplished by defining the `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`
+constants found in the `s3_upload_request.rb` file.
 
 Next, you will need to edit `public/javascripts/main.js` and provide the uploader settings with
-your bucket name, AWS access key, and a key for your upload (the key is going to be used for the
+your bucket name, region, and a key for your upload (the key is going to be used for the
 file name when it is uploaded, and may also include subfolders).
 Example:
 
@@ -147,7 +145,7 @@ Example:
 
       settings = {
         bucket: "your-bucket-name",
-        awsAccessKey: "your-aws-access-key",
+        region: "us-east-1",
         key: "a-key-for-the-upload",
         ...
 
