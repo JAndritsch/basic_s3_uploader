@@ -9,11 +9,12 @@ $(document).ready(function() {
 
     settings = {
       bucket: "your-bucket-name",
-      awsAccessKey: "your-aws-access-key",
-      key: "a-key-for-the-upload",
+      region: "the region",
       signatureBackend: "",
-      initSignaturePath: "/get_init_signature",
-      remainingSignaturesPath: "/get_remaining_signatures",
+      initHeadersPath: "/get_init_headers",
+      listHeadersPath: "/get_list_headers",
+      chunkHeadersPath: "/get_chunk_headers",
+      completeHeadersPath: "/get_complete_headers",
 
       onReady: function() {
         $("#startUpload").removeAttr("disabled");
@@ -51,23 +52,11 @@ $(document).ready(function() {
         $("#cancelUpload").attr("disabled", "disabled");
       }
     };
-    uploader = new BasicS3Uploader(file, settings);
+    uploader = new bs3u.Uploader(file, settings);
   });
 
 
   $("#startUpload").on("click", function() {
-    // Here is an opportunity to make any changes about the uploader's configuration.
-    // For instance, if you wanted to dynamically supply an access key or bucket
-    // from the back end, you could do that here.
-    /*
-        $.get('/someplace', function(data) {
-          uploader.settings.bucket       = data.bucket;
-          uploader.settings.awsAccessKey = data.awsAccessKey;
-          uploader.startUpload();
-        });
-    */
-    // It should also be noted that if you dynamically modify the 'bucket', you will also need to
-    // modify the 'host', as it is derived from the bucket at the time an uploader is created.
     uploader.startUpload();
   });
 

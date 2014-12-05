@@ -102,14 +102,13 @@ First, here is the list of files and description of each file used for the sampl
 
     - sample_app/
       - app.rb: Simple Sinatra app that provides routes for both the front end and signature backend
-      - s3_upload_request.rb: A simple class used to generate signatures
+      - s3_upload_request.rb: A simple class used to generate headers
       - Gemfile 
       - Gemfile.lock
       - public/
         - javascripts/
-          - src/
+          - dist/
             - basic_s3_uploader.js: The uploader
-            - basic_s3_uploader_mock.js: A mock uploader that can be used for testing
           - main.js: An example of how one might use the uploader
           - jquery-2.0.3.min.js: Not necessary for the uploader, but nice to use for main.js
         - stylesheets/

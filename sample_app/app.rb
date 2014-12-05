@@ -11,41 +11,24 @@ class MyApp < Sinatra::Base
     hash.to_json
   end
 
-  # Returns a hash of multiple signatures, including one for the "list parts"
-  # call, the "complete upload" call, and a signature for every chunk in the upload.
-
-  # To calculate the chunk signatures, BasicS3Uploader sends the "total_chunks"
-  # value to this method. From there, we can iterate of each value within the
-  # range of 0..total_chunks and generate a signature for each chunk.
-  get '/get_remaining_signatures' do
+  get '/get_init_headers' do
     content_type :json
-    # get the "list parts" signature
-    list     = S3UploadRequest.new(:type => :list, :params => params)
-    # get the "complete upload" signature
-    complete = S3UploadRequest.new(:type => :complete, :params => params)
+    upload_request.init.to_json
+  end
 
-    chunk_signatures = {}
-    # loop over the range of 0..total_chunks
-    params[:total_chunks].to_i.times do |chunk|
-      # chunk numbers must be 1-indexed
-      chunk_number = chunk + 1
-      # assign the chunk number to the params hash
-      params[:chunk] = chunk_number
-      # generate the signature for this speicifc chunk
-      request = S3UploadRequest.new(:type => :part, :params => params)
-      # store the signature in a hash that will be returned later
-      chunk_signatures[chunk_number] = {:signature => request.signature, :date => request.date}
-    end
+  get '/get_list_headers' do
+    content_type :json
+    upload_request.list.to_json
+  end
 
-    # Each signature requires two parts, the date for the request and the actual signature.
-    # BasicS3Uploader expects the response for any signature to be a hash that has a
-    # signature and date key.
-    hash = {
-      :list_signature     => {:signature => list.signature, :date => list.date},
-      :complete_signature => {:signature => complete.signature, :date => complete.date},
-      :chunk_signatures   => chunk_signatures
-    }
-    hash.to_json
+  get '/get_complete_headers' do
+    content_type :json
+    upload_request.complete.to_json
+  end
+
+  get '/get_chunk_headers' do
+    content_type :json
+    upload_request.part.to_json
   end
 
   get '/' do
@@ -55,6 +38,12 @@ class MyApp < Sinatra::Base
   # serve everything else as static variables
   get %r{/(.*)} do |path|
     send_file "../" + path
+  end
+
+  private
+
+  def upload_request
+    Aws::S3UploadRequest.new(params)
   end
 
 end

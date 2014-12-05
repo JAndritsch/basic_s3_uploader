@@ -1,79 +1,83 @@
-class S3UploadRequest
+require 'aws-sdk'
 
-  AWS_SECRET_KEY = "YOUR_SECRET_KEY"
+module Aws
 
-  require 'base64'
-  require 'digest'
-
-  attr_accessor :date, :upload_id, :key, :chunk, :mime_type,
-    :bucket, :signature
-
-  def initialize(data)
-    params          = data[:params] # any data sent up from the client side
-    type            = data[:type]   # the type of the signature requeset
-    @bucket         = params[:bucket]
-    @date           = Time.now.strftime("%a, %d %b %Y %X %Z") # the date format that AWS requires
-    @upload_id      = params[:upload_id]
-    @key            = params[:key]
-    @chunk          = params[:chunk]
-    @mime_type      = params[:mime_type]
-    @acl            = params[:acl]
-    @encrypted      = params[:encrypted]
-
-    # figure out what type of signature is being requested, then get it
-    if type == :init
-      @signature = upload_init_signature
-    elsif type == :part
-      @signature = upload_part_signature
-    elsif type == :complete
-      @signature = upload_complete_signature
-    elsif type == :list
-      @signature = upload_list_signature
-    else
-      @signature = nil
+  # Patching until it can be fixed. See more info at:
+  #  https://github.com/JAndritsch/aws-sdk-core-ruby/commit/4a538708a01f73be1ae859136f5d80fe6d36afa8
+  module Signers
+    class V4
+      def signed_headers(request)
+        headers = request.headers.keys.map(&:downcase)
+        headers.delete('authorization')
+        headers.sort.join(';')
+      end
     end
   end
 
-  def to_h
-    {
-      :date      => @date,
-      :bucket    => @bucket,
-      :upload_id => @upload_id,
-      :chunk     => @chunk,
-      :mime_type => @mime_type,
-      :signature => @signature
-    }
-  end
+  class S3UploadRequest
 
-  def encrypted_upload?
-    @encrypted == "true"
-  end
+    attr_reader :signer, :headers, :endpoint, :http_method
 
-  private
+    def initialize(params)
+      @host          = params[:host]
+      @upload_id     = params[:upload_id]
+      @key           = URI.encode(params[:key])
+      @content_type  = params[:content_type]
+      @encrypted     = params[:encrypted]
+      @acl           = params[:acl]
+      @payload       = params[:payload] # sha256 encrypted
+      @part_number   = params[:part_number]
+      @headers       = default_headers
+      region         = params[:region]
 
-  def upload_init_signature
-    if encrypted_upload?
-      encode("POST\n\n\n\nx-amz-acl:#{@acl}\nx-amz-date:#{@date}\nx-amz-server-side-encryption:AES256\n/#{@bucket}/#{@key}?uploads")
-    else
-      encode("POST\n\n\n\nx-amz-acl:#{@acl}\nx-amz-date:#{@date}\n/#{@bucket}/#{@key}?uploads")
+      credentials    = Aws::Credentials.new(AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY)
+      @signer        = Aws::Signers::V4.new(credentials, 's3', region)
     end
-  end
 
-  def upload_part_signature
-    encode("PUT\n\n#{@mime_type}\n\nx-amz-date:#{@date}\n/#{@bucket}/#{@key}?partNumber=#{@chunk}&uploadId=#{@upload_id}")
-  end
+    def init
+      @http_method = "POST"
+      @endpoint = URI("#{@host}/#{@key}?uploads")
+      @headers["x-amz-acl"] = @acl
+      @headers["x-amz-server-side-encryption"] = "AES256" if encrypted_upload?
+      signed_headers
+    end
 
-  def upload_complete_signature
-    encode("POST\n\n#{@mime_type}\n\nx-amz-date:#{@date}\n/#{@bucket}/#{@key}?uploadId=#{@upload_id}")
-  end
+    def part
+      @http_method = "PUT"
+      @endpoint = URI("#{@host}/#{@key}?partNumber=#{@part_number}&uploadId=#{@upload_id}")
+      signed_headers
+    end
 
-  def upload_list_signature
-    encode("GET\n\n\n\nx-amz-date:#{@date}\n/#{@bucket}/#{@key}?uploadId=#{@upload_id}")
-  end
+    def complete
+      @http_method = "POST"
+      @endpoint = URI("#{@host}/#{@key}?uploadId=#{@upload_id}")
+      signed_headers
+    end
 
-  def encode(data)
-    sha1      = OpenSSL::Digest::Digest.new('sha1')
-    hmac      = OpenSSL::HMAC.digest(sha1, AWS_SECRET_KEY, data)
-    Base64.encode64(hmac).gsub("\n", "")
+    def list
+      @http_method = "GET"
+      @endpoint = URI("#{@host}/#{@key}?uploadId=#{@upload_id}")
+      signed_headers
+    end
+
+    private
+
+    def default_headers
+      {
+        "X-Amz-Content-Sha256" => @payload,
+        "content-type" => @content_type
+      }
+    end
+
+    def encrypted_upload?
+      @encrypted == "true"
+    end
+
+    def signed_headers
+      headers = @signer.sign(self).headers
+      headers.delete("Host")
+      headers
+    end
+
   end
 end

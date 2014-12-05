@@ -172,12 +172,8 @@ bs3u.Uploader.prototype._configureUploader = function(settings) {
   // The region where your bucket is located. This is needed for signature generation.
   uploader.settings.region                  = settings.region || "your-region";
 
-  var defaultHost = uploader.settings.protocol + uploader.settings.bucket + "." + "s3-" + uploader.settings.region + ".amazonaws.com";
-
   // The host name is not required but can be explicitly set.
-  uploader.settings.host                    = settings.host || defaultHost;
-  // Your AWS Access Key. NOTE: This is not your secret access key!
-  uploader.settings.awsAccessKey            = settings.awsAccessKey || "YOUR_AWS_ACCESS_KEY_ID";
+  uploader.settings.host                    = settings.host || uploader._defaultHost();
   // If true, you will see logging output in your browser's web inspector.
   uploader.settings.log                     = settings.log || false;
   // Any custom headers that need to be set. Note that these headers are only used for
@@ -785,7 +781,7 @@ bs3u.Uploader.prototype._verifyAllChunksUploaded = function(retries) {
   // to the bucket in order to verify everything was uploaded correctly.
   var host;
   if (uploader.settings.usingCloudFront) {
-    host = uploader.settings.protocol + uploader.settings.bucket + "." + "s3.amazonaws.com";
+    host = uploader._defaultHost();
   } else {
     host = uploader.settings.host;
   }
@@ -1409,6 +1405,11 @@ bs3u.Uploader.prototype._encryptText = function(value, callback) {
 
 bs3u.Uploader.prototype._sha256 = function(value) {
   return asmCrypto.SHA256.hex(value);
+};
+
+bs3u.Uploader.prototype._defaultHost = function() {
+  var uploader = this;
+  return uploader.settings.protocol + uploader.settings.bucket + "." + "s3-" + uploader.settings.region + ".amazonaws.com";
 };
 
 bs3u.Uploader.prototype._log = function(msg, object) {

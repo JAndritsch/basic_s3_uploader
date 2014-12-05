@@ -39,6 +39,7 @@ Here are the steps required to use BasicS3Uploader:
         var settings = {
           bucket: "my-s3-bucket",
           key: "my-awesome-file",
+          region: "us-east-1",
 
           onProgress: function(loaded, total) {
             // generate a progress bar
