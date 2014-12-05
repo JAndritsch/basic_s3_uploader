@@ -101,7 +101,6 @@ describe("bs3u.Uploader", function() {
         region: "us-east-1",
         ssl: true,
         host: "http://my-fake-host.com",
-        awsAccessKey: "my-access-key",
         log: true,
         customHeaders: { "X-Test-Header": "True" },
         maxConcurrentChunks: 5,
@@ -145,7 +144,6 @@ describe("bs3u.Uploader", function() {
       expect(uploader.settings.ssl).toEqual(mockSettings.ssl);
       expect(uploader.settings.host).toEqual(mockSettings.host);
       expect(uploader.settings.region).toEqual(mockSettings.region);
-      expect(uploader.settings.awsAccessKey).toEqual(mockSettings.awsAccessKey);
       expect(uploader.settings.log).toEqual(mockSettings.log);
       expect(uploader.settings.customHeaders).toEqual(mockSettings.customHeaders);
       expect(uploader.settings.maxConcurrentChunks).toEqual(mockSettings.maxConcurrentChunks);
@@ -182,7 +180,6 @@ describe("bs3u.Uploader", function() {
       expect(uploader.settings.ssl).toBeFalsy();
       expect(uploader.settings.region).toEqual("your-region");
       expect(uploader.settings.host).toEqual("http://" + uploader.settings.bucket + "." + "s3-" + uploader.settings.region + ".amazonaws.com");
-      expect(uploader.settings.awsAccessKey).toEqual("YOUR_AWS_ACCESS_KEY_ID");
       expect(uploader.settings.log).toBeFalsy();
       expect(uploader.settings.customHeaders).toEqual({});
       expect(uploader.settings.maxConcurrentChunks).toEqual(5);
@@ -793,7 +790,6 @@ describe("bs3u.Uploader", function() {
         acl: "private",
         encrypted: false,
         maxRetries: 3,
-        awsAccessKey: 'my-access-key',
       };
       uploader = new bs3u.Uploader(mockFile, mockSettings);
     });
@@ -869,7 +865,6 @@ describe("bs3u.Uploader", function() {
         acl: "private",
         encrypted: false,
         maxRetries: 3,
-        awsAccessKey: 'my-access-key',
 
       };
       uploader = new bs3u.Uploader(mockFile, mockSettings);
@@ -1310,7 +1305,6 @@ describe("bs3u.Uploader", function() {
         acl: "private",
         encrypted: false,
         maxRetries: 3,
-        awsAccessKey: 'my-access-key',
         customHeaders: { "X-Custom-Header": "Stuff" },
         contentType: "video/quicktime",
         bucket: "my-bucket",
@@ -1775,9 +1769,9 @@ describe("bs3u.Uploader", function() {
         host: 'some-host',
         key: "my-upload-key",
         acl: "private",
+        region: "us-east-1",
         encrypted: false,
         maxRetries: 3,
-        awsAccessKey: 'my-access-key',
         customHeaders: { "X-Custom-Header": "Stuff" },
         contentType: "video/quicktime",
         bucket: "my-bucket",
@@ -1812,7 +1806,7 @@ describe("bs3u.Uploader", function() {
       uploader.settings.usingCloudFront = true;
       uploader._verifyAllChunksUploaded();
       var ajaxSettings = bs3u.Ajax.calls.argsFor(0)[0];
-      expect(ajaxSettings.url).toEqual('https://my-bucket.s3.amazonaws.com/my-upload-key');
+      expect(ajaxSettings.url).toEqual('https://my-bucket.s3-us-east-1.amazonaws.com/my-upload-key');
     });
 
     it("adds the XHR object to the _XHRs list", function() {
@@ -1877,7 +1871,6 @@ describe("bs3u.Uploader", function() {
         acl: "private",
         encrypted: false,
         maxRetries: 3,
-        awsAccessKey: 'my-access-key',
         customHeaders: { "X-Custom-Header": "Stuff" },
         contentType: "video/quicktime",
         bucket: "my-bucket",
@@ -1921,7 +1914,6 @@ describe("bs3u.Uploader", function() {
         acl: "private",
         encrypted: false,
         maxRetries: 3,
-        awsAccessKey: 'my-access-key',
         customHeaders: { "X-Custom-Header": "Stuff" },
         contentType: "video/quicktime",
         bucket: "my-bucket",
@@ -2054,7 +2046,6 @@ describe("bs3u.Uploader", function() {
         acl: "private",
         encrypted: false,
         maxRetries: 3,
-        awsAccessKey: 'my-access-key',
         customHeaders: { "X-Custom-Header": "Stuff" },
         contentType: "video/quicktime",
         bucket: "my-bucket",
@@ -2487,7 +2478,6 @@ describe("bs3u.Uploader", function() {
         acl: "private",
         encrypted: false,
         maxRetries: 3,
-        awsAccessKey: 'my-access-key',
         customHeaders: { "X-Custom-Header": "Stuff" },
         contentType: "video/quicktime",
         bucket: "my-bucket",
@@ -2566,7 +2556,6 @@ describe("bs3u.Uploader", function() {
         acl: "private",
         encrypted: false,
         maxRetries: 3,
-        awsAccessKey: 'my-access-key',
         customHeaders: { "X-Custom-Header": "Stuff" },
         contentType: "video/quicktime",
         bucket: "my-bucket",
@@ -2647,7 +2636,6 @@ describe("bs3u.Uploader", function() {
         acl: "private",
         encrypted: false,
         maxRetries: 3,
-        awsAccessKey: 'my-access-key',
         customHeaders: { "X-Custom-Header": "Stuff" },
         contentType: "video/quicktime",
         bucket: "my-bucket",
@@ -2725,7 +2713,6 @@ describe("bs3u.Uploader", function() {
         host: 'some-host',
         key: "my-upload-key",
         maxRetries: 3,
-        awsAccessKey: 'my-access-key',
         bucket: "my-bucket"
       };
       uploader = new bs3u.Uploader(mockFile, mockSettings);
@@ -2759,7 +2746,6 @@ describe("bs3u.Uploader", function() {
         host: 'some-host',
         key: "my-upload-key",
         maxRetries: 3,
-        awsAccessKey: 'my-access-key',
         bucket: "my-bucket"
       };
       uploader = new bs3u.Uploader(mockFile, mockSettings);
@@ -2810,7 +2796,6 @@ describe("bs3u.Uploader", function() {
         host: 'some-host',
         key: "my-upload-key",
         maxRetries: 3,
-        awsAccessKey: 'my-access-key',
         bucket: "my-bucket"
       };
       uploader = new bs3u.Uploader(mockFile, mockSettings);
@@ -2837,7 +2822,6 @@ describe("bs3u.Uploader", function() {
         host: 'some-host',
         key: "my-upload-key",
         maxRetries: 3,
-        awsAccessKey: 'my-access-key',
         bucket: "my-bucket"
       };
       uploader = new bs3u.Uploader(mockFile, mockSettings);
