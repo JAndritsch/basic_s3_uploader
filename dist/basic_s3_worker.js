@@ -21,5 +21,14 @@ self.addEventListener('message', function(e) {
 
     // Send the encrypted data back
     self.postMessage(encrypted);
+
+    // Set to undefined so these can be GC'ed
+    asmCrypto = undefined;
+    bs3u = undefined;
+    encrypted = undefined;
+    e = undefined;
+
+    // Close the worker so it can be GC'ed
+    self.close();
   }
 }, false);

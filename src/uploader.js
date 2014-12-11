@@ -413,6 +413,10 @@ bs3u.Uploader.prototype._getChunkHeaders = function(number, retries) {
 
     uploader._encryptText(fileReader.result, function(encrypted) {
 
+      // IMPORTANT! Forgetting to do this will result in the FileReader remaining
+      // in memory with the entire contents of the file/data read.
+      fileReader = undefined;
+
       var ajax = new bs3u.Ajax({
         url: uploader.settings.signatureBackend + uploader.settings.chunkHeadersPath,
         method: "GET",
@@ -1274,6 +1278,7 @@ bs3u.Uploader.prototype._validateFileIsReadable = function(callback) {
     } else {
       callback(true);
     }
+    fr = undefined;
   };
 
   try {

@@ -2,10 +2,10 @@
 
 var bs3u = {
   version: {
-    full: "2.0.0",
+    full: "2.0.1",
     major: "2",
     minor: "0",
-    patch: "0"
+    patch: "1"
   }
 };
 
@@ -510,6 +510,10 @@ bs3u.Uploader.prototype._getChunkHeaders = function(number, retries) {
   fileReader.onloadend = function() {
 
     uploader._encryptText(fileReader.result, function(encrypted) {
+
+      // IMPORTANT! Forgetting to do this will result in the FileReader remaining
+      // in memory with the entire contents of the file/data read.
+      fileReader = undefined;
 
       var ajax = new bs3u.Ajax({
         url: uploader.settings.signatureBackend + uploader.settings.chunkHeadersPath,
@@ -1372,6 +1376,7 @@ bs3u.Uploader.prototype._validateFileIsReadable = function(callback) {
     } else {
       callback(true);
     }
+    fr = undefined;
   };
 
   try {
