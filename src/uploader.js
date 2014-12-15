@@ -1321,7 +1321,7 @@ bs3u.Uploader.prototype._defaultHost = function() {
 
 bs3u.Uploader.prototype._log = function(msg, object) {
   msg = "[BasicS3Uploader] " + msg;
-  if (this.settings.log) {
+  if (this.settings.log && console && console.debug) {
     if (object) {
       console.debug(msg, object);
     } else {
