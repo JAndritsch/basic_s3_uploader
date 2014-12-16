@@ -2,10 +2,10 @@
 
 var bs3u = {
   version: {
-    full: "2.0.1",
+    full: "2.0.2",
     major: "2",
     minor: "0",
-    patch: "1"
+    patch: "2"
   }
 };
 
@@ -621,6 +621,11 @@ bs3u.Uploader.prototype._uploadChunk = function(number, retries) {
   });
 
   ajax.onSuccess(function(response) {
+    //Very important, keeps body from getting destroyed early and sending 0 bytes to AWS
+    //See here for why https://code.google.com/p/chromium/issues/detail?id=167111
+    uploader._log("Superfluous logging of body size to keep body from getting GCed", body.size);
+    body = undefined;
+
     uploader._uploadChunkSuccess(attempts, response, number);
   });
 
@@ -1419,7 +1424,7 @@ bs3u.Uploader.prototype._defaultHost = function() {
 
 bs3u.Uploader.prototype._log = function(msg, object) {
   msg = "[BasicS3Uploader] " + msg;
-  if (this.settings.log) {
+  if (this.settings.log && console && console.debug) {
     if (object) {
       console.debug(msg, object);
     } else {
