@@ -523,6 +523,11 @@ bs3u.Uploader.prototype._uploadChunk = function(number, retries) {
   });
 
   ajax.onSuccess(function(response) {
+    //Very important, keeps body from getting destroyed early and sending 0 bytes to AWS
+    //See here for why https://code.google.com/p/chromium/issues/detail?id=167111
+    uploader._log("Superfluous logging of body size to keep body from getting GCed", body.size);
+    body = undefined;
+
     uploader._uploadChunkSuccess(attempts, response, number);
   });
 
