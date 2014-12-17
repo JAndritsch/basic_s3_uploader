@@ -2,10 +2,10 @@
 
 var bs3u = {
   version: {
-    full: "2.0.2",
+    full: "2.0.3",
     major: "2",
     minor: "0",
-    patch: "2"
+    patch: "3"
   }
 };
 
@@ -248,7 +248,6 @@ bs3u.Uploader.prototype.startUpload = function() {
     var errorCode = 0;
     uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
     uploader._setFailed();
-    uploader._resetData();
     uploader._log("Uploader error: ", uploader.errors[errorCode]);
     return;
   }
@@ -263,7 +262,6 @@ bs3u.Uploader.prototype.startUpload = function() {
       var errorCode = 1;
       uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
       uploader._setFailed();
-      uploader._resetData();
       uploader._log("Uploader error: ", uploader.errors[errorCode]);
     }
   });
@@ -290,7 +288,6 @@ bs3u.Uploader.prototype.cancelUpload = function() {
 
   uploader._notifyUploadCancelled();
   uploader._setCancelled();
-  uploader._resetData();
 };
 
 // Slices up the file into chunks, storing the startRange and endRange of each chunk on the uploader
@@ -407,7 +404,6 @@ bs3u.Uploader.prototype._getInitHeadersError = function(attempts, response) {
     var errorCode = 2;
     uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
     uploader._setFailed();
-    uploader._resetData();
     uploader._log("Uploader error!", uploader.errors[errorCode]);
   }
 };
@@ -475,7 +471,6 @@ bs3u.Uploader.prototype._initiateUploadError = function(attempts, response) {
     var errorCode = 3;
     uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
     uploader._setFailed();
-    uploader._resetData();
     uploader._log("Uploader error!", uploader.errors[errorCode]);
   }
 };
@@ -581,7 +576,6 @@ bs3u.Uploader.prototype._getChunkHeadersError = function(attempts, number, respo
     var errorCode = 4;
     uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
     uploader._setFailed();
-    uploader._resetData();
     uploader._log("Uploader error!", uploader.errors[errorCode]);
   }
 };
@@ -657,7 +651,6 @@ bs3u.Uploader.prototype._uploadChunkSuccess = function(attempts, response, numbe
     var totalChunks = Object.keys(uploader._chunks).length;
     chunk.uploading = false;
     chunk.uploadComplete = true;
-    delete uploader._chunkXHRs[number];
     uploader._log("Chunk " + number +  " has finished uploading");
     uploader._notifyChunkUploaded(number, totalChunks);
 
@@ -753,7 +746,6 @@ bs3u.Uploader.prototype._getListHeadersError = function(attempts, response) {
     var errorCode = 9;
     uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
     uploader._setFailed();
-    uploader._resetData();
     uploader._log("Uploader error!", uploader.errors[errorCode]);
   }
 };
@@ -949,7 +941,6 @@ bs3u.Uploader.prototype._getCompleteHeadersError = function(attempts, response) 
     var errorCode = 10;
     uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
     uploader._setFailed();
-    uploader._resetData();
     uploader._log("Uploader error!", uploader.errors[errorCode]);
   }
 };
@@ -971,7 +962,6 @@ bs3u.Uploader.prototype._verifyAllChunksUploadedError = function(attempts, respo
     var errorCode = 6;
     uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
     uploader._setFailed();
-    uploader._resetData();
     uploader._log("Uploader error!", uploader.errors[errorCode]);
   }
 };
@@ -1033,7 +1023,6 @@ bs3u.Uploader.prototype._retryChunk = function(chunkNumber) {
     var errorCode = 7;
     uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
     uploader._setFailed();
-    uploader._resetData();
     uploader._log("Uploader error! Cannot retry chunk " + chunkNumber, uploader.errors[errorCode]);
   }
 };
@@ -1106,7 +1095,6 @@ bs3u.Uploader.prototype._completeUploadSuccess = function(attempts, response) {
       uploader._log("The upload has completed!");
       uploader._notifyUploadComplete(location);
       uploader._setComplete();
-      uploader._resetData();
     }
   } else {
     uploader._log("Unable to complete the uploader. Deferring to error handler");
@@ -1131,7 +1119,6 @@ bs3u.Uploader.prototype._completeUploadError = function(attempts, response) {
     var errorCode = 8;
     uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
     uploader._setFailed();
-    uploader._resetData();
     uploader._log("Uploader error!", uploader.errors[errorCode]);
   }
 };
@@ -1172,21 +1159,6 @@ bs3u.Uploader.prototype._chunkUploadsInProgress = function() {
   }
 
   return count;
-};
-
-bs3u.Uploader.prototype._resetData = function() {
-  var uploader = this;
-  // Need to keep uploader.settings, uploader.file, and uploader._chunks around
-  // in case any callbacks still need them. Everything else can go.
-  uploader._XHRs = [];
-  uploader._date = null;
-  uploader._uploadId = null;
-  uploader._initHeaders = {};
-  uploader._listHeaders = {};
-  uploader._completeHeaders = {};
-  uploader._chunkHeaders = {};
-  uploader._chunkXHRs = {};
-  uploader._chunkProgress = {};
 };
 
 // Since none of the XHR requests are configured with a timeout, we need to

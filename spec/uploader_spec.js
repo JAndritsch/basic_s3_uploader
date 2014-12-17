@@ -249,7 +249,6 @@ describe("bs3u.Uploader", function() {
           uploader.settings.maxFileSize = 100;
           spyOn(uploader, '_notifyUploadError');
           spyOn(uploader, '_setFailed');
-          spyOn(uploader, '_resetData');
           uploader.startUpload();
         });
 
@@ -263,10 +262,6 @@ describe("bs3u.Uploader", function() {
 
         it("sets the upload to a failed state", function() {
           expect(uploader._setFailed).toHaveBeenCalled();
-        });
-
-        it("resets the uploader's data", function() {
-          expect(uploader._resetData).toHaveBeenCalled();
         });
       });
 
@@ -284,7 +279,6 @@ describe("bs3u.Uploader", function() {
 
             spyOn(uploader, '_notifyUploadError');
             spyOn(uploader, '_setFailed');
-            spyOn(uploader, '_resetData');
 
             uploader.startUpload();
           });
@@ -299,10 +293,6 @@ describe("bs3u.Uploader", function() {
 
           it("sets the upload to a failed state", function() {
             expect(uploader._setFailed).toHaveBeenCalled();
-          });
-
-          it("resets the uploader's data", function() {
-            expect(uploader._resetData).toHaveBeenCalled();
           });
         });
 
@@ -385,7 +375,6 @@ describe("bs3u.Uploader", function() {
         spyOn(uploader, '_isUploading').and.returnValue(true);
         spyOn(uploader, '_notifyUploadCancelled');
         spyOn(uploader, '_setCancelled');
-        spyOn(uploader, '_resetData');
 
         uploader.cancelUpload();
       });
@@ -402,10 +391,6 @@ describe("bs3u.Uploader", function() {
 
       it("sets the uploader to a cancelled state", function() {
         expect(uploader._setCancelled).toHaveBeenCalled();
-      });
-
-      it("resets the uploader's data", function() {
-        expect(uploader._resetData).toHaveBeenCalled();
       });
 
     });
@@ -760,7 +745,6 @@ describe("bs3u.Uploader", function() {
       beforeEach(function() {
         spyOn(uploader, '_notifyUploadError');
         spyOn(uploader, '_setFailed');
-        spyOn(uploader, '_resetData');
         spyOn(uploader, '_retryAvailable').and.returnValue(false);
         uploader._getInitHeadersError(attempts, mockResponse);
       });
@@ -771,10 +755,6 @@ describe("bs3u.Uploader", function() {
 
       it("sets the uploader to a failed state", function() {
         expect(uploader._setFailed).toHaveBeenCalled();
-      });
-
-      it("resets the uploader data", function() {
-        expect(uploader._resetData).toHaveBeenCalled();
       });
     });
   });
@@ -968,7 +948,6 @@ describe("bs3u.Uploader", function() {
       beforeEach(function() {
         spyOn(uploader, '_notifyUploadError');
         spyOn(uploader, '_setFailed');
-        spyOn(uploader, '_resetData');
         spyOn(uploader, '_retryAvailable').and.returnValue(false);
         uploader._initiateUploadError(attempts, mockResponse);
       });
@@ -981,9 +960,6 @@ describe("bs3u.Uploader", function() {
         expect(uploader._setFailed).toHaveBeenCalled();
       });
 
-      it("resets the uploader data", function() {
-        expect(uploader._resetData).toHaveBeenCalled();
-      });
     });
   });
 
@@ -1275,7 +1251,6 @@ describe("bs3u.Uploader", function() {
       beforeEach(function() {
         spyOn(uploader, '_notifyUploadError');
         spyOn(uploader, '_setFailed');
-        spyOn(uploader, '_resetData');
         spyOn(uploader, '_retryAvailable').and.returnValue(false);
         uploader._getChunkHeadersError(attempts, chunkNumber, mockResponse);
       });
@@ -1288,9 +1263,6 @@ describe("bs3u.Uploader", function() {
         expect(uploader._setFailed).toHaveBeenCalled();
       });
 
-      it("resets the uploader data", function() {
-        expect(uploader._resetData).toHaveBeenCalled();
-      });
     });
   });
 
@@ -1456,11 +1428,6 @@ describe("bs3u.Uploader", function() {
         uploader._uploadChunkSuccess(attempts, mockResponse, chunkNumber);
         expect(uploader._chunks[chunkNumber].uploading).toBeFalsy();
         expect(uploader._chunks[chunkNumber].uploadComplete).toBeTruthy();
-      });
-
-      it("deletes the chunk XHR", function() {
-        uploader._uploadChunkSuccess(attempts, mockResponse, chunkNumber);
-        expect(uploader._chunkXHRs[chunkNumber]).toBeUndefined();
       });
 
       it("notifies the chunks has been uploaded", function() {
@@ -1741,7 +1708,6 @@ describe("bs3u.Uploader", function() {
       beforeEach(function() {
         spyOn(uploader, '_notifyUploadError');
         spyOn(uploader, '_setFailed');
-        spyOn(uploader, '_resetData');
         spyOn(uploader, '_retryAvailable').and.returnValue(false);
         uploader._getListHeadersError(attempts, mockResponse);
       });
@@ -1754,9 +1720,6 @@ describe("bs3u.Uploader", function() {
         expect(uploader._setFailed).toHaveBeenCalled();
       });
 
-      it("resets the uploader data", function() {
-        expect(uploader._resetData).toHaveBeenCalled();
-      });
     });
   });
 
@@ -2082,7 +2045,6 @@ describe("bs3u.Uploader", function() {
         spyOn(uploader, '_retryAvailable').and.returnValue(false);
         spyOn(uploader, '_notifyUploadError');
         spyOn(uploader, '_setFailed');
-        spyOn(uploader, '_resetData');
         uploader._verifyAllChunksUploadedError(attempts, mockResponse);
       });
 
@@ -2094,9 +2056,6 @@ describe("bs3u.Uploader", function() {
         expect(uploader._setFailed).toHaveBeenCalled();
       });
 
-      it("resets the uploader's data", function() {
-        expect(uploader._resetData).toHaveBeenCalled();
-      });
     });
   });
 
@@ -2291,7 +2250,6 @@ describe("bs3u.Uploader", function() {
       beforeEach(function() {
         spyOn(uploader, '_notifyUploadError');
         spyOn(uploader, '_setFailed');
-        spyOn(uploader, '_resetData');
         spyOn(uploader, '_retryAvailable').and.returnValue(false);
         uploader._getCompleteHeadersError(attempts, mockResponse);
       });
@@ -2304,9 +2262,6 @@ describe("bs3u.Uploader", function() {
         expect(uploader._setFailed).toHaveBeenCalled();
       });
 
-      it("resets the uploader data", function() {
-        expect(uploader._resetData).toHaveBeenCalled();
-      });
     });
   });
 
@@ -2418,7 +2373,6 @@ describe("bs3u.Uploader", function() {
         spyOn(uploader, '_retryAvailable').and.returnValue(false);
         spyOn(uploader, '_notifyUploadError');
         spyOn(uploader, '_setFailed');
-        spyOn(uploader, '_resetData');
         uploader._retryChunk(1);
 
       });
@@ -2431,9 +2385,6 @@ describe("bs3u.Uploader", function() {
         expect(uploader._setFailed).toHaveBeenCalled();
       });
 
-      it("resets the uploader's data", function() {
-        expect(uploader._resetData).toHaveBeenCalled();
-      });
     });
   });
 
@@ -2588,7 +2539,6 @@ describe("bs3u.Uploader", function() {
         };
         spyOn(uploader, "_notifyUploadComplete");
         spyOn(uploader, "_setComplete");
-        spyOn(uploader, "_resetData");
         uploader._completeUploadSuccess(attempts, mockResponse);
       });
 
@@ -2600,9 +2550,6 @@ describe("bs3u.Uploader", function() {
         expect(uploader._setComplete).toHaveBeenCalled();
       });
 
-      it("resets the uploader data", function() {
-        expect(uploader._resetData).toHaveBeenCalled();
-      });
     });
 
     describe("a non-200 response", function() {
@@ -2686,7 +2633,6 @@ describe("bs3u.Uploader", function() {
         spyOn(uploader, '_retryAvailable').and.returnValue(false);
         spyOn(uploader, '_notifyUploadError');
         spyOn(uploader, '_setFailed');
-        spyOn(uploader, '_resetData');
         uploader._completeUploadError(attempts, mockResponse);
       });
 
@@ -2698,9 +2644,6 @@ describe("bs3u.Uploader", function() {
         expect(uploader._setFailed).toHaveBeenCalled();
       });
 
-      it("resets the uploader's data", function() {
-        expect(uploader._resetData).toHaveBeenCalled();
-      });
     });
   });
 
@@ -2811,43 +2754,6 @@ describe("bs3u.Uploader", function() {
       expect(uploader._chunkUploadsInProgress()).toEqual(2);
     });
 
-  });
-
-  describe("_resetData", function() {
-    var mockFile, mockSettings, uploader;
-
-    beforeEach(function() {
-      mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
-      mockSettings = {
-        host: 'some-host',
-        key: "my-upload-key",
-        maxRetries: 3,
-        bucket: "my-bucket"
-      };
-      uploader = new bs3u.Uploader(mockFile, mockSettings);
-      uploader._XHRs = ["someXHR"];
-      uploader._date = "someDate";
-      uploader._uploadId = "upload-id";
-      uploader._initHeaders = { Authorization: "some auth header" };
-      uploader._listHeaders = { Authorization: "some auth header" };
-      uploader._completeHeaders = { Authorization: "some auth header" };
-      uploader._chunkHeaders = { 1: { Authorization: "some auth header" } };
-      uploader._chunkXHRs = {1: "chunkXHR"};
-      uploader._chunkProgress = {1: "chunkProgress"};
-    });
-
-    it('clears out any attributes that are no longer needed ', function() {
-      uploader._resetData();
-      expect(uploader._XHRs).toEqual([]);
-      expect(uploader._date).toBeNull();
-      expect(uploader._uploadId).toBeNull();
-      expect(uploader._initHeaders).toEqual({});
-      expect(uploader._listHeaders).toEqual({});
-      expect(uploader._completeHeaders).toEqual({});
-      expect(uploader._chunkHeaders).toEqual({});
-      expect(uploader._chunkXHRs).toEqual({});
-      expect(uploader._chunkProgress).toEqual({});
-    });
   });
 
   describe("_startProgressWatcher", function() {
