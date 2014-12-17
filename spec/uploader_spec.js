@@ -339,21 +339,10 @@ describe("bs3u.Uploader", function() {
     beforeEach(function() {
       mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
       mockSettings = {};
-
-      mockAjax1 = { abort: function() {} };
-      mockAjax2 = { abort: function() {} };
-      mockAjax3 = { abort: function() {} };
-
-      spyOn(mockAjax1, 'abort');
-      spyOn(mockAjax2, 'abort');
-      spyOn(mockAjax3, 'abort');
-
       uploader = new bs3u.Uploader(mockFile, mockSettings);
-      uploader._XHRs = [mockAjax1];
-      uploader._chunkXHRs = {
-        1: mockAjax2,
-        2: mockAjax3,
-      };
+      spyOn(uploader, '_abortAllXHRs');
+      spyOn(uploader, '_notifyUploadCancelled');
+      spyOn(uploader, '_setCancelled');
     });
 
     describe("when the uploader is not uploading", function() {
@@ -364,25 +353,27 @@ describe("bs3u.Uploader", function() {
       });
 
       it("does not abort any XHRs", function() {
-        expect(mockAjax1.abort).not.toHaveBeenCalled();
-        expect(mockAjax2.abort).not.toHaveBeenCalled();
-        expect(mockAjax3.abort).not.toHaveBeenCalled();
+        expect(uploader._abortAllXHRs).not.toHaveBeenCalled();
+      });
+
+      it("does not notify that the upload has been cancelled", function() {
+        expect(uploader._notifyUploadCancelled).not.toHaveBeenCalled();
+      });
+
+      it("does not set the uploader to a cancelled state", function() {
+        expect(uploader._setCancelled).not.toHaveBeenCalled();
       });
     });
 
     describe("when the uploader is uploading", function() {
       beforeEach(function() {
         spyOn(uploader, '_isUploading').and.returnValue(true);
-        spyOn(uploader, '_notifyUploadCancelled');
-        spyOn(uploader, '_setCancelled');
 
         uploader.cancelUpload();
       });
 
       it("aborts any XHRs", function() {
-        expect(mockAjax1.abort).toHaveBeenCalled();
-        expect(mockAjax2.abort).toHaveBeenCalled();
-        expect(mockAjax3.abort).toHaveBeenCalled();
+        expect(uploader._abortAllXHRs).toHaveBeenCalled();
       });
 
       it("notifies that the upload has been cancelled", function() {
@@ -395,6 +386,29 @@ describe("bs3u.Uploader", function() {
 
     });
 
+  });
+
+  describe("_abortAllXHRs", function() {
+    var mockFile, mockSettings, uploader, abortSpy;
+
+    beforeEach(function() {
+      mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
+      mockSettings = {};
+      abortSpy = jasmine.createSpy();
+      uploader = new bs3u.Uploader(mockFile, mockSettings);
+    });
+
+    it("aborts any non-chunk XHR requests", function() {
+      uploader._XHRs = [ { abort: abortSpy } ];
+      uploader._abortAllXHRs();
+      expect(abortSpy).toHaveBeenCalled();
+    });
+
+    it("aborts any chunk XHR requests", function() {
+      uploader._chunkXHRs = { 1: { abort: abortSpy } };
+      uploader._abortAllXHRs();
+      expect(abortSpy).toHaveBeenCalled();
+    });
   });
 
   describe("_createChunks", function() {
@@ -861,7 +875,7 @@ describe("bs3u.Uploader", function() {
             responseXML: xml
           }
         };
-        spyOn(uploader, '_uploadChunks');
+        spyOn(uploader, '_startCompleteWatcher');
         spyOn(uploader, '_startProgressWatcher');
         uploader._initiateUploadSuccess(attempts, mockResponse);
       });
@@ -870,8 +884,8 @@ describe("bs3u.Uploader", function() {
         expect(uploader._uploadId).toEqual('the-upload-id');
       });
 
-      it("begins uploading chunks once the chunk headers are present", function() {
-        expect(uploader._uploadChunks).toHaveBeenCalled();
+      it("starts the complete watcher interval", function() {
+        expect(uploader._startCompleteWatcher).toHaveBeenCalled();
       });
 
       it("starts the progress watcher interval", function() {
@@ -1440,30 +1454,6 @@ describe("bs3u.Uploader", function() {
         uploader._uploadChunkSuccess(attempts, mockResponse, chunkNumber);
         expect(uploader._chunks[chunkNumber].eTag).toEqual("eTag");
       });
-
-      describe("when all eTags are available", function() {
-        beforeEach(function() {
-          spyOn(uploader, '_allETagsAvailable').and.returnValue(true);
-          spyOn(uploader, '_getListHeaders');
-          uploader._uploadChunkSuccess(attempts, mockResponse, chunkNumber);
-        });
-
-        it("retrieves the list headers", function() {
-          expect(uploader._getListHeaders).toHaveBeenCalled();
-        });
-      });
-
-      describe("when not all eTags are available", function() {
-        beforeEach(function() {
-          spyOn(uploader, '_allETagsAvailable').and.returnValue(false);
-          spyOn(uploader, '_uploadChunks');
-          uploader._uploadChunkSuccess(attempts, mockResponse, chunkNumber);
-        });
-
-        it("continues uploading the remaining chunks", function() {
-          expect(uploader._uploadChunks).toHaveBeenCalled();
-        });
-      });
     });
 
     describe("a non-200 response", function() {
@@ -1499,7 +1489,7 @@ describe("bs3u.Uploader", function() {
         callback();
       });
       spyOn(uploader, '_notifyUploadRetry');
-      spyOn(uploader, '_retryChunk');
+      spyOn(uploader, '_uploadChunk');
       uploader._chunks = {
         1: { uploading: true, uploadComplete: true }
       };
@@ -1508,16 +1498,12 @@ describe("bs3u.Uploader", function() {
       uploader._uploadChunkError(attempts, mockResponse, chunkNumber);
     });
 
-    it("aborts the chunk upload", function() {
-      expect(uploader._abortChunkUpload).toHaveBeenCalledWith(chunkNumber);
-    });
-
     it("notfies that the chunk upload is going to retry another attempt", function() {
       expect(uploader._notifyUploadRetry).toHaveBeenCalled();
     });
 
-    it("retries uploading the chunk", function() {
-      expect(uploader._retryChunk).toHaveBeenCalledWith(chunkNumber);
+    it("retries uploading the chunk with the attempts count incremented by 1", function() {
+      expect(uploader._uploadChunk).toHaveBeenCalledWith(chunkNumber, attempts + 1);
     });
   });
 
@@ -2272,20 +2258,41 @@ describe("bs3u.Uploader", function() {
       mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
       mockSettings = {};
       uploader = new bs3u.Uploader(mockFile, mockSettings);
-      spyOn(uploader, '_retryChunk');
       spyOn(window, 'setTimeout').and.callFake(function(callback, delay) {
         callback();
       });
       spyOn(uploader, '_uploadSpotAvailable').and.returnValue(true);
 
+      uploader._chunks = {
+        1: { uploading: true, uploadComplete: true }, // not consistent, but just proving it gets set to false correctly
+        2: { uploading: true, uploadComplete: false },
+        3: { uploading: true, uploadComplete: false },
+        4: { uploading: true, uploadComplete: true },
+        5: { uploading: true, uploadComplete: false },
+      };
+      uploader._pauseCompleteWatcher = true;
       uploader._handleInvalidChunks([1, 3, 5]);
     });
 
-    it('calls _retryChunk for each invalid chunk number given', function() {
-      expect(uploader._retryChunk.calls.count()).toEqual(3);
-      expect(uploader._retryChunk.calls.argsFor(0)[0]).toEqual(5);
-      expect(uploader._retryChunk.calls.argsFor(1)[0]).toEqual(3);
-      expect(uploader._retryChunk.calls.argsFor(2)[0]).toEqual(1);
+    it('flags each invalid chunk for a retry', function() {
+      expect(uploader._chunks[1].uploading).toBeFalsy();
+      expect(uploader._chunks[1].uploadComplete).toBeFalsy();
+
+      expect(uploader._chunks[2].uploading).toBeTruthy();
+      expect(uploader._chunks[2].uploadComplete).toBeFalsy();
+
+      expect(uploader._chunks[3].uploading).toBeFalsy();
+      expect(uploader._chunks[3].uploadComplete).toBeFalsy();
+
+      expect(uploader._chunks[4].uploading).toBeTruthy();
+      expect(uploader._chunks[4].uploadComplete).toBeTruthy();
+
+      expect(uploader._chunks[5].uploading).toBeFalsy();
+      expect(uploader._chunks[5].uploadComplete).toBeFalsy();
+    });
+
+    it("sets _pauseCompleteWatcher to false", function() {
+      expect(uploader._pauseCompleteWatcher).toBeFalsy();
     });
   });
 
@@ -2296,7 +2303,6 @@ describe("bs3u.Uploader", function() {
       mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
       mockSettings = {};
       uploader = new bs3u.Uploader(mockFile, mockSettings);
-      spyOn(uploader, '_retryChunk');
 
       // The uploader has kept track of 4 chunks
       uploader._chunks = {
@@ -2315,76 +2321,26 @@ describe("bs3u.Uploader", function() {
 
       var responseParts = xml.getElementsByTagName("Part");
 
+      uploader._pauseCompleteWatcher = true;
       uploader._handleMissingChunks(responseParts);
     });
 
-    it("calls _retryChunk for each chunk that was not listed in Amazon's response", function() {
-      expect(uploader._retryChunk.calls.count()).toEqual(2);
-      expect(uploader._retryChunk.calls.argsFor(0)[0]).toEqual('2');
-      expect(uploader._retryChunk.calls.argsFor(1)[0]).toEqual('4');
-    });
-  });
+    it("flags each chunk that was not listed in Amazon's response for a retry", function() {
+      expect(uploader._chunks[1].uploading).toBeFalsy();
+      expect(uploader._chunks[1].uploadComplete).toBeTruthy();
 
-  describe("_retryChunk", function() {
-    var mockFile, mockSettings, uploader;
+      expect(uploader._chunks[2].uploading).toBeFalsy();
+      expect(uploader._chunks[2].uploadComplete).toBeFalsy();
 
-    beforeEach(function() {
-      mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
-      mockSettings = {};
-      uploader = new bs3u.Uploader(mockFile, mockSettings);
-      uploader._chunks = {
-        1: { startRange: 0, endRange: 1000, uploading: false, uploadComplete: true },
-      };
+      expect(uploader._chunks[3].uploading).toBeFalsy();
+      expect(uploader._chunks[3].uploadComplete).toBeTruthy();
+
+      expect(uploader._chunks[4].uploading).toBeFalsy();
+      expect(uploader._chunks[4].uploadComplete).toBeFalsy();
     });
 
-    describe('when there are retries available', function() {
-
-      beforeEach(function() {
-        spyOn(uploader, '_retryAvailable').and.returnValue(true);
-      });
-
-      describe('and an upload spot is available', function() {
-        beforeEach(function() {
-          spyOn(uploader, '_uploadChunk');
-          spyOn(uploader, '_uploadSpotAvailable').and.returnValue(true);
-          uploader._retryChunk(1);
-        });
-
-        it("uploads the chunk", function() {
-          expect(uploader._uploadChunk).toHaveBeenCalledWith(1, 1);
-        });
-      });
-
-      describe("and there is not an upload spot available", function() {
-        beforeEach(function() {
-          spyOn(uploader, '_uploadSpotAvailable').and.returnValue(false);
-          spyOn(uploader, '_uploadChunk');
-          uploader._retryChunk(1);
-        });
-
-        it("does not upload the chunk", function() {
-          expect(uploader._uploadChunk).not.toHaveBeenCalled();
-        });
-      });
-    });
-
-    describe('when there are no retries available', function() {
-      beforeEach(function() {
-        spyOn(uploader, '_retryAvailable').and.returnValue(false);
-        spyOn(uploader, '_notifyUploadError');
-        spyOn(uploader, '_setFailed');
-        uploader._retryChunk(1);
-
-      });
-
-      it("notifies there was an upload error", function() {
-        expect(uploader._notifyUploadError).toHaveBeenCalledWith(7, uploader.errors[7]);
-      });
-
-      it("sets the upload to a failed state", function() {
-        expect(uploader._setFailed).toHaveBeenCalled();
-      });
-
+    it("sets _pauseCompleteWatcher to false", function() {
+      expect(uploader._pauseCompleteWatcher).toBeFalsy();
     });
   });
 
@@ -2539,6 +2495,7 @@ describe("bs3u.Uploader", function() {
         };
         spyOn(uploader, "_notifyUploadComplete");
         spyOn(uploader, "_setComplete");
+        spyOn(uploader, "_abortAllXHRs");
         uploader._completeUploadSuccess(attempts, mockResponse);
       });
 
@@ -2548,6 +2505,10 @@ describe("bs3u.Uploader", function() {
 
       it("sets the uploader to complete", function() {
         expect(uploader._setComplete).toHaveBeenCalled();
+      });
+
+      it("aborts any outstanding XHR requests", function() {
+        expect(uploader._abortAllXHRs).toHaveBeenCalled();
       });
 
     });
@@ -2763,7 +2724,7 @@ describe("bs3u.Uploader", function() {
     beforeEach(function() {
       mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
       mockSettings = {};
-      uploader = new BasicS3Uploader(mockFile, mockSettings);
+      uploader = new bs3u.Uploader(mockFile, mockSettings);
 
       chunkXHROne = {
         lastProgressAt: 80000,
@@ -2792,7 +2753,6 @@ describe("bs3u.Uploader", function() {
         callback();
       });
       spyOn(uploader, '_abortChunkUpload');
-      spyOn(uploader, '_retryChunk');
       spyOn(window, 'clearInterval');
     });
 
@@ -2821,11 +2781,92 @@ describe("bs3u.Uploader", function() {
         expect(uploader._abortChunkUpload.calls.count()).toEqual(1);
       });
 
-      it("retries any chunks that have not reported progress within 30 seconds", function() {
-        expect(uploader._retryChunk).toHaveBeenCalledWith('2');
-        expect(uploader._retryChunk.calls.count()).toEqual(1);
+      it("flags any chunks that have not reported progress within 30 seconds for another retry", function() {
+        expect(uploader._chunks[1].uploading).toBeTruthy();
+        expect(uploader._chunks[1].uploadComplete).toBeFalsy();
+
+        expect(uploader._chunks[2].uploading).toBeFalsy();
+        expect(uploader._chunks[2].uploadComplete).toBeFalsy();
+
+        expect(uploader._chunks[3].uploading).toBeFalsy();
+        expect(uploader._chunks[3].uploadComplete).toBeFalsy();
       });
     });
+  });
+
+  describe("_startCompleteWatcher", function() {
+    var mockFile, mockSettings, uploader;
+
+    beforeEach(function() {
+      mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
+      mockSettings = {};
+      uploader = new bs3u.Uploader(mockFile, mockSettings);
+      uploader._setUploading();
+      spyOn(window, 'setInterval').and.callFake(function(callback, interval) {
+        callback();
+      });
+      spyOn(uploader, '_abortChunkUpload');
+      spyOn(window, 'clearInterval');
+    });
+
+    describe("when _pauseCompleteWatcher is set to true", function() {
+      beforeEach(function() {
+        uploader._pauseCompleteWatcher = true;
+        spyOn(uploader, '_allETagsAvailable');
+        uploader._startCompleteWatcher();
+      });
+
+      it("does nothing", function() {
+        expect(uploader._allETagsAvailable).not.toHaveBeenCalled();
+      });
+    });
+
+    describe("when _pauseCompleteWatcher is set to false", function() {
+      beforeEach(function() {
+        uploader._pauseCompleteWatcher = false;
+      });
+
+      describe("and all eTags are available", function() {
+        beforeEach(function() {
+          spyOn(uploader, '_allETagsAvailable').and.returnValue(true);
+          spyOn(uploader, '_getListHeaders');
+          uploader._startCompleteWatcher();
+        });
+
+        it("pauses the complete worker", function() {
+          expect(uploader._pauseCompleteWatcher).toBeTruthy();
+        });
+
+        it("retrieves list headers", function() {
+          expect(uploader._getListHeaders).toHaveBeenCalled();
+        });
+      });
+
+      describe("but not all eTags are available", function() {
+        beforeEach(function() {
+          spyOn(uploader, '_allETagsAvailable').and.returnValue(false);
+          spyOn(uploader, '_uploadChunks');
+          uploader._startCompleteWatcher();
+        });
+
+        it("continues uploading the remaining chunks", function() {
+          expect(uploader._uploadChunks).toHaveBeenCalled();
+        });
+      });
+
+    });
+
+    describe("when the uploader is not uploading", function() {
+      beforeEach(function() {
+        spyOn(uploader, '_isUploading').and.returnValue(false);
+        uploader._startCompleteWatcher();
+      });
+
+      it("clears the interval", function() {
+        expect(window.clearInterval).toHaveBeenCalled();
+      });
+    });
+
   });
 
   describe("_abortChunkUpload", function() {
@@ -2835,7 +2876,7 @@ describe("bs3u.Uploader", function() {
       mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
       mockSettings = {};
       abortSpy = jasmine.createSpy();
-      uploader = new BasicS3Uploader(mockFile, mockSettings);
+      uploader = new bs3u.Uploader(mockFile, mockSettings);
       uploader._chunks = {
         1: { uploading: true, uploadComplete: true }
       };
@@ -2848,11 +2889,6 @@ describe("bs3u.Uploader", function() {
     it("aborts the chunk's XHR", function() {
       expect(abortSpy).toHaveBeenCalled();
     });
-
-    it("sets the chunk's status to not uploading and not upload complete", function() {
-      expect(uploader._chunks[1].uploading).toBeFalsy();
-      expect(uploader._chunks[1].uploadComplete).toBeFalsy();
-    });
   });
 
   describe("_calculateUploadProgress", function() {
@@ -2861,7 +2897,7 @@ describe("bs3u.Uploader", function() {
     beforeEach(function() {
       mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
       mockSettings = {};
-      uploader = new BasicS3Uploader(mockFile, mockSettings);
+      uploader = new bs3u.Uploader(mockFile, mockSettings);
       uploader._chunkProgress = {
         1: 20,
         2: 30,
@@ -3009,11 +3045,16 @@ describe("bs3u.Uploader", function() {
       mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
       mockSettings = {};
       uploader = new bs3u.Uploader(mockFile, mockSettings);
+      spyOn(uploader, '_abortAllXHRs');
       uploader._setFailed();
     });
 
     it("sets the uploader status to 'failed'", function() {
       expect(uploader._status).toEqual('failed');
+    });
+
+    it("aborts all XHR requests", function() {
+      expect(uploader._abortAllXHRs).toHaveBeenCalled();
     });
   });
 

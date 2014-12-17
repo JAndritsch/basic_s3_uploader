@@ -180,6 +180,17 @@ bs3u.Uploader.prototype.cancelUpload = function() {
   }
 
   uploader._log("Aborting upload");
+  uploader._abortAllXHRs();
+  uploader._notifyUploadCancelled();
+  uploader._setCancelled();
+};
+
+// Stops all XHR requests
+bs3u.Uploader.prototype._abortAllXHRs = function() {
+  var uploader = this;
+
+  uploader._log("Aborting all XHR requests");
+
   for (var index in uploader._XHRs) {
     uploader._XHRs[index].abort();
   }
@@ -187,9 +198,6 @@ bs3u.Uploader.prototype.cancelUpload = function() {
   for (var chunk in uploader._chunkXHRs) {
     uploader._chunkXHRs[chunk].abort();
   }
-
-  uploader._notifyUploadCancelled();
-  uploader._setCancelled();
 };
 
 // Slices up the file into chunks, storing the startRange and endRange of each chunk on the uploader
@@ -347,8 +355,8 @@ bs3u.Uploader.prototype._initiateUploadSuccess = function(attempts, response) {
     uploader._log("Upload initiated.");
     var xml = response.target.responseXML;
     uploader._uploadId = xml.getElementsByTagName('UploadId')[0].textContent;
-    uploader._uploadChunks();
     uploader._startProgressWatcher();
+    uploader._startCompleteWatcher();
   } else {
     uploader._log("Initiate upload error. Deferring to error handler.");
     uploader._initiateUploadError(attempts, response);
@@ -555,20 +563,9 @@ bs3u.Uploader.prototype._uploadChunkSuccess = function(attempts, response, numbe
     chunk.uploadComplete = true;
     uploader._log("Chunk " + number +  " has finished uploading");
     uploader._notifyChunkUploaded(number, totalChunks);
-
     // Store the eTag on the chunk
     var eTag = response.target.getResponseHeader("ETag");
-    if (eTag && eTag.length > 0) {
-      chunk.eTag = eTag;
-    }
-
-    if (uploader._allETagsAvailable()) {
-      // get the list headers to verify the chunks are on the server
-      uploader._getListHeaders();
-    } else {
-      // Continue uploading the remaining chunks
-      uploader._uploadChunks();
-    }
+    if (eTag && eTag.length > 0) { chunk.eTag = eTag; }
   } else {
     uploader._log("Upload of chunk " + number +  " has failed. Deferring to error handler");
     uploader._uploadChunkError(attempts, response, number);
@@ -656,19 +653,25 @@ bs3u.Uploader.prototype._getListHeadersError = function(attempts, response) {
 bs3u.Uploader.prototype._uploadChunkError = function(attempts, response, number) {
   var uploader = this;
   var chunk = uploader._chunks[number];
-
-  uploader._log("Retrying to upload chunk " + number);
-  setTimeout(function() {
-    var data = {
-      action: "uploadChunk",
-      xhr: response,
-      chunkNumber: number,
-      chunk: chunk
-    };
-    uploader._notifyUploadRetry(attempts, data);
-    uploader._abortChunkUpload(number);
-    uploader._retryChunk(number);
-  }, uploader._timeToWaitBeforeNextRetry(attempts));
+  if (uploader._retryAvailable(attempts)) {
+    attempts += 1;
+    uploader._log("Retrying to upload chunk " + number);
+    setTimeout(function() {
+      var data = {
+        action: "uploadChunk",
+        xhr: response,
+        chunkNumber: number,
+        chunk: chunk
+      };
+      uploader._notifyUploadRetry(attempts, data);
+      uploader._uploadChunk(number, attempts);
+    }, uploader._timeToWaitBeforeNextRetry(attempts));
+  } else {
+    var errorCode = 7;
+    uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
+    uploader._setFailed();
+    uploader._log("Uploader error! Cannot retry chunk " + number, uploader.errors[errorCode]);
+  }
 };
 
 // Calls the S3 "List chunks" API and compares the result to the chunks the uploader
@@ -868,28 +871,23 @@ bs3u.Uploader.prototype._verifyAllChunksUploadedError = function(attempts, respo
   }
 };
 
-// Iterates over the list of invalid chunks and calls _retryChunk.
+// Iterates over the list of invalid chunks flags them for re upload
 bs3u.Uploader.prototype._handleInvalidChunks = function(invalidParts) {
   var uploader = this;
-  // delay retry so uploader has time to register that an upload spot might
-  // already have been taken by a previous retry
-  (function delayLoop (i, _invalidParts) {
-    setTimeout(
-      function() {
-        if (uploader._uploadSpotAvailable()) {
-          var chunkNumber = _invalidParts[i];
-          uploader._log('About to retry invalid chunk: ' + chunkNumber);
-          uploader._retryChunk(chunkNumber);
-          --i;
-          if (i >= 0) { delayLoop(i, _invalidParts); }
-        }
-      }, uploader.settings.retryWaitTime
-    );
-  })(invalidParts.length - 1, invalidParts);
+
+  var chunkNumber;
+  for (var index in invalidParts) {
+    chunkNumber = invalidParts[index];
+    uploader._chunks[chunkNumber].uploading = false;
+    uploader._chunks[chunkNumber].uploadComplete = false;
+  }
+  // Re-enable the completeWatcher so it can pick up the failed chunks and retry
+  // them.
+  uploader._pauseCompleteWatcher = false;
 };
 
-// Determines if S3 is missing any chunks that were sent, then retries uploading
-// the missing chunks via _retryChunk.
+// Determines if S3 is missing any chunks that were sent, then flags them for
+// a retry
 bs3u.Uploader.prototype._handleMissingChunks = function(chunksFromS3) {
   var uploader = this;
   var chunkNumbersFromS3 = [];
@@ -900,33 +898,16 @@ bs3u.Uploader.prototype._handleMissingChunks = function(chunksFromS3) {
     chunkNumbersFromS3.push(chunk.getElementsByTagName("PartNumber")[0].textContent);
   }
 
-  // Send the missing parts
+  // Mark the missing parts as not uploaded so they will automatically retry
   for (var chunkNumber in uploader._chunks) {
     if (chunkNumbersFromS3.indexOf(chunkNumber) == -1) {
-      uploader._retryChunk(chunkNumber);
+      uploader._chunks[chunkNumber].uploading = false;
+      uploader._chunks[chunkNumber].uploadComplete = false;
     }
   }
-};
-
-// Attempts to retry a chunk upload, if a retry is available.
-bs3u.Uploader.prototype._retryChunk = function(chunkNumber) {
-  var uploader = this;
-  var chunkAttempts = uploader._chunks[chunkNumber].attempts || 0;
-
-  if (uploader._retryAvailable(chunkAttempts)) {
-    chunkAttempts += 1;
-    uploader._chunks[chunkNumber].attempts = chunkAttempts;
-
-    if (uploader._uploadSpotAvailable()) {
-      uploader._uploadChunk(chunkNumber, chunkAttempts);
-    }
-
-  } else {
-    var errorCode = 7;
-    uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
-    uploader._setFailed();
-    uploader._log("Uploader error! Cannot retry chunk " + chunkNumber, uploader.errors[errorCode]);
-  }
+  // Re-enable the completeWatcher so it can pick up the failed chunks and retry
+  // them.
+  uploader._pauseCompleteWatcher = false;
 };
 
 bs3u.Uploader.prototype._generateCompletePayload = function() {
@@ -997,6 +978,7 @@ bs3u.Uploader.prototype._completeUploadSuccess = function(attempts, response) {
       uploader._log("The upload has completed!");
       uploader._notifyUploadComplete(location);
       uploader._setComplete();
+      uploader._abortAllXHRs();
     }
   } else {
     uploader._log("Unable to complete the uploader. Deferring to error handler");
@@ -1066,7 +1048,7 @@ bs3u.Uploader.prototype._chunkUploadsInProgress = function() {
 // Since none of the XHR requests are configured with a timeout, we need to
 // monitor each chunk upload request and evaluate if the request has bombed out
 // (no progress reported in 30sec). When this happens, we can abort the chunk
-// upload and try it again.
+// upload and mark it for a retry.
 bs3u.Uploader.prototype._startProgressWatcher = function() {
   var uploader = this;
   uploader._log("Starting the progress watcher interval");
@@ -1091,11 +1073,41 @@ bs3u.Uploader.prototype._startProgressWatcher = function() {
         if ((currentTime - chunkProgressTime) > 30000) {
           uploader._log("No progress has been reported within 30 seconds for chunk " + index);
           uploader._abortChunkUpload(index);
-          uploader._retryChunk(index);
+          chunk.uploading = false;
+          chunk.uploadComplete = false;
         }
       }
     }
   }, 3000);
+};
+
+// Monitors chunk uploads and attempts to complete the upload
+bs3u.Uploader.prototype._startCompleteWatcher = function() {
+  var uploader = this;
+  uploader._log("Starting the complete watcher interval");
+
+  var id = setInterval(function() {
+    if (!uploader._isUploading()) {
+      uploader._log("Stopping the complete watcher interval");
+      clearInterval(id);
+      return;
+    }
+
+    if (uploader._pauseCompleteWatcher) {
+      return;
+    }
+
+    if (uploader._allETagsAvailable()) {
+      // temporarily shut down the watcher
+      uploader._pauseCompleteWatcher = true;
+      // get the list headers to verify the chunks are on the server
+      uploader._getListHeaders();
+    } else {
+      // Continue uploading the remaining chunks
+      uploader._uploadChunks();
+    }
+
+  }, 1000);
 };
 
 bs3u.Uploader.prototype._abortChunkUpload = function(number) {
@@ -1105,8 +1117,6 @@ bs3u.Uploader.prototype._abortChunkUpload = function(number) {
   if (chunk.uploading === true) {
     uploader._log("Cancelling the upload for chunk ", number);
     uploader._chunkXHRs[number].abort();
-    chunk.uploading = false;
-    chunk.uploadComplete = false;
   }
 };
 
@@ -1168,6 +1178,8 @@ bs3u.Uploader.prototype._isCancelled = function() {
 bs3u.Uploader.prototype._setFailed = function() {
   var uploader = this;
   uploader._status = "failed";
+  // stop any outstanding XHR requests
+  uploader._abortAllXHRs();
 };
 
 bs3u.Uploader.prototype._isFailed = function() {
