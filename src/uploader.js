@@ -357,6 +357,7 @@ bs3u.Uploader.prototype._initiateUploadSuccess = function(attempts, response) {
     uploader._uploadId = xml.getElementsByTagName('UploadId')[0].textContent;
     uploader._startProgressWatcher();
     uploader._startCompleteWatcher();
+    uploader._startBandwidthMonitor();
   } else {
     uploader._log("Initiate upload error. Deferring to error handler.");
     uploader._initiateUploadError(attempts, response);
@@ -1108,6 +1109,63 @@ bs3u.Uploader.prototype._startCompleteWatcher = function() {
     }
 
   }, 1000);
+};
+
+// This method will monitor the speed of the upload and reconfigure the number
+// of concurrent uploads allowed. Once an appropriate number for concurrent
+// uploads has been determined, this will either start or stop chunk uploads
+// to meet the new max chunks setting.
+//
+// The purpose of this method is to ensure a single chunk can finish uploading
+// before its upload signature becomes invalid. This information is calculated
+// given a connection's speed, the chunk's size, and then number of concurrent
+// chunks uploading.
+bs3u.Uploader.prototype._startBandwidthMonitor = function() {
+  var uploader = this;
+  uploader._log("Starting bandwidth monitor");
+  var initialMaxChunks = uploader.settings.maxConcurrentChunks;
+  var monitorStartTime = new Date().getTime();
+  var newConcurrentChunks;
+
+  // calculate the number of possible concurrent chunks based on upload speed.
+  var id = setInterval(function(){
+    if (!uploader._isUploading()) {
+      uploader._log("Stopping the bandwidth monitor");
+      clearInterval(id);
+      return;
+    }
+
+    newConcurrentChunks = uploader._calculateOptimalConcurrentChunks(monitorStartTime, initialMaxChunks);
+    uploader._log("Optimal concurrent chunks for connection is ", newConcurrentChunks);
+    uploader._log("Number of concurrent uploads in progress is ", uploader._chunkUploadsInProgress());
+    uploader.settings.maxConcurrentChunks = newConcurrentChunks;
+
+    if (newConcurrentChunks < uploader._chunkUploadsInProgress()) {
+      uploader._log("There are more concurrent uploads than your connection can support. Stopping some XHRs.");
+      for (var number in uploader._chunks) {
+        if (uploader._chunkUploadsInProgress() > newConcurrentChunks) {
+          uploader._abortChunkUpload(number);
+          uploader._chunks[number].uploading = false;
+          uploader._chunks[number].uploadComplete = false;
+        }
+      }
+    }
+
+  }, 10000);
+};
+
+bs3u.Uploader.prototype._calculateOptimalConcurrentChunks = function(time, initialMaxChunks) {
+  var uploader = this;
+  var loaded = uploader._calculateUploadProgress();
+  var speed = parseInt(loaded / (new Date().getTime() - time), 10);
+  var timeout = 900000; // 15 mins
+  uploader._log("Calculated average upload speed is " + speed + " KB/s");
+  var chunkSize = uploader.settings.chunkSize;
+  // Needed speed to upload a single chunk within the signature timeout
+  var neededSpeed = (chunkSize / timeout);
+  var count = parseInt((speed / neededSpeed), 10);
+
+  return Math.max(Math.min(count, initialMaxChunks), 1);
 };
 
 bs3u.Uploader.prototype._abortChunkUpload = function(number) {
