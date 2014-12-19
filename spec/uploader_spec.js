@@ -876,7 +876,7 @@ describe("bs3u.Uploader", function() {
           }
         };
         spyOn(uploader, '_startCompleteWatcher');
-        spyOn(uploader, '_startProgressWatcher');
+        spyOn(uploader, '_startBandwidthMonitor');
         uploader._initiateUploadSuccess(attempts, mockResponse);
       });
 
@@ -888,8 +888,8 @@ describe("bs3u.Uploader", function() {
         expect(uploader._startCompleteWatcher).toHaveBeenCalled();
       });
 
-      it("starts the progress watcher interval", function() {
-        expect(uploader._startProgressWatcher).toHaveBeenCalled();
+      it("starts the bandwidth monitor interval", function() {
+        expect(uploader._startBandwidthMonitor).toHaveBeenCalled();
       });
     });
 
@@ -2717,7 +2717,7 @@ describe("bs3u.Uploader", function() {
 
   });
 
-  describe("_startProgressWatcher", function() {
+  describe("_abortTimedOutRequests", function() {
     var mockFile, mockSettings, uploader, chunkXHROne, chunkXHRTwo,
     chunkXHRThree;
 
@@ -2749,48 +2749,26 @@ describe("bs3u.Uploader", function() {
         2: { uploading: true, uploadComplete: false },
         3: { uploading: false, uploadComplete: false },
       };
-      spyOn(window, 'setInterval').and.callFake(function(callback, interval) {
-        callback();
-      });
       spyOn(uploader, '_abortChunkUpload');
-      spyOn(window, 'clearInterval');
+      spyOn(window, 'Date').and.returnValue({
+        getTime: function() { return 90000; }
+      });
+      uploader._abortTimedOutRequests();
+    });
+    it("stops any chunks that have not reported progress within 30 seconds", function() {
+      expect(uploader._abortChunkUpload).toHaveBeenCalledWith('2');
+      expect(uploader._abortChunkUpload.calls.count()).toEqual(1);
     });
 
-    describe("when the uploader is not uploading", function() {
-      beforeEach(function() {
-        spyOn(uploader, '_isUploading').and.returnValue(false);
-        uploader._startProgressWatcher();
-      });
+    it("flags any chunks that have not reported progress within 30 seconds for another retry", function() {
+      expect(uploader._chunks[1].uploading).toBeTruthy();
+      expect(uploader._chunks[1].uploadComplete).toBeFalsy();
 
-      it("clears the interval", function() {
-        expect(window.clearInterval).toHaveBeenCalled();
-      });
-    });
+      expect(uploader._chunks[2].uploading).toBeFalsy();
+      expect(uploader._chunks[2].uploadComplete).toBeFalsy();
 
-    describe("when the uploader is uploading", function() {
-      beforeEach(function() {
-        spyOn(uploader, '_isUploading').and.returnValue(true);
-        spyOn(window, 'Date').and.returnValue({
-          getTime: function() { return 90000; }
-        });
-        uploader._startProgressWatcher();
-      });
-
-      it("stops any chunks that have not reported progress within 30 seconds", function() {
-        expect(uploader._abortChunkUpload).toHaveBeenCalledWith('2');
-        expect(uploader._abortChunkUpload.calls.count()).toEqual(1);
-      });
-
-      it("flags any chunks that have not reported progress within 30 seconds for another retry", function() {
-        expect(uploader._chunks[1].uploading).toBeTruthy();
-        expect(uploader._chunks[1].uploadComplete).toBeFalsy();
-
-        expect(uploader._chunks[2].uploading).toBeFalsy();
-        expect(uploader._chunks[2].uploadComplete).toBeFalsy();
-
-        expect(uploader._chunks[3].uploading).toBeFalsy();
-        expect(uploader._chunks[3].uploadComplete).toBeFalsy();
-      });
+      expect(uploader._chunks[3].uploading).toBeFalsy();
+      expect(uploader._chunks[3].uploadComplete).toBeFalsy();
     });
   });
 
@@ -2807,6 +2785,7 @@ describe("bs3u.Uploader", function() {
       });
       spyOn(uploader, '_abortChunkUpload');
       spyOn(window, 'clearInterval');
+      spyOn(uploader, '_abortTimedOutRequests');
     });
 
     describe("when _pauseCompleteWatcher is set to true", function() {
@@ -2837,6 +2816,10 @@ describe("bs3u.Uploader", function() {
           expect(uploader._pauseCompleteWatcher).toBeTruthy();
         });
 
+        it("aborts any timed out requests", function() {
+          expect(uploader._abortTimedOutRequests).toHaveBeenCalled();
+        });
+
         it("retrieves list headers", function() {
           expect(uploader._getListHeaders).toHaveBeenCalled();
         });
@@ -2847,6 +2830,10 @@ describe("bs3u.Uploader", function() {
           spyOn(uploader, '_allETagsAvailable').and.returnValue(false);
           spyOn(uploader, '_uploadChunks');
           uploader._startCompleteWatcher();
+        });
+
+        it("aborts any timed out requests", function() {
+          expect(uploader._abortTimedOutRequests).toHaveBeenCalled();
         });
 
         it("continues uploading the remaining chunks", function() {
@@ -2867,6 +2854,105 @@ describe("bs3u.Uploader", function() {
       });
     });
 
+  });
+
+  describe("_startBandwidthMonitor", function() {
+    var mockFile, mockSettings, uploader;
+
+    beforeEach(function() {
+      mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
+      mockSettings = {
+        maxConcurrentChunks: 4
+      };
+      uploader = new bs3u.Uploader(mockFile, mockSettings);
+      spyOn(window, 'Date').and.returnValue({
+        getTime: function() { return "timestamp"; }
+      });
+      spyOn(window, 'setInterval').and.callFake(function(callback, interval) {
+        callback();
+      });
+      spyOn(window, 'clearInterval');
+      uploader._chunks = {
+        1: { uploading: true, uploadComplete: false },
+        2: { uploading: true, uploadComplete: false },
+        3: { uploading: true, uploadComplete: false },
+        4: { uploading: true, uploadComplete: false },
+      };
+    });
+
+    describe("when the uploader is not uploading", function() {
+      beforeEach(function() {
+        spyOn(uploader, '_isUploading').and.returnValue(false);
+        uploader._startBandwidthMonitor();
+      });
+
+      it("stops the interval", function() {
+        expect(window.clearInterval).toHaveBeenCalled();
+      });
+    });
+
+    describe("when the uploader is uploading", function() {
+      beforeEach(function() {
+        spyOn(uploader, '_isUploading').and.returnValue(true);
+        spyOn(uploader, '_abortChunkUpload');
+      });
+
+      it("updates the maxConcurrentChunks setting to be the value determined most optimal", function() {
+        spyOn(uploader, '_calculateOptimalConcurrentChunks').and.returnValue(1);
+        uploader._startBandwidthMonitor();
+        expect(uploader.settings.maxConcurrentChunks).toEqual(1);
+      });
+
+      describe("and the number of uploads in progress is greater than the optimal number of chunks", function() {
+        beforeEach(function() {
+          spyOn(uploader, '_calculateOptimalConcurrentChunks').and.returnValue(2);
+          spyOn(uploader, '_chunkUploadsInProgress').and.returnValue(4);
+          uploader._startBandwidthMonitor();
+        });
+
+        it("aborts a chunk upload until the number of concurrent uplaods equals the optimal setting", function() {
+          expect(uploader._abortChunkUpload).toHaveBeenCalled();
+        });
+      });
+    });
+  });
+
+  describe("_calculateOptimalConcurrentChunks", function() {
+    var mockFile, mockSettings, uploader, bandwidthMonitorStartTime,
+    initialMaxConcurrentChunks;
+
+    beforeEach(function() {
+      mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
+      mockSettings = {
+        chunkSize: 1024 * 1024 * 6,
+      };
+      initialMaxConcurrentChunks = 4;
+      spyOn(window, 'Date').and.returnValue({
+        getTime: function() { return 1000; }
+      });
+      uploader = new bs3u.Uploader(mockFile, mockSettings);
+      bandwidthMonitorStartTime = 500;
+    });
+
+    // Keeping the time interval constant and only changing the number of bytes
+    // uploaded within that time frame.
+    it("returns the number of concurrent chunks possible for faster connections up to the maxConcurrentChunks setting", function() {
+      spyOn(uploader, '_calculateUploadProgress').and.returnValue(50000);
+      var result = uploader._calculateOptimalConcurrentChunks(bandwidthMonitorStartTime, initialMaxConcurrentChunks);
+      expect(result).toEqual(4);
+    });
+
+    it("returns an optimal number of concurrent chunks for the connection", function() {
+      spyOn(uploader, '_calculateUploadProgress').and.returnValue(10000);
+      var result = uploader._calculateOptimalConcurrentChunks(bandwidthMonitorStartTime, initialMaxConcurrentChunks);
+      expect(result).toEqual(2);
+    });
+
+    it("returns a minimum value of 1 concurrent chunk for slower connections", function() {
+      spyOn(uploader, '_calculateUploadProgress').and.returnValue(5000);
+      var result = uploader._calculateOptimalConcurrentChunks(bandwidthMonitorStartTime, initialMaxConcurrentChunks);
+      expect(result).toEqual(1);
+    });
   });
 
   describe("_abortChunkUpload", function() {

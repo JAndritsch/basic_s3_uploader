@@ -2,10 +2,10 @@
 
 var bs3u = {
   version: {
-    full: "2.0.4",
+    full: "2.0.5",
     major: "2",
     minor: "0",
-    patch: "4"
+    patch: "5"
   }
 };
 
@@ -453,8 +453,8 @@ bs3u.Uploader.prototype._initiateUploadSuccess = function(attempts, response) {
     uploader._log("Upload initiated.");
     var xml = response.target.responseXML;
     uploader._uploadId = xml.getElementsByTagName('UploadId')[0].textContent;
-    uploader._startProgressWatcher();
     uploader._startCompleteWatcher();
+    uploader._startBandwidthMonitor();
   } else {
     uploader._log("Initiate upload error. Deferring to error handler.");
     uploader._initiateUploadError(attempts, response);
@@ -670,6 +670,34 @@ bs3u.Uploader.prototype._uploadChunkSuccess = function(attempts, response, numbe
   }
 };
 
+// The error callback for uploading a single chunk
+bs3u.Uploader.prototype._uploadChunkError = function(attempts, response, number) {
+  var uploader = this;
+
+  uploader._log("XHR error for chunk " + number, response);
+  var chunk = uploader._chunks[number];
+
+  if (uploader._retryAvailable(attempts)) {
+    attempts += 1;
+    uploader._log("Retrying to upload chunk " + number);
+    setTimeout(function() {
+      var data = {
+        action: "uploadChunk",
+        xhr: response,
+        chunkNumber: number,
+        chunk: chunk
+      };
+      uploader._notifyUploadRetry(attempts, data);
+      uploader._uploadChunk(number, attempts);
+    }, uploader._timeToWaitBeforeNextRetry(attempts));
+  } else {
+    var errorCode = 7;
+    uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
+    uploader._setFailed();
+    uploader._log("Uploader error! Cannot retry chunk " + number, uploader.errors[errorCode]);
+  }
+};
+
 // Call to the provided signature backend to get the list headers.
 // The response should contain all necessary headers to authenticate the request.
 bs3u.Uploader.prototype._getListHeaders = function(retries) {
@@ -744,31 +772,6 @@ bs3u.Uploader.prototype._getListHeadersError = function(attempts, response) {
     uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
     uploader._setFailed();
     uploader._log("Uploader error!", uploader.errors[errorCode]);
-  }
-};
-
-// The error callback for uploading a single chunk
-bs3u.Uploader.prototype._uploadChunkError = function(attempts, response, number) {
-  var uploader = this;
-  var chunk = uploader._chunks[number];
-  if (uploader._retryAvailable(attempts)) {
-    attempts += 1;
-    uploader._log("Retrying to upload chunk " + number);
-    setTimeout(function() {
-      var data = {
-        action: "uploadChunk",
-        xhr: response,
-        chunkNumber: number,
-        chunk: chunk
-      };
-      uploader._notifyUploadRetry(attempts, data);
-      uploader._uploadChunk(number, attempts);
-    }, uploader._timeToWaitBeforeNextRetry(attempts));
-  } else {
-    var errorCode = 7;
-    uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
-    uploader._setFailed();
-    uploader._log("Uploader error! Cannot retry chunk " + number, uploader.errors[errorCode]);
   }
 };
 
@@ -1147,36 +1150,24 @@ bs3u.Uploader.prototype._chunkUploadsInProgress = function() {
 // monitor each chunk upload request and evaluate if the request has bombed out
 // (no progress reported in 30sec). When this happens, we can abort the chunk
 // upload and mark it for a retry.
-bs3u.Uploader.prototype._startProgressWatcher = function() {
+bs3u.Uploader.prototype._abortTimedOutRequests = function() {
   var uploader = this;
-  uploader._log("Starting the progress watcher interval");
+  var currentTime = new Date().getTime();
+  var chunkProgressTime, xhr, chunk;
 
-  var id = setInterval(function() {
-    if (!uploader._isUploading()) {
-      uploader._log("Stopping the progress watcher interval");
-      clearInterval(id);
-      return;
-    }
-
-    var currentTime = new Date().getTime();
-    var chunkProgressTime, xhr, chunk;
-
-    for (var index in uploader._chunkXHRs) {
-      chunk = uploader._chunks[index];
-      if (chunk.uploading && !chunk.uploadComplete) {
-        xhr = uploader._chunkXHRs[index];
-
-        chunkProgressTime = xhr.lastProgressAt;
-        // if no progress reported within 30 seconds
-        if ((currentTime - chunkProgressTime) > 30000) {
-          uploader._log("No progress has been reported within 30 seconds for chunk " + index);
-          uploader._abortChunkUpload(index);
-          chunk.uploading = false;
-          chunk.uploadComplete = false;
-        }
+  for (var index in uploader._chunkXHRs) {
+    chunk = uploader._chunks[index];
+    if (chunk.uploading && !chunk.uploadComplete) {
+      xhr = uploader._chunkXHRs[index];
+      chunkProgressTime = xhr.lastProgressAt;
+      if ((currentTime - chunkProgressTime) > 30000) {
+        uploader._log("No progress has been reported within 30 seconds for chunk " + index);
+        uploader._abortChunkUpload(index);
+        chunk.uploading = false;
+        chunk.uploadComplete = false;
       }
     }
-  }, 3000);
+  }
 };
 
 // Monitors chunk uploads and attempts to complete the upload
@@ -1195,6 +1186,8 @@ bs3u.Uploader.prototype._startCompleteWatcher = function() {
       return;
     }
 
+    uploader._abortTimedOutRequests();
+
     if (uploader._allETagsAvailable()) {
       // temporarily shut down the watcher
       uploader._pauseCompleteWatcher = true;
@@ -1208,13 +1201,67 @@ bs3u.Uploader.prototype._startCompleteWatcher = function() {
   }, 1000);
 };
 
+// This method will monitor the speed of the upload and reconfigure the number
+// of concurrent uploads allowed. If the connection is attempting to upload more
+// concurrent chunks than it can support, the number will scale down. If the uploader
+// is under-utilizing the connection, the cap will increase and more concurrent
+// chunks will be added from the "complete watcher".
+bs3u.Uploader.prototype._startBandwidthMonitor = function() {
+  var uploader = this;
+  uploader._log("Starting bandwidth monitor");
+  var initialMaxChunks = uploader.settings.maxConcurrentChunks;
+  var monitorStartTime = new Date().getTime();
+  var newConcurrentChunks;
+
+  // calculate the number of possible concurrent chunks based on upload speed.
+  var id = setInterval(function(){
+    if (!uploader._isUploading()) {
+      uploader._log("Stopping the bandwidth monitor");
+      clearInterval(id);
+      return;
+    }
+
+    newConcurrentChunks = uploader._calculateOptimalConcurrentChunks(monitorStartTime, initialMaxChunks);
+    uploader._log("Optimal concurrent chunks for connection is ", newConcurrentChunks);
+    uploader._log("Number of concurrent uploads in progress is ", uploader._chunkUploadsInProgress());
+    uploader.settings.maxConcurrentChunks = newConcurrentChunks;
+
+    if (newConcurrentChunks < uploader._chunkUploadsInProgress()) {
+      uploader._log("There are more concurrent uploads than your connection can support. Stopping some XHRs.");
+      for (var number in uploader._chunks) {
+        if (uploader._chunkUploadsInProgress() > newConcurrentChunks) {
+          uploader._abortChunkUpload(number);
+          uploader._chunks[number].uploading = false;
+          uploader._chunks[number].uploadComplete = false;
+        }
+      }
+    }
+
+  }, 10000);
+};
+
+bs3u.Uploader.prototype._calculateOptimalConcurrentChunks = function(time, initialMaxChunks) {
+  var uploader = this;
+  var loaded = uploader._calculateUploadProgress();
+  var speed = parseInt(loaded / (new Date().getTime() - time), 10);
+  var timeout = 900000; // 15 mins
+  uploader._log("Calculated average upload speed is " + speed + " KB/s");
+  var chunkSize = uploader.settings.chunkSize;
+  // Needed speed to upload a single chunk within the signature timeout
+  var neededSpeed = (chunkSize / timeout);
+  var count = parseInt((speed / neededSpeed), 10);
+
+  return Math.max(Math.min(count, initialMaxChunks), 1);
+};
+
 bs3u.Uploader.prototype._abortChunkUpload = function(number) {
   var uploader = this;
   var chunk = uploader._chunks[number];
+  var xhr = uploader._chunkXHRs[number];
 
-  if (chunk.uploading === true) {
+  if (chunk.uploading === true && xhr) {
     uploader._log("Cancelling the upload for chunk ", number);
-    uploader._chunkXHRs[number].abort();
+    xhr.abort();
   }
 };
 
