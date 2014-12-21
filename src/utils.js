@@ -53,3 +53,7 @@ bs3u.Utils.prototype.validateFileIsReadable = function(file, callback) {
 bs3u.Utils.prototype.timeToWaitBeforeNextRetry = function(attempts) {
   return this.settings.retryWaitTime * attempts;
 };
+
+bs3u.Utils.prototype.defaultHost = function(settings) {
+  return settings.protocol + settings.bucket + "." + "s3-" + settings.region + ".amazonaws.com";
+};

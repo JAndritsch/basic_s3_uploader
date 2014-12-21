@@ -2,7 +2,7 @@
 // should inherit from this.
 bs3u.Request = function(settings, callbacks) {
   this.settings  = settings;
-  this.callbacks = callbacks; // onSuccess, onRetry, onRetriesExhausted
+  this.callbacks = callbacks; // onSuccess, onRetry, onRetriesExhausted, onProgress
   this.attempts  = 0;
   this.headers   = null;
   this.utils     = new bs3u.Utils(settings);
@@ -107,7 +107,7 @@ bs3u.Request.prototype._retry = function(response) {
       // Fire the main method again
       self.start();
       // Make sure to wait a bit before retry.
-    }, utils.timeToWaitBeforeNextRetry(self.attempts));
+    }, self.utils.timeToWaitBeforeNextRetry(self.attempts));
 
   } else {
     // Notify caller about retries exhausted
