@@ -163,13 +163,21 @@ bs3u.Uploader.prototype.startUpload = function() {
           uploader._startCompleteWatcher();
         },
         onRetry: function(response, attempts) {
-          // notify about retry
+          uploader._log("Retry initiateUploadRequest");
+          var data = {
+            action: "initiateUploadRequest",
+            xhr: response
+          };
+          uploader._notifyUploadRetry(attempts, data);
         },
         onRetriesExhausted: function(response) {
-          // set failed status
-          // iterate over uploader._requests and call stop() on each
+          uploader._notifyUploadError("errorCode", "errorMessage");
+          uploader._setFailed();
+          uploader._log("Uploader error!", "errorMessage");
+          uploader._abortAllRequests();
         }
       });
+
       uploader._requests.push(initiateUploadRequest);
       initiateUploadRequest.start();
     } else {
@@ -212,6 +220,16 @@ bs3u.Uploader.prototype._abortAllXHRs = function() {
   }
 };
 
+bs3u.Uploader.prototype._abortAllRequests = function() {
+  var uploader = this;
+
+  uploader._log("Aborting all requests");
+
+  for (var index in uploader._requests) {
+    uploader._requests[index].abort();
+  }
+};
+
 // Slices up the file into chunks, storing the startRange and endRange of each chunk on the uploader
 // so the blobs can be created when needed.
 bs3u.Uploader.prototype._createChunks = function() {
@@ -249,152 +267,6 @@ bs3u.Uploader.prototype._createChunks = function() {
   }
   uploader._chunks = chunks;
   uploader._log("Total chunks to upload:", Object.keys(chunks).length);
-};
-
-// Call to the provided signature backend to get the init headers.
-// The response should contain all necessary headers to authenticate the request.
-bs3u.Uploader.prototype._getInitHeaders = function(retries) {
-  var uploader = this;
-  var attempts = retries || 0;
-
-  uploader._log("Getting the init headers");
-
-  uploader._encryptText("", function(encrypted) {
-
-    var ajax = new bs3u.Ajax({
-      url: uploader.settings.signatureBackend + uploader.settings.initHeadersPath,
-      method: "GET",
-      params: {
-        key: uploader.settings.key,
-        content_type: uploader.settings.contentType,
-        acl: uploader.settings.acl,
-        encrypted: uploader.settings.encrypted,
-        payload: encrypted,
-        region: uploader.settings.region,
-        host: uploader.settings.host,
-      },
-      headers: uploader.settings.customHeaders,
-    });
-
-    ajax.onSuccess(function(response) {
-      uploader._getInitHeadersSuccess(attempts, response);
-    });
-
-    ajax.onError(function(response) {
-      uploader._getInitHeadersError(attempts, response);
-    });
-
-    ajax.onTimeout(function(response) {
-      uploader._getInitHeadersError(attempts, response);
-    });
-
-    ajax.send();
-    uploader._XHRs.push(ajax);
-
-  });
-
-};
-
-// The success callback for getting init headers
-bs3u.Uploader.prototype._getInitHeadersSuccess = function(attempts, response) {
-  var uploader = this;
-  if (response.target.status == 200) {
-    uploader._log("Init headers retrieved");
-    uploader._initHeaders = JSON.parse(response.target.responseText);
-    uploader._initiateUpload();
-  } else {
-    uploader._log("Server returned a non-200. Deferring to error handler!");
-    uploader._getInitHeadersError(attempts, response);
-  }
-};
-
-// The error callback for getting a init headers
-bs3u.Uploader.prototype._getInitHeadersError = function(attempts, response) {
-  var uploader = this;
-  if (uploader._retryAvailable(attempts)) {
-    attempts += 1;
-    uploader._log("Attempting to retry retrieval of init headers.");
-    setTimeout(function() {
-      var data = {
-        action: "getInitHeaders",
-        xhr: response
-      };
-      uploader._notifyUploadRetry(attempts, data);
-      uploader._getInitHeaders(attempts);
-    }, uploader._timeToWaitBeforeNextRetry(attempts));
-  } else {
-    var errorCode = 2;
-    uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
-    uploader._setFailed();
-    uploader._log("Uploader error!", uploader.errors[errorCode]);
-  }
-};
-
-// Initiate a new upload to S3 using the init signature. This will return an UploadId
-// when successful.
-bs3u.Uploader.prototype._initiateUpload = function(retries) {
-  var uploader = this;
-  var attempts = retries || 0;
-
-  uploader._log("Initiating the upload");
-
-  var ajax = new bs3u.Ajax({
-    url: uploader.settings.host + "/" + uploader.settings.key + "?uploads",
-    method: "POST",
-    headers: uploader._initHeaders
-  });
-
-  ajax.onSuccess(function(response) {
-    uploader._initiateUploadSuccess(attempts, response);
-  });
-
-  ajax.onError(function(response) {
-    uploader._initiateUploadError(attempts, response);
-  });
-
-  ajax.onTimeout(function(response) {
-    uploader._initiateUploadError(attempts, response);
-  });
-
-  ajax.send();
-  uploader._XHRs.push(ajax);
-};
-
-// The success callback for initiating an upload
-bs3u.Uploader.prototype._initiateUploadSuccess = function(attempts, response) {
-  var uploader = this;
-  if (response.target.status == 200) {
-    uploader._log("Upload initiated.");
-    var xml = response.target.responseXML;
-    uploader._uploadId = xml.getElementsByTagName('UploadId')[0].textContent;
-    uploader._startCompleteWatcher();
-    uploader._startBandwidthMonitor();
-  } else {
-    uploader._log("Initiate upload error. Deferring to error handler.");
-    uploader._initiateUploadError(attempts, response);
-  }
-};
-
-// The error callback for initiating an upload
-bs3u.Uploader.prototype._initiateUploadError = function(attempts, response) {
-  var uploader = this;
-  if (uploader._retryAvailable(attempts)) {
-    attempts += 1;
-    uploader._log("Retrying to initiate the upload.");
-    setTimeout(function() {
-      var data = {
-        action: "initiateUpload",
-        xhr: response
-      };
-      uploader._notifyUploadRetry(attempts, data);
-      uploader._initiateUpload(attempts);
-    }, uploader._timeToWaitBeforeNextRetry(attempts));
-  } else {
-    var errorCode = 3;
-    uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
-    uploader._setFailed();
-    uploader._log("Uploader error!", uploader.errors[errorCode]);
-  }
 };
 
 // Iterate over all chunks and start all uploads simultaneously
