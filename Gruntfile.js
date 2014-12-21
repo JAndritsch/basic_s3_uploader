@@ -11,6 +11,7 @@ module.exports = function(grunt) {
   grunt.config('jshint', {
     all: [
       'src/*.js',
+      'src/requests/*.js',
       'spec/*.js',
     ]
   });
@@ -42,6 +43,7 @@ module.exports = function(grunt) {
   grunt.config('watch', {
     files: [
       'src/*.js',
+      'src/requests/*.js',
       'spec/*.js',
     ],
     tasks: ['test']
@@ -56,6 +58,12 @@ module.exports = function(grunt) {
         'lib/asmcrypto.js',
         'src/bs3u.js',
         'src/ajax.js',
+        'src/utils.js',
+        'src/requests/request.js',
+        'src/requests/initiate_upload.js',
+        'src/requests/upload_part.js',
+        'src/requests/list_parts.js',
+        'src/requests/complete_upload.js',
         'src/uploader.js'
       ],
       dest: 'dist/basic_s3_uploader.js',

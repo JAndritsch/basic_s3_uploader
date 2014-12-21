@@ -1,11 +1,11 @@
 // A simple class of useful utilities
 bs3u.Utils = function(settings) {
   this.settings = settings;
-}
+};
 
 bs3u.Utils.prototype.retryAvailable = function(attempts) {
   return attempts < this.settings.maxRetries;
-}
+};
 
 bs3u.Utils.prototype.sha256Async = function(text, callback) {
   var self = this;
@@ -13,15 +13,15 @@ bs3u.Utils.prototype.sha256Async = function(text, callback) {
     var worker = new Worker(self.settings.workerFilePath);
 
     worker.onmessage = function(e) { callback(e.data); };
-    worker.postMessage({ text: value, selfFilePath: self.settings.selfFilePath });
+    worker.postMessage({ text: text, uploaderFilePath: self.settings.uploaderFilePath });
   } else {
-    callback(self.sha256(value));
+    callback(self.sha256(text));
   }
-}
+};
 
 bs3u.Utils.prototype.sha256 = function(text) {
-  return asmCrypto.SHA256.hex(value);
-}
+  return asmCrypto.SHA256.hex(text);
+};
 
 bs3u.Utils.prototype.requiresFirefoxHack = function() {
   return navigator.userAgent.indexOf("Firefox") !== -1;

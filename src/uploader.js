@@ -1,12 +1,8 @@
-/*
-* Copyright © 2014 Joel Andritsch <joel.andritsch@gmail.com>
-* See LICENSE for copyright/licensing information.
-*/
-
 // Simple constructor. Accepts a file object and some settings.
 bs3u.Uploader = function(file, settings) {
   var uploader = this;
   uploader.file = file;
+  uploader._requests = [];
   uploader._XHRs = [];
   uploader._chunkXHRs = {};
   uploader._chunkProgress = {};
@@ -159,7 +155,23 @@ bs3u.Uploader.prototype.startUpload = function() {
       uploader._createChunks();
       uploader._notifyUploadStarted();
       uploader._setUploading();
-      uploader._getInitHeaders();
+
+      var initiateUploadRequest = new bs3u.InitiateUploadRequest(uploader.settings, {
+        onSuccess: function(uploadId) {
+          uploader._uploadId = uploadId;
+          uploader._startBandwidthMonitor();
+          uploader._startCompleteWatcher();
+        },
+        onRetry: function(response, attempts) {
+          // notify about retry
+        },
+        onRetriesExhausted: function(response) {
+          // set failed status
+          // iterate over uploader._requests and call stop() on each
+        }
+      });
+      uploader._requests.push(initiateUploadRequest);
+      initiateUploadRequest.start();
     } else {
       var errorCode = 1;
       uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);

@@ -6,7 +6,8 @@ bs3u.Request = function(settings, callbacks) {
   this.attempts  = 0;
   this.headers   = null;
   this.utils     = new bs3u.Utils(settings);
-}
+  this.xhrs      = [];
+};
 
 // public
 
@@ -20,16 +21,16 @@ bs3u.Request.prototype.start = function() {
   }
 };
 
-bs3u.Request.prototype.callS3 = function() {
-  throw "You need to define this method! It should invoke _callS3 with the proper args.";
-};
+bs3u.Request.prototype.stop = function() {
+  var self = this;
 
-bs3u.Request.prototype.getHeaders = function() {
-  throw "You need to define this method! It should invoke _getHeaders with the proper args.";
-};
-
-bs3u.Request.prototype.success = function(response) {
-  throw "You need to define this method!";
+  var ajax;
+  for (var index in self.xhrs) {
+    ajax = self.xhrs[index];
+    ajax.abort();
+    ajax = undefined;
+  }
+  self.xhrs = [];
 };
 
 // private
@@ -39,7 +40,7 @@ bs3u.Request.prototype._getHeaders = function(url, params, payload) {
   var self = this;
 
   self.utils.sha256Async(payload, function(encrypted) {
-    params.payload = encrypted
+    params.payload = encrypted;
 
     var ajax = new bs3u.Ajax({
       url: url,
@@ -55,8 +56,9 @@ bs3u.Request.prototype._getHeaders = function(url, params, payload) {
       self.start();
     });
 
-    ajax.onError(self._retry);
+    ajax.onError(function(response) { self._retry(response); });
     ajax.send();
+    self.xhrs.push(ajax);
   });
 };
 
@@ -70,14 +72,15 @@ bs3u.Request.prototype._callS3 = function(url, method, params, body) {
     headers: self.headers
   });
 
-  ajax.onSuccess(self._success);
-  ajax.onError(self._retry);
+  ajax.onSuccess(function(response) { self._success(response); });
+  ajax.onError(function(response) { self._retry(response); });
 
   if (body) {
     ajax.send(body);
   } else {
     ajax.send();
   }
+  self.xhrs.push(ajax);
 };
 
 // The success callback for calling S3. Any non-200 response should trigger a
