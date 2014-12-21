@@ -75,6 +75,10 @@ bs3u.Request.prototype._callS3 = function(url, method, params, body) {
   ajax.onSuccess(function(response) { self._success(response); });
   ajax.onError(function(response) { self._retry(response); });
 
+  if (self.callbacks.onProgress) {
+    ajax.onProgress(function(response) { self.callbacks.onProgress(response); });
+  }
+
   if (body) {
     ajax.send(body);
   } else {
