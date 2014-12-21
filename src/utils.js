@@ -1,3 +1,4 @@
+// A simple class of useful utilities
 bs3u.Utils = function(settings) {
   this.settings = settings;
 }
@@ -29,8 +30,7 @@ bs3u.Utils.prototype.requiresFirefoxHack = function() {
 // Using the FileReader API, this method attempts to open the file and read the
 // first few bytes. This method accepts a callback and then calls it with the result
 // of the check.
-bs3u.Utils.prototype._validateFileIsReadable = function(file, callback) {
-  var uploader = this;
+bs3u.Utils.prototype.validateFileIsReadable = function(file, callback) {
   var blob = file.slice(0, 1024);
   var fr = new FileReader();
 

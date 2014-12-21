@@ -1,3 +1,5 @@
+// The base class for sending requests to the signature and S3 APIs. All requests
+// should inherit from this.
 bs3u.Request = function(settings, callbacks) {
   this.settings  = settings;
   this.callbacks = callbacks; // onSuccess, onRetry, onRetriesExhausted
@@ -6,16 +8,34 @@ bs3u.Request = function(settings, callbacks) {
   this.utils     = new bs3u.Utils(settings);
 }
 
+// public
+
+// The main method to invoke. Requires the caller to have defined the 'callS3',
+// 'getHeaders', and 'success' methods.
 bs3u.Request.prototype.start = function() {
-  throw "You need to define this method!";
+  if (this.headers) {
+    this.callS3();
+  } else {
+    this.getHeaders();
+  }
+};
+
+bs3u.Request.prototype.callS3 = function() {
+  throw "You need to define this method! It should invoke _callS3 with the proper args.";
+};
+
+bs3u.Request.prototype.getHeaders = function() {
+  throw "You need to define this method! It should invoke _getHeaders with the proper args.";
 };
 
 bs3u.Request.prototype.success = function(response) {
   throw "You need to define this method!";
 };
 
-// Calls the user-defined backend to grab headers for the call
-bs3u.Request.prototype.getHeaders = function(url, params, payload) {
+// private
+
+// Calls the user-defined backend to grab headers for the S3 request
+bs3u.Request.prototype._getHeaders = function(url, params, payload) {
   var self = this;
 
   self.utils.sha256Async(payload, function(encrypted) {
@@ -40,8 +60,8 @@ bs3u.Request.prototype.getHeaders = function(url, params, payload) {
   });
 };
 
-// Calls to S3
-bs3u.Request.prototype.callS3 = function(url, method, params, body) {
+// Sends the request to S3. Requires self.headers to be defined correctly.
+bs3u.Request.prototype._callS3 = function(url, method, params, body) {
   var self = this;
   var ajax = new bs3u.Ajax({
     url: url,
@@ -60,7 +80,8 @@ bs3u.Request.prototype.callS3 = function(url, method, params, body) {
   }
 };
 
-// The success callback for calling S3
+// The success callback for calling S3. Any non-200 response should trigger a
+// retry.
 bs3u.Request.prototype._success = function(response) {
   if (response.target.status == 200) {
     // Call the success callback defined by the subclass
@@ -74,17 +95,19 @@ bs3u.Request.prototype._success = function(response) {
 bs3u.Request.prototype._retry = function(response) {
   var self = this;
   if (self.utils.retryAvailable(self.attempts)) {
+    // Increment the attempts
     self.attempts += 1;
+
     setTimeout(function() {
       // Notify caller about retry
       self.callbacks.onRetry(self.attempts, response);
       // Fire the main method again
       self.start();
+      // Make sure to wait a bit before retry.
     }, utils.timeToWaitBeforeNextRetry(self.attempts));
+
   } else {
     // Notify caller about retries exhausted
     self.callbacks.onRetriesExhausted(response);
   }
 };
-
-

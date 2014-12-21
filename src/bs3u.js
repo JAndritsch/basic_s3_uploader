@@ -7,9 +7,9 @@ var bs3u = {
   }
 };
 
-bs3u.extend = function(parent, child) {
+bs3u.extend = function(child, parent) {
   for (attr in Object.keys(parent)) {
-    child[attr] = parent[attr]
+    child[attr] = parent[attr];
   }
   return child;
 }
