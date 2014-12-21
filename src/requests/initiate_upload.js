@@ -6,7 +6,8 @@
 // var initiateUploadRequest = new bs3u.InitiateUploadRequest(uploader.settings, {
 //   onSuccess: function(uploadId) {
 //     // save uploadId
-//     // start uploading chunks
+//     // enable bandwidth monitor
+//     // enable complete watcher
 //   },
 //   onRetry: function(response, attempts) {
 //     // notify about retry

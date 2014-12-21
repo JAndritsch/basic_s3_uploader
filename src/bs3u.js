@@ -11,5 +11,4 @@ bs3u.extend = function(child, parent) {
   for (attr in Object.keys(parent)) {
     child[attr] = parent[attr];
   }
-  return child;
 }
