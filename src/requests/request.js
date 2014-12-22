@@ -72,7 +72,15 @@ bs3u.Request.prototype._callS3 = function(url, method, params, body) {
     headers: self.headers
   });
 
-  ajax.onSuccess(function(response) { self._success(response); });
+  ajax.onSuccess(function(response) {
+    // change to logger.log later
+    if (body && body.size) {
+      console.log("Superfluous logging of body size to keep body from getting GCed", body.size);
+      body = undefined;
+    }
+    self._success(response);
+  });
+
   ajax.onError(function(response) { self._retry(response); });
 
   if (self.callbacks.onProgress) {
