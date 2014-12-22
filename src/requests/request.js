@@ -109,20 +109,24 @@ bs3u.Request.prototype._success = function(response) {
 
 bs3u.Request.prototype._retry = function(response) {
   var self = this;
-  if (self.utils.retryAvailable(self.attempts)) {
-    // Increment the attempts
+  if (self.retryAvailable()) {
     self.attempts += 1;
 
     setTimeout(function() {
-      // Notify caller about retry
       self.callbacks.onRetry(self.attempts, response);
-      // Fire the main method again
       self.start();
-      // Make sure to wait a bit before retry.
-    }, self.utils.timeToWaitBeforeNextRetry(self.attempts));
+    }, self.timeToWaitBeforeNextRetry());
 
   } else {
-    // Notify caller about retries exhausted
     self.callbacks.onRetriesExhausted(response);
   }
 };
+
+bs3u.Request.prototype.retryAvailable = function() {
+  return self.attempts < this.settings.maxRetries;
+};
+
+bs3u.Request.prototype.timeToWaitBeforeNextRetry = function() {
+  return this.settings.retryWaitTime * self.attempts;
+};
+

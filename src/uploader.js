@@ -1,11 +1,11 @@
 // Simple constructor. Accepts a file object and some settings.
 bs3u.Uploader = function(file, settings) {
-  var uploader = this;
-  uploader.file = file;
-  uploader._requests = [];
-  uploader._XHRs = [];
+  var uploader            = this;
+  uploader.file           = file;
+  uploader._requests      = [];
   uploader._chunkRequests = {};
   uploader._chunkProgress = {};
+
   uploader._configureUploader(settings);
   uploader._notifyUploaderReady();
   uploader._setReady();
@@ -15,7 +15,7 @@ bs3u.Uploader = function(file, settings) {
 bs3u.Uploader.prototype._configureUploader = function(settings) {
   var uploader = this;
 
-  uploader.settings = {};
+  uploader.settings                         = {};
 
   // The content type of the file
   uploader.settings.contentType             = settings.contentType || uploader.file.type;
@@ -67,7 +67,7 @@ bs3u.Uploader.prototype._configureUploader = function(settings) {
   uploader.settings.region                  = settings.region || "your-region";
 
   // The host name is not required but can be explicitly set.
-  uploader.settings.host                    = settings.host || uploader._defaultHost();
+  uploader.settings.host                    = settings.host || new bs3u.Utils(settings).defaultHost();
   // If true, you will see logging output in your browser's web inspector.
   uploader.settings.log                     = settings.log || false;
   // Any custom headers that need to be set. Note that these headers are only used for
@@ -131,6 +131,8 @@ bs3u.Uploader.prototype._configureUploader = function(settings) {
 bs3u.Uploader.prototype.startUpload = function() {
   var uploader = this;
 
+  var utils = new bs3u.Utils(uploader.settings);
+
   uploader._log("startUpload called");
 
   if (uploader._isUploading()) {
@@ -146,7 +148,7 @@ bs3u.Uploader.prototype.startUpload = function() {
     return;
   }
 
-  uploader._validateFileIsReadable(function(valid) {
+  utils.validateFileIsReadable(function(valid) {
     if (valid) {
       uploader._createChunks();
       uploader._notifyUploadStarted();
@@ -200,24 +202,9 @@ bs3u.Uploader.prototype.cancelUpload = function() {
   }
 
   uploader._log("Aborting upload");
-  uploader._abortAllXHRs();
+  uploader._abortAllRequests();
   uploader._notifyUploadCancelled();
   uploader._setCancelled();
-};
-
-// Stops all XHR requests
-bs3u.Uploader.prototype._abortAllXHRs = function() {
-  var uploader = this;
-
-  uploader._log("Aborting all XHR requests");
-
-  for (var index in uploader._XHRs) {
-    uploader._XHRs[index].abort();
-  }
-
-  for (var chunk in uploader._chunkRequests) {
-    uploader._chunkRequests[chunk].stop();
-  }
 };
 
 bs3u.Uploader.prototype._abortAllRequests = function() {
@@ -226,7 +213,11 @@ bs3u.Uploader.prototype._abortAllRequests = function() {
   uploader._log("Aborting all requests");
 
   for (var index in uploader._requests) {
-    uploader._requests[index].abort();
+    uploader._requests[index].stop();
+  }
+
+  for (var chunk in uploader._chunkRequests) {
+    uploader._chunkRequests[chunk].stop();
   }
 };
 
@@ -291,10 +282,7 @@ bs3u.Uploader.prototype._uploadSpotAvailable = function() {
   return uploader._chunkUploadsInProgress() < uploader.settings.maxConcurrentChunks;
 };
 
-// Uploads a single chunk to S3. Because multiple chunks can be uploading at
-// the same time, the "success" callback for this request checks to see if all
-// chunks have been uploaded. If they have, the uploader will try to complete
-// the upload.
+// Uploads a single chunk to S3.
 bs3u.Uploader.prototype._uploadChunk = function(number) {
   var uploader = this;
   var chunk = uploader._chunks[number];
@@ -438,7 +426,7 @@ bs3u.Uploader.prototype._completeUpload = function() {
     onSuccess: function(location) {
       uploader._notifyUploadComplete(location);
       uploader._setComplete();
-      uploader._abortAllXHRs();
+      uploader._abortAllRequests();
     },
     onRetry: function(response, attempts) {
       // notify about retry
@@ -449,16 +437,6 @@ bs3u.Uploader.prototype._completeUpload = function() {
   });
   completeUploadRequest.start();
   uploader._requests.push(completeUploadRequest);
-};
-
-// Returns true if attemts is less than maxRetries. Note that the first attempt
-// (a non-retry attempt) is not counted.
-bs3u.Uploader.prototype._retryAvailable = function(attempts) {
-  var uploader = this;
-  if (uploader._isCancelled() || uploader._isFailed()) {
-    return false;
-  }
-  return (attempts + 1) < uploader.settings.maxRetries + 1;
 };
 
 // Returns true if we have an eTag for every chunk
@@ -604,13 +582,8 @@ bs3u.Uploader.prototype._abortChunkUpload = function(number) {
 
   if (chunk.uploading === true && xhr) {
     uploader._log("Cancelling the upload for chunk ", number);
-    xhr.abort();
+    xhr.stop();
   }
-};
-
-bs3u.Uploader.prototype._timeToWaitBeforeNextRetry = function(attempts) {
-  var uploader = this;
-  return uploader.settings.retryWaitTime * attempts;
 };
 
 bs3u.Uploader.prototype._calculateUploadProgress = function() {
@@ -667,7 +640,7 @@ bs3u.Uploader.prototype._setFailed = function() {
   var uploader = this;
   uploader._status = "failed";
   // stop any outstanding XHR requests
-  uploader._abortAllXHRs();
+  uploader._abortAllRequests();
 };
 
 bs3u.Uploader.prototype._isFailed = function() {
@@ -740,62 +713,6 @@ bs3u.Uploader.prototype._notifyUploadCancelled = function() {
   uploader.settings.onCancel.call(uploader);
 };
 
-// Using the FileReader API, this method attempts to open the file and read the
-// first few bytes. This method accepts a callback and then calls it with the result
-// of the check.
-bs3u.Uploader.prototype._validateFileIsReadable = function(callback) {
-  var uploader = this;
-  var file = uploader.file;
-  var blob = file.slice(0, 1024);
-  var fr = new FileReader();
-
-  fr.onloadend = function() {
-    if (fr.error) {
-      callback(false);
-    } else {
-      callback(true);
-    }
-    fr = undefined;
-  };
-
-  try {
-    fr.readAsArrayBuffer(blob);
-  } catch(error) {
-    callback(false);
-  }
-};
-
-bs3u.Uploader.prototype._requiresFirefoxHack = function() {
-  return navigator.userAgent.indexOf("Firefox") !== -1;
-};
-
-// Encrypts the provided text, either with the help from web workers or not,
-// and then executes the provided callback with the encrypted text.
-bs3u.Uploader.prototype._encryptText = function(value, callback) {
-  var uploader = this;
-  if (uploader.settings.useWebWorkers) {
-    var worker = new Worker(uploader.settings.workerFilePath);
-    worker.onmessage = function(e) {
-      callback(e.data);
-    };
-    worker.postMessage({
-      text: value,
-      uploaderFilePath: uploader.settings.uploaderFilePath
-    });
-  } else {
-    callback(uploader._sha256(value));
-  }
-};
-
-bs3u.Uploader.prototype._sha256 = function(value) {
-  return asmCrypto.SHA256.hex(value);
-};
-
-bs3u.Uploader.prototype._defaultHost = function() {
-  var uploader = this;
-  return uploader.settings.protocol + uploader.settings.bucket + "." + "s3-" + uploader.settings.region + ".amazonaws.com";
-};
-
 bs3u.Uploader.prototype._log = function(msg, object) {
   msg = "[BasicS3Uploader] " + msg;
   if (this.settings.log && console && console.debug) {
@@ -811,15 +728,10 @@ bs3u.Uploader.prototype.errors = {
   // code: description
   0: "The file could not be uploaded because it exceeds the maximum file size allowed.",
   1: "The file could not be uploaded because it cannot be read",
-  2: "Max number of retries have been met. Unable to get init headers!",
-  3: "Max number of retries have been met. Unable to initiate an upload request!",
-  4: "Max number of retries have been met. Unable to get chunk headers!",
-  5: "Max number of retries have been met. Upload of chunk has failed!",
-  6: "Max number of retries have been met. Unable to verify all chunks have uploaded!",
-  7: "Max number of retries has been met. Cannot retry uploading chunk!",
-  8: "Max number of retries have been met. Unable to complete multipart upload!",
-  9: "Max number of retries have been met. Unable to get list headers!",
-  10: "Max number of retries have been met. Unable to get complete headers!",
+  2: "Max number of retries have been met. Unable to initiate an upload request!",
+  3: "Max number of retries have been met. Upload of chunk has failed!",
+  4: "Max number of retries have been met. Unable to verify all chunks have uploaded!",
+  5: "Max number of retries have been met. Unable to complete multipart upload!",
 
 };
 

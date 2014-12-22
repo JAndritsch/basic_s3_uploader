@@ -3,10 +3,6 @@ bs3u.Utils = function(settings) {
   this.settings = settings;
 };
 
-bs3u.Utils.prototype.retryAvailable = function(attempts) {
-  return attempts < this.settings.maxRetries;
-};
-
 bs3u.Utils.prototype.sha256Async = function(text, callback) {
   var self = this;
   if (self.settings.useWebWorkers) {
@@ -48,10 +44,6 @@ bs3u.Utils.prototype.validateFileIsReadable = function(file, callback) {
   } catch(error) {
     callback(false);
   }
-};
-
-bs3u.Utils.prototype.timeToWaitBeforeNextRetry = function(attempts) {
-  return this.settings.retryWaitTime * attempts;
 };
 
 bs3u.Utils.prototype.defaultHost = function(settings) {
