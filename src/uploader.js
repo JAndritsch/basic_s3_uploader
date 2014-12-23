@@ -226,9 +226,9 @@ bs3u.Uploader.prototype._initiateUpload = function() {
       uploader._startCompleteWatcher();
     },
     onRetry: function(response, attempts) {
-      uploader.logger.log("Retry initiateUploadRequest");
+      uploader.logger.log("Retrying to initiate upload, attempt number " + attempts);
       var data = {
-        action: "initiateUploadRequest",
+        action: "initiateUpload",
         xhr: response
       };
       uploader._notifyUploadRetry(attempts, data);
@@ -248,6 +248,9 @@ bs3u.Uploader.prototype._uploadChunk = function(number) {
   var uploader = this;
   var chunk = uploader._chunks[number];
 
+  chunk.uploading = true;
+  chunk.uploadComplete = false;
+
   var uploadPartRequest = new bs3u.UploadPartRequest(uploader._uploadId, number, chunk, uploader.file, uploader.settings, {
     onSuccess: function(eTag) {
       var totalChunks = Object.keys(uploader._chunks).length;
@@ -255,15 +258,15 @@ bs3u.Uploader.prototype._uploadChunk = function(number) {
       chunk.uploadComplete = true;
       uploader.logger.log("Chunk " + number +  " has finished uploading");
       uploader._notifyChunkUploaded(number, totalChunks);
-      if (eTag && eTag.length > 0) { chunk.eTag = eTag; }
+      chunk.eTag = eTag;
     },
     onProgress: function(response) {
       uploader._uploadChunkProgress(response, number);
     },
     onRetry: function(response, attempts) {
-      uploader.logger.log("Retry uploadPartRequest");
+      uploader.logger.log("Chunk " + number + " retrying, attempt number " + attempts);
       var data = {
-        action: "initiateUploadRequest",
+        action: "uploadChunk",
         xhr: response,
         chunkNumber: number,
         chunk: chunk,
@@ -301,9 +304,9 @@ bs3u.Uploader.prototype._verifyAllChunksUploaded = function(retries) {
       }
     },
     onRetry: function(response, attempts) {
-      uploader.logger.log("Retry listPartsRequest");
+      uploader.logger.log("Retrying to verify all chunks uploaded, attempt number " + attempts);
       var data = {
-        action: "initiateUploadRequest",
+        action: "verifyAllChunksUploaded",
         xhr: response,
       };
       uploader._notifyUploadRetry(attempts, data);
@@ -327,9 +330,9 @@ bs3u.Uploader.prototype._completeUpload = function() {
       uploader._abortAllRequests();
     },
     onRetry: function(response, attempts) {
-      uploader.logger.log("Retry completeUploadRequest");
+      uploader.logger.log("Retrying to complete the uploaded, attempt number " + attempts);
       var data = {
-        action: "completeUploadRequest",
+        action: "completeUpload",
         xhr: response,
       };
       uploader._notifyUploadRetry(attempts, data);
@@ -348,14 +351,14 @@ bs3u.Uploader.prototype._uploadChunks = function() {
   var uploader = this;
   var totalChunks = Object.keys(uploader._chunks).length;
 
-  for(var chunkNumber = 1; chunkNumber < totalChunks + 1; chunkNumber++) {
+  for (var chunkNumber = 1; chunkNumber < totalChunks + 1; chunkNumber++) {
     var chunk = uploader._chunks[chunkNumber];
-    if (!chunk.uploading && !chunk.uploadComplete && uploader._uploadSpotAvailable()) {
-      chunk.uploading = true;
-      chunk.uploadComplete = false;
-      uploader._uploadChunk(chunkNumber);
-    }
+    if (uploader._canUploadChunk(chunk)) { uploader._uploadChunk(chunkNumber); }
   }
+};
+
+bs3u.Uploader.prototype._canUploadChunk = function(chunk) {
+  return !chunk.uploading && !chunk.uploadComplete && uploader._uploadSpotAvailable();
 };
 
 // This checks to see which chunks are uploading and returns true if there is room
@@ -510,9 +513,7 @@ bs3u.Uploader.prototype._chunkUploadsInProgress = function() {
 
   for (var chunkNumber in uploader._chunks) {
     chunk = uploader._chunks[chunkNumber];
-    if (chunk.uploading === true) {
-      count += 1;
-    }
+    if (chunk.uploading === true) { count += 1; }
   }
 
   return count;
@@ -595,10 +596,8 @@ bs3u.Uploader.prototype._calculateOptimalConcurrentChunks = function(time, initi
   var timeout = 900000; // 15 mins
   uploader.logger.log("Calculated average upload speed is " + speed + " KB/s");
   var chunkSize = uploader.settings.chunkSize;
-  // Needed speed to upload a single chunk within the signature timeout
   var neededSpeed = (chunkSize / timeout);
   var count = parseInt((speed / neededSpeed), 10);
-
   return Math.max(Math.min(count, initialMaxChunks), 1);
 };
 
