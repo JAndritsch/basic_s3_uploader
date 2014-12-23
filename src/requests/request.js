@@ -7,6 +7,7 @@ bs3u.Request = function(settings, callbacks) {
   this.headers   = null;
   this.utils     = new bs3u.Utils(settings);
   this.xhrs      = [];
+  this.logger    = new bs3u.Logger(settings);
 };
 
 // public
@@ -73,9 +74,8 @@ bs3u.Request.prototype._callS3 = function(url, method, params, body) {
   });
 
   ajax.onSuccess(function(response) {
-    // change to logger.log later
     if (body && body.size) {
-      console.log("Superfluous logging of body size to keep body from getting GCed", body.size);
+      self.logger.log("Superfluous logging of body size to keep body from getting GCed", body.size);
       body = undefined;
     }
     self._success(response);

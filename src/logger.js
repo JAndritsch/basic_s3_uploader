@@ -1,6 +1,6 @@
 bs3u.Logger = function(settings) {
   this.settings = settings;
-}
+};
 
 bs3u.Logger.prototype.log = function(msg, object) {
   msg = "[BasicS3Uploader] " + msg;
@@ -11,4 +11,4 @@ bs3u.Logger.prototype.log = function(msg, object) {
       console.debug(msg);
     }
   }
-}
+};

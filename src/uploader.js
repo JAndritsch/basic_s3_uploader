@@ -150,7 +150,7 @@ bs3u.Uploader.prototype.startUpload = function() {
     return;
   }
 
-  utils.validateFileIsReadable(function(valid) {
+  utils.validateFileIsReadable(uploader.file, function(valid) {
     if (valid) {
       uploader._createChunks();
       uploader._notifyUploadStarted();
@@ -701,7 +701,7 @@ bs3u.Uploader.prototype._notifyUploadCancelled = function() {
 bs3u.Uploader.prototype.errors = {
   // code: description
   0: "The file could not be uploaded because it exceeds the maximum file size allowed.",
-  1: "The file could not be uploaded because it cannot be read",
+  1: "The file could not be uploaded because it cannot be read.",
   2: "Max number of retries have been met. Unable to initiate an upload request!",
   3: "Max number of retries have been met. Upload of chunk has failed!",
   4: "Max number of retries have been met. Unable to verify all chunks have uploaded!",
