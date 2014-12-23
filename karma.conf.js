@@ -13,6 +13,7 @@ module.exports = function(config) {
       'src/bs3u.js',
       'src/ajax.js',
       'src/utils.js',
+      'src/logger.js',
       'src/requests/request.js',
       'src/requests/initiate_upload.js',
       'src/requests/upload_part.js',

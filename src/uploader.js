@@ -5,10 +5,14 @@ bs3u.Uploader = function(file, settings) {
   uploader._requests      = [];
   uploader._chunkRequests = {};
   uploader._chunkProgress = {};
-
+  uploader.logger         = new bs3u.Logger(settings);
+  uploader.READY          = 0;
+  uploader.UPLOADING      = 1;
+  uploader.COMPLETE       = 2;
+  uploader.CANCELED       = 3;
+  uploader.FAILED         = 4;
   uploader._configureUploader(settings);
   uploader._notifyUploaderReady();
-  uploader._setReady();
 };
 
 // Configure the uploader using the provided settings or sensible defaults.
@@ -133,18 +137,16 @@ bs3u.Uploader.prototype.startUpload = function() {
 
   var utils = new bs3u.Utils(uploader.settings);
 
-  uploader._log("startUpload called");
+  uploader.logger.log("startUpload called");
 
   if (uploader._isUploading()) {
-    uploader._log("Uploader is already running.");
+    uploader.logger.log("Uploader is already running.");
     return;
   }
 
   if (uploader.file.size > uploader.settings.maxFileSize) {
     var errorCode = 0;
-    uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
-    uploader._setFailed();
-    uploader._log("Uploader error: ", uploader.errors[errorCode]);
+    uploader._uploadFailed(errorCode);
     return;
   }
 
@@ -152,44 +154,13 @@ bs3u.Uploader.prototype.startUpload = function() {
     if (valid) {
       uploader._createChunks();
       uploader._notifyUploadStarted();
-      uploader._setUploading();
       uploader._initiateUpload();
     } else {
       var errorCode = 1;
-      uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
-      uploader._setFailed();
-      uploader._log("Uploader error: ", uploader.errors[errorCode]);
+      uploader._uploadFailed(errorCode);
     }
   });
 
-};
-
-bs3u.Uploader.prototype._initiateUpload = function() {
-  var uploader = this;
-  var initiateUploadRequest = new bs3u.InitiateUploadRequest(uploader.settings, {
-    onSuccess: function(uploadId) {
-      uploader._uploadId = uploadId;
-      uploader._startBandwidthMonitor();
-      uploader._startCompleteWatcher();
-    },
-    onRetry: function(response, attempts) {
-      uploader._log("Retry initiateUploadRequest");
-      var data = {
-        action: "initiateUploadRequest",
-        xhr: response
-      };
-      uploader._notifyUploadRetry(attempts, data);
-    },
-    onRetriesExhausted: function(response) {
-      uploader._notifyUploadError("errorCode", "errorMessage");
-      uploader._setFailed();
-      uploader._log("Uploader error!", "errorMessage");
-      uploader._abortAllRequests();
-    }
-  });
-
-  uploader._requests.push(initiateUploadRequest);
-  initiateUploadRequest.start();
 };
 
 // Cancels all XHR requests.
@@ -201,24 +172,9 @@ bs3u.Uploader.prototype.cancelUpload = function() {
     return;
   }
 
-  uploader._log("Aborting upload");
+  uploader.logger.log("Aborting upload");
   uploader._abortAllRequests();
   uploader._notifyUploadCancelled();
-  uploader._setCancelled();
-};
-
-bs3u.Uploader.prototype._abortAllRequests = function() {
-  var uploader = this;
-
-  uploader._log("Aborting all requests");
-
-  for (var index in uploader._requests) {
-    uploader._requests[index].stop();
-  }
-
-  for (var chunk in uploader._chunkRequests) {
-    uploader._chunkRequests[chunk].stop();
-  }
 };
 
 // Slices up the file into chunks, storing the startRange and endRange of each chunk on the uploader
@@ -227,7 +183,7 @@ bs3u.Uploader.prototype._createChunks = function() {
   var uploader = this;
   var chunks = {};
 
-  uploader._log("Slicing up file into chunks");
+  uploader.logger.log("Slicing up file into chunks");
 
   var chunkSize = Math.min(uploader.settings.chunkSize, uploader.file.size);
   var totalChunks = Math.ceil(uploader.file.size / chunkSize);
@@ -257,7 +213,134 @@ bs3u.Uploader.prototype._createChunks = function() {
     }
   }
   uploader._chunks = chunks;
-  uploader._log("Total chunks to upload:", Object.keys(chunks).length);
+  uploader.logger.log("Total chunks to upload:", Object.keys(chunks).length);
+};
+
+
+bs3u.Uploader.prototype._initiateUpload = function() {
+  var uploader = this;
+  var initiateUploadRequest = new bs3u.InitiateUploadRequest(uploader.settings, {
+    onSuccess: function(uploadId) {
+      uploader._uploadId = uploadId;
+      uploader._startBandwidthMonitor();
+      uploader._startCompleteWatcher();
+    },
+    onRetry: function(response, attempts) {
+      uploader.logger.log("Retry initiateUploadRequest");
+      var data = {
+        action: "initiateUploadRequest",
+        xhr: response
+      };
+      uploader._notifyUploadRetry(attempts, data);
+    },
+    onRetriesExhausted: function(response) {
+      var errorCode = 2;
+      uploader._uploadFailed(errorCode);
+    }
+  });
+
+  uploader._requests.push(initiateUploadRequest);
+  initiateUploadRequest.start();
+};
+
+// Uploads a single chunk to S3.
+bs3u.Uploader.prototype._uploadChunk = function(number) {
+  var uploader = this;
+  var chunk = uploader._chunks[number];
+
+  var uploadPartRequest = new bs3u.UploadPartRequest(uploader._uploadId, number, chunk, uploader.file, uploader.settings, {
+    onSuccess: function(eTag) {
+      var totalChunks = Object.keys(uploader._chunks).length;
+      chunk.uploading = false;
+      chunk.uploadComplete = true;
+      uploader.logger.log("Chunk " + number +  " has finished uploading");
+      uploader._notifyChunkUploaded(number, totalChunks);
+      if (eTag && eTag.length > 0) { chunk.eTag = eTag; }
+    },
+    onProgress: function(response) {
+      uploader._uploadChunkProgress(response, number);
+    },
+    onRetry: function(response, attempts) {
+      uploader.logger.log("Retry uploadPartRequest");
+      var data = {
+        action: "initiateUploadRequest",
+        xhr: response,
+        chunkNumber: number,
+        chunk: chunk,
+      };
+      uploader._notifyUploadRetry(attempts, data);
+    },
+    onRetriesExhausted: function(response) {
+      var errorCode = 3;
+      uploader._uploadFailed(errorCode);
+    }
+  });
+
+  uploadPartRequest.start();
+  uploader._chunkRequests[number] = uploadPartRequest;
+};
+
+// Calls the S3 "List chunks" API and compares the result to the chunks the uploader
+// sent. If any chunk is invalid (missing eTag, invalid size, different number of chunks)
+// then the uploader attempts to re-upload that chunk.
+bs3u.Uploader.prototype._verifyAllChunksUploaded = function(retries) {
+  var uploader = this;
+  var listPartsRequest = new bs3u.ListPartsRequest(uploader._uploadId, uploader.settings, {
+    onSuccess: function(parts) {
+      var totalParts = Object.keys(uploader._chunks).length;
+      var invalidParts = uploader._collectInvalidChunks(parts);
+      if (totalParts != parts.length) {
+        uploader.logger.log("Some chunks are missing. Attempting to re-upload them.");
+        uploader._handleMissingChunks(parts);
+      } else if (invalidParts.length > 0) {
+        uploader.logger.log("Some chunks are invalid. Attempting to re-upload them.");
+        uploader._handleInvalidChunks(invalidParts);
+      } else {
+        uploader.logger.log("All chunks have been uploaded");
+        uploader._completeUpload();
+      }
+    },
+    onRetry: function(response, attempts) {
+      uploader.logger.log("Retry listPartsRequest");
+      var data = {
+        action: "initiateUploadRequest",
+        xhr: response,
+      };
+      uploader._notifyUploadRetry(attempts, data);
+    },
+    onRetriesExhausted: function(response) {
+      var errorCode = 4;
+      uploader._uploadFailed(errorCode);
+    }
+  });
+  uploader._requests.push(listPartsRequest);
+  listPartsRequest.start();
+};
+
+// Completes the multipart upload, effectively assembling all chunks together
+// into one file.
+bs3u.Uploader.prototype._completeUpload = function() {
+  var uploader = this;
+  var completeUploadRequest = new bs3u.CompleteUploadRequest(uploader._uploadId, uploader._chunks, uploader.settings, {
+    onSuccess: function(location) {
+      uploader._notifyUploadComplete(location);
+      uploader._abortAllRequests();
+    },
+    onRetry: function(response, attempts) {
+      uploader.logger.log("Retry completeUploadRequest");
+      var data = {
+        action: "completeUploadRequest",
+        xhr: response,
+      };
+      uploader._notifyUploadRetry(attempts, data);
+    },
+    onRetriesExhausted: function(response) {
+      var errorCode = 5;
+      uploader._uploadFailed(errorCode);
+    }
+  });
+  completeUploadRequest.start();
+  uploader._requests.push(completeUploadRequest);
 };
 
 // Iterate over all chunks and start all uploads simultaneously
@@ -282,34 +365,55 @@ bs3u.Uploader.prototype._uploadSpotAvailable = function() {
   return uploader._chunkUploadsInProgress() < uploader.settings.maxConcurrentChunks;
 };
 
-// Uploads a single chunk to S3.
-bs3u.Uploader.prototype._uploadChunk = function(number) {
+bs3u.Uploader.prototype._abortAllRequests = function() {
+  var uploader = this;
+
+  uploader.logger.log("Aborting all requests");
+
+  for (var index in uploader._requests) {
+    uploader._requests[index].stop();
+  }
+
+  for (var chunk in uploader._chunkRequests) {
+    uploader._chunkRequests[chunk].stop();
+  }
+};
+
+bs3u.Uploader.prototype._abortChunkUpload = function(number) {
   var uploader = this;
   var chunk = uploader._chunks[number];
+  var xhr = uploader._chunkRequests[number];
 
-  var uploadPartRequest = new bs3u.UploadPartRequest(uploader._uploadId, number, chunk, uploader.file, uploader.settings, {
-    onSuccess: function(eTag) {
-      var totalChunks = Object.keys(uploader._chunks).length;
-      chunk.uploading = false;
-      chunk.uploadComplete = true;
-      uploader._log("Chunk " + number +  " has finished uploading");
-      uploader._notifyChunkUploaded(number, totalChunks);
-      if (eTag && eTag.length > 0) { chunk.eTag = eTag; }
-    },
-    onProgress: function(response) {
-      uploader._uploadChunkProgress(response, number);
-    },
-    onRetry: function(response, attempts) {
-      // notify about retry
-    },
-    onRetriesExhausted: function(response) {
-      // set failed status and stop all requests
-    }
-  });
-
-  uploadPartRequest.start();
-  uploader._chunkRequests[number] = uploadPartRequest;
+  if (chunk.uploading === true && xhr) {
+    uploader.logger.log("Cancelling the upload for chunk ", number);
+    xhr.stop();
+  }
 };
+
+// Since none of the XHR requests are configured with a timeout, we need to
+// monitor each chunk upload request and evaluate if the request has bombed out
+// (no progress reported in 30sec). When this happens, we can abort the chunk
+// upload and mark it for a retry.
+bs3u.Uploader.prototype._abortTimedOutRequests = function() {
+  var uploader = this;
+  var currentTime = new Date().getTime();
+  var chunkProgressTime, xhr, chunk;
+
+  for (var index in uploader._chunkRequests) {
+    chunk = uploader._chunks[index];
+    if (chunk.uploading && !chunk.uploadComplete) {
+      xhr = uploader._chunkRequests[index];
+      chunkProgressTime = xhr.lastProgressAt;
+      if ((currentTime - chunkProgressTime) > 30000) {
+        uploader.logger.log("No progress has been reported within 30 seconds for chunk " + index);
+        uploader._abortChunkUpload(index);
+        chunk.uploading = false;
+        chunk.uploadComplete = false;
+      }
+    }
+  }
+};
+
 
 // The progress callback for a single chunk
 bs3u.Uploader.prototype._uploadChunkProgress = function(response, number) {
@@ -319,38 +423,6 @@ bs3u.Uploader.prototype._uploadChunkProgress = function(response, number) {
   uploader._notifyUploadProgress();
 };
 
-// Calls the S3 "List chunks" API and compares the result to the chunks the uploader
-// sent. If any chunk is invalid (missing eTag, invalid size, different number of chunks)
-// then the uploader attempts to re-upload that chunk.
-bs3u.Uploader.prototype._verifyAllChunksUploaded = function(retries) {
-  var uploader = this;
-  var listPartsRequest = new bs3u.ListPartsRequest(uploader._uploadId, uploader.settings, {
-    onSuccess: function(parts) {
-      var totalParts = Object.keys(uploader._chunks).length;
-      var invalidParts = uploader._collectInvalidChunks(parts);
-      if (totalParts != parts.length) {
-        uploader._log("Some chunks are missing. Attempting to re-upload them.");
-        uploader._handleMissingChunks(parts);
-      } else if (invalidParts.length > 0) {
-        uploader._log("Some chunks are invalid. Attempting to re-upload them.");
-        uploader._handleInvalidChunks(invalidParts);
-      } else {
-        uploader._log("All chunks have been uploaded");
-        uploader._completeUpload();
-      }
-    },
-    onRetry: function(response, attempts) {
-      // notify about retry
-    },
-    onRetriesExhausted: function(response) {
-      // show failed notification
-      // set failed
-      // kill all requests
-    }
-  });
-  uploader._requests.push(listPartsRequest);
-  listPartsRequest.start();
-};
 
 bs3u.Uploader.prototype._collectInvalidChunks = function(parts) {
   var uploader = this;
@@ -367,7 +439,7 @@ bs3u.Uploader.prototype._collectInvalidChunks = function(parts) {
     var expectedSize = uploadedChunk.endRange - uploadedChunk.startRange;
 
     if (!uploadedChunk || eTag != uploadedChunk.eTag || size != expectedSize) {
-      uploader._log('About to add chunk ' + number + ' to the invalidParts.');
+      uploader.logger.log('About to add chunk ' + number + ' to the invalidParts.');
       invalidParts.push(number);
       // ensure that uploadComplete has the correct value (see _uploadChunks)
       uploadedChunk.uploadComplete = false;
@@ -418,27 +490,6 @@ bs3u.Uploader.prototype._handleMissingChunks = function(chunksFromS3) {
   uploader._pauseCompleteWatcher = false;
 };
 
-// Completes the multipart upload, effectively assembling all chunks together
-// into one file.
-bs3u.Uploader.prototype._completeUpload = function() {
-  var uploader = this;
-  var completeUploadRequest = new bs3u.CompleteUploadRequest(uploader._uploadId, uploader._chunks, uploader.settings, {
-    onSuccess: function(location) {
-      uploader._notifyUploadComplete(location);
-      uploader._setComplete();
-      uploader._abortAllRequests();
-    },
-    onRetry: function(response, attempts) {
-      // notify about retry
-    },
-    onRetriesExhausted: function(response) {
-      // set failed status and stop all requests
-    }
-  });
-  completeUploadRequest.start();
-  uploader._requests.push(completeUploadRequest);
-};
-
 // Returns true if we have an eTag for every chunk
 bs3u.Uploader.prototype._allETagsAvailable = function() {
   var uploader = this;
@@ -467,38 +518,14 @@ bs3u.Uploader.prototype._chunkUploadsInProgress = function() {
   return count;
 };
 
-// Since none of the XHR requests are configured with a timeout, we need to
-// monitor each chunk upload request and evaluate if the request has bombed out
-// (no progress reported in 30sec). When this happens, we can abort the chunk
-// upload and mark it for a retry.
-bs3u.Uploader.prototype._abortTimedOutRequests = function() {
-  var uploader = this;
-  var currentTime = new Date().getTime();
-  var chunkProgressTime, xhr, chunk;
-
-  for (var index in uploader._chunkRequests) {
-    chunk = uploader._chunks[index];
-    if (chunk.uploading && !chunk.uploadComplete) {
-      xhr = uploader._chunkRequests[index];
-      chunkProgressTime = xhr.lastProgressAt;
-      if ((currentTime - chunkProgressTime) > 30000) {
-        uploader._log("No progress has been reported within 30 seconds for chunk " + index);
-        uploader._abortChunkUpload(index);
-        chunk.uploading = false;
-        chunk.uploadComplete = false;
-      }
-    }
-  }
-};
-
 // Monitors chunk uploads and attempts to complete the upload
 bs3u.Uploader.prototype._startCompleteWatcher = function() {
   var uploader = this;
-  uploader._log("Starting the complete watcher interval");
+  uploader.logger.log("Starting the complete watcher interval");
 
   var id = setInterval(function() {
     if (!uploader._isUploading()) {
-      uploader._log("Stopping the complete watcher interval");
+      uploader.logger.log("Stopping the complete watcher interval");
       clearInterval(id);
       return;
     }
@@ -529,7 +556,7 @@ bs3u.Uploader.prototype._startCompleteWatcher = function() {
 // chunks will be added from the "complete watcher".
 bs3u.Uploader.prototype._startBandwidthMonitor = function() {
   var uploader = this;
-  uploader._log("Starting bandwidth monitor");
+  uploader.logger.log("Starting bandwidth monitor");
   var initialMaxChunks = uploader.settings.maxConcurrentChunks;
   var monitorStartTime = new Date().getTime();
   var newConcurrentChunks;
@@ -537,18 +564,18 @@ bs3u.Uploader.prototype._startBandwidthMonitor = function() {
   // calculate the number of possible concurrent chunks based on upload speed.
   var id = setInterval(function(){
     if (!uploader._isUploading()) {
-      uploader._log("Stopping the bandwidth monitor");
+      uploader.logger.log("Stopping the bandwidth monitor");
       clearInterval(id);
       return;
     }
 
     newConcurrentChunks = uploader._calculateOptimalConcurrentChunks(monitorStartTime, initialMaxChunks);
-    uploader._log("Optimal concurrent chunks for connection is ", newConcurrentChunks);
-    uploader._log("Number of concurrent uploads in progress is ", uploader._chunkUploadsInProgress());
+    uploader.logger.log("Optimal concurrent chunks for connection is ", newConcurrentChunks);
+    uploader.logger.log("Number of concurrent uploads in progress is ", uploader._chunkUploadsInProgress());
     uploader.settings.maxConcurrentChunks = newConcurrentChunks;
 
     if (newConcurrentChunks < uploader._chunkUploadsInProgress()) {
-      uploader._log("There are more concurrent uploads than your connection can support. Stopping some XHRs.");
+      uploader.logger.log("There are more concurrent uploads than your connection can support. Stopping some XHRs.");
       for (var number in uploader._chunks) {
         if (uploader._chunkUploadsInProgress() > newConcurrentChunks) {
           uploader._abortChunkUpload(number);
@@ -566,24 +593,13 @@ bs3u.Uploader.prototype._calculateOptimalConcurrentChunks = function(time, initi
   var loaded = uploader._calculateUploadProgress();
   var speed = parseInt(loaded / (new Date().getTime() - time), 10);
   var timeout = 900000; // 15 mins
-  uploader._log("Calculated average upload speed is " + speed + " KB/s");
+  uploader.logger.log("Calculated average upload speed is " + speed + " KB/s");
   var chunkSize = uploader.settings.chunkSize;
   // Needed speed to upload a single chunk within the signature timeout
   var neededSpeed = (chunkSize / timeout);
   var count = parseInt((speed / neededSpeed), 10);
 
   return Math.max(Math.min(count, initialMaxChunks), 1);
-};
-
-bs3u.Uploader.prototype._abortChunkUpload = function(number) {
-  var uploader = this;
-  var chunk = uploader._chunks[number];
-  var xhr = uploader._chunkRequests[number];
-
-  if (chunk.uploading === true && xhr) {
-    uploader._log("Cancelling the upload for chunk ", number);
-    xhr.stop();
-  }
 };
 
 bs3u.Uploader.prototype._calculateUploadProgress = function() {
@@ -595,63 +611,28 @@ bs3u.Uploader.prototype._calculateUploadProgress = function() {
   return loaded;
 };
 
-// State-related methods
-bs3u.Uploader.prototype._setReady = function() {
+bs3u.Uploader.prototype._uploadFailed = function(errorCode) {
   var uploader = this;
-  uploader._status = "ready";
-};
-
-bs3u.Uploader.prototype._isReady = function() {
-  var uploader = this;
-  return uploader._status == "ready";
-};
-
-bs3u.Uploader.prototype._setUploading = function() {
-  var uploader = this;
-  uploader._status = "uploading";
+  uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
+  uploader.logger.log("Uploader error!", "errorMessage");
+  uploader._abortAllRequests();
 };
 
 bs3u.Uploader.prototype._isUploading = function() {
   var uploader = this;
-  return uploader._status == "uploading";
-};
-
-bs3u.Uploader.prototype._setComplete = function() {
-  var uploader = this;
-  uploader._status = "complete";
-};
-
-bs3u.Uploader.prototype._isComplete = function() {
-  var uploader = this;
-  return uploader._status == "complete";
-};
-
-bs3u.Uploader.prototype._setCancelled = function() {
-  var uploader = this;
-  uploader._status = "cancelled";
-};
-
-bs3u.Uploader.prototype._isCancelled = function() {
-  var uploader = this;
-  return uploader._status == "cancelled";
-};
-
-bs3u.Uploader.prototype._setFailed = function() {
-  var uploader = this;
-  uploader._status = "failed";
-  // stop any outstanding XHR requests
-  uploader._abortAllRequests();
+  return uploader._status == uploader.UPLOADING;
 };
 
 bs3u.Uploader.prototype._isFailed = function() {
   var uploader = this;
-  return uploader._status == "failed";
+  return uploader._status == uploader.FAILED;
 };
 
 // Notification that the uploader is initialized. Calls the user-defined "onReady"
 // method.
 bs3u.Uploader.prototype._notifyUploaderReady = function() {
   var uploader = this;
+  uploader._status = uploader.READY;
   uploader.settings.onReady.call(uploader);
 };
 
@@ -659,6 +640,7 @@ bs3u.Uploader.prototype._notifyUploaderReady = function() {
 // onStart method.
 bs3u.Uploader.prototype._notifyUploadStarted = function() {
   var uploader = this;
+  uploader._status = uploader.UPLOADING;
   uploader.settings.onStart.call(uploader);
 };
 
@@ -685,6 +667,7 @@ bs3u.Uploader.prototype._notifyChunkUploaded = function(chunkNumber, totalChunks
 // the user-defined onComplete method.
 bs3u.Uploader.prototype._notifyUploadComplete = function(location) {
   var uploader = this;
+  uploader._status = uploader.COMPLETE;
   uploader.settings.onComplete.call(uploader, location);
 };
 
@@ -695,6 +678,7 @@ bs3u.Uploader.prototype._notifyUploadError = function(errorCode, description) {
   // If the uploader has already been set to failed, this message has already been
   // sent so we will want to prevent duplicate publishes of this event.
   if (!uploader._isFailed()) {
+    uploader._status = uploader.FAILED;
     uploader.settings.onError.call(uploader, errorCode, description);
   }
 };
@@ -710,18 +694,8 @@ bs3u.Uploader.prototype._notifyUploadRetry = function(attempt, data) {
 // method.
 bs3u.Uploader.prototype._notifyUploadCancelled = function() {
   var uploader = this;
+  uploader._status = uploader.CANCELED;
   uploader.settings.onCancel.call(uploader);
-};
-
-bs3u.Uploader.prototype._log = function(msg, object) {
-  msg = "[BasicS3Uploader] " + msg;
-  if (this.settings.log && console && console.debug) {
-    if (object) {
-      console.debug(msg, object);
-    } else {
-      console.debug(msg);
-    }
-  }
 };
 
 bs3u.Uploader.prototype.errors = {
@@ -732,8 +706,6 @@ bs3u.Uploader.prototype.errors = {
   3: "Max number of retries have been met. Upload of chunk has failed!",
   4: "Max number of retries have been met. Unable to verify all chunks have uploaded!",
   5: "Max number of retries have been met. Unable to complete multipart upload!",
-
 };
 
-// For backwards compatibility
 var BasicS3Uploader = bs3u.Uploader;
