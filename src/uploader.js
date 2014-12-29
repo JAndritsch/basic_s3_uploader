@@ -1055,18 +1055,21 @@ bs3u.Uploader.prototype._chunkUploadsInProgress = function() {
 bs3u.Uploader.prototype._abortTimedOutRequests = function() {
   var uploader = this;
   var currentTime = new Date().getTime();
-  var chunkProgressTime, xhr, chunk;
+  var chunkProgressTime, ajax, chunk, readyState, ajaxInProgress;
 
   for (var index in uploader._chunkXHRs) {
     chunk = uploader._chunks[index];
     if (chunk.uploading && !chunk.uploadComplete) {
-      xhr = uploader._chunkXHRs[index];
-      chunkProgressTime = xhr.lastProgressAt;
-      if ((currentTime - chunkProgressTime) > 30000) {
+
+      ajax = uploader._chunkXHRs[index];
+      readyState = ajax.xhr.readyState;
+      chunkProgressTime = ajax.lastProgressAt;
+
+      ajaxInProgress = (readyState == 2 || readyState == 3);
+
+      if (ajaxInProgress && (currentTime - chunkProgressTime) > 30000) {
         uploader._log("No progress has been reported within 30 seconds for chunk " + index);
         uploader._abortChunkUpload(index);
-        chunk.uploading = false;
-        chunk.uploadComplete = false;
       }
     }
   }
@@ -1133,8 +1136,6 @@ bs3u.Uploader.prototype._startBandwidthMonitor = function() {
       for (var number in uploader._chunks) {
         if (uploader._chunkUploadsInProgress() > newConcurrentChunks) {
           uploader._abortChunkUpload(number);
-          uploader._chunks[number].uploading = false;
-          uploader._chunks[number].uploadComplete = false;
         }
       }
     }
@@ -1158,12 +1159,15 @@ bs3u.Uploader.prototype._calculateOptimalConcurrentChunks = function(time, initi
 
 bs3u.Uploader.prototype._abortChunkUpload = function(number) {
   var uploader = this;
-  var chunk = uploader._chunks[number];
   var xhr = uploader._chunkXHRs[number];
+  var chunk = uploader._chunks[number];
 
-  if (chunk.uploading === true && xhr) {
+  if (xhr) {
     uploader._log("Cancelling the upload for chunk ", number);
     xhr.abort();
+    xhr.lastProgressAt = null;
+    chunk.uploading = false;
+    chunk.uploadComplete = false;
   }
 };
 

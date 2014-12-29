@@ -2719,7 +2719,7 @@ describe("bs3u.Uploader", function() {
 
   describe("_abortTimedOutRequests", function() {
     var mockFile, mockSettings, uploader, chunkXHROne, chunkXHRTwo,
-    chunkXHRThree;
+    chunkXHRThree, chunkXHRThreeFour, chunkXHRFive;
 
     beforeEach(function() {
       mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
@@ -2728,26 +2728,53 @@ describe("bs3u.Uploader", function() {
 
       chunkXHROne = {
         lastProgressAt: 80000,
+        xhr: {
+          readyState: 2,
+        }
       };
 
       chunkXHRTwo = {
         lastProgressAt: 30000,
+        xhr: {
+          readyState: 3,
+        }
       };
 
       chunkXHRThree = {
         lastProgressAt: 0,
+        xhr: {
+          readyState: 1,
+        }
+      };
+
+      chunkXHRFour = {
+        lastProgressAt: 30000,
+        xhr: {
+          readyState: 0,
+        }
+      };
+
+      chunkXHRFive = {
+        lastProgressAt: 30000,
+        xhr: {
+          readyState: 4,
+        }
       };
 
       uploader._chunkXHRs = {
         1: chunkXHROne,
         2: chunkXHRTwo,
         3: chunkXHRThree,
+        4: chunkXHRFour,
+        5: chunkXHRFive,
       };
 
       uploader._chunks = {
         1: { uploading: true, uploadComplete: false },
         2: { uploading: true, uploadComplete: false },
         3: { uploading: false, uploadComplete: false },
+        4: { uploading: true, uploadComplete: false },
+        5: { uploading: true, uploadComplete: false },
       };
       spyOn(uploader, '_abortChunkUpload');
       spyOn(window, 'Date').and.returnValue({
@@ -2758,17 +2785,6 @@ describe("bs3u.Uploader", function() {
     it("stops any chunks that have not reported progress within 30 seconds", function() {
       expect(uploader._abortChunkUpload).toHaveBeenCalledWith('2');
       expect(uploader._abortChunkUpload.calls.count()).toEqual(1);
-    });
-
-    it("flags any chunks that have not reported progress within 30 seconds for another retry", function() {
-      expect(uploader._chunks[1].uploading).toBeTruthy();
-      expect(uploader._chunks[1].uploadComplete).toBeFalsy();
-
-      expect(uploader._chunks[2].uploading).toBeFalsy();
-      expect(uploader._chunks[2].uploadComplete).toBeFalsy();
-
-      expect(uploader._chunks[3].uploading).toBeFalsy();
-      expect(uploader._chunks[3].uploadComplete).toBeFalsy();
     });
   });
 
@@ -2974,6 +2990,11 @@ describe("bs3u.Uploader", function() {
 
     it("aborts the chunk's XHR", function() {
       expect(abortSpy).toHaveBeenCalled();
+    });
+
+    it("sets the uploading and uploadComplete statuses to false", function() {
+      expect(uploader._chunks[1].uploding).toBeFalsy();
+      expect(uploader._chunks[1].uplodComplete).toBeFalsy();
     });
   });
 
