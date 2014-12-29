@@ -13,6 +13,7 @@ module.exports = function(grunt) {
       'src/*.js',
       'src/requests/*.js',
       'spec/*.js',
+      'spec/requests/*.js',
     ]
   });
 
@@ -45,6 +46,7 @@ module.exports = function(grunt) {
       'src/*.js',
       'src/requests/*.js',
       'spec/*.js',
+      'spec/requests/*.js',
     ],
     tasks: ['test']
   });

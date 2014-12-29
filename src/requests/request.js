@@ -5,8 +5,8 @@ bs3u.Request = function(settings, callbacks) {
   this.callbacks = callbacks; // onSuccess, onRetry, onRetriesExhausted, onProgress
   this.attempts  = 0;
   this.headers   = null;
-  this.utils     = new bs3u.Utils(settings);
   this.xhrs      = [];
+  this.utils     = new bs3u.Utils(settings);
   this.logger    = new bs3u.Logger(settings);
 };
 

@@ -20,8 +20,8 @@ module.exports = function(config) {
       'src/requests/list_parts.js',
       'src/requests/complete_upload.js',
       'src/uploader.js',
-      'spec/ajax_spec.js',
-      'spec/uploader_spec.js',
+      'spec/*.js',
+      'spec/requests/*.js',
     ],
 
     // test results reporter to use
