@@ -15,11 +15,7 @@ bs3u.Request = function(settings, callbacks) {
 // The main method to invoke. Requires the caller to have defined the 'callS3',
 // 'getHeaders', and 'success' methods.
 bs3u.Request.prototype.start = function() {
-  if (this.headers) {
-    this.callS3();
-  } else {
-    this.getHeaders();
-  }
+  this.getHeaders();
 };
 
 bs3u.Request.prototype.stop = function() {
@@ -52,9 +48,7 @@ bs3u.Request.prototype._getHeaders = function(url, params, payload) {
 
     ajax.onSuccess(function(response) {
       self.headers = JSON.parse(response.target.responseText);
-      // Call the start method again after we set headers to the child class
-      // can correctly call S3.
-      self.start();
+      self.callS3();
     });
 
     ajax.onError(function(response) { self._retry(response); });
