@@ -390,7 +390,7 @@ bs3u.Uploader.prototype._abortChunkUpload = function(number) {
   if (xhr) {
     uploader.logger.log("Cancelling the upload for chunk ", number);
     xhr.stop();
-    xhr.lastProgressAt = null
+    xhr.lastProgressAt = null;
     chunk.uploading = false;
     chunk.uploadComplete = false;
   }
