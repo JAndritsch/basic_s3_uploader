@@ -274,4 +274,109 @@ describe("bs3u.Request", function() {
 
   });
 
+  describe("_success", function() {
+    var response;
+
+    describe("when the response code is 200", function() {
+
+      beforeEach(function() {
+        response = { target: { status: 200 } };
+        spyOn(request, 'success');
+        request._success(response);
+      });
+
+      it("calls the success method defined by the specific request", function() {
+        expect(request.success).toHaveBeenCalledWith(response);
+      });
+    });
+
+    describe("when the response code is not 200", function() {
+
+      beforeEach(function() {
+        response = { target: { status: 403 } };
+        spyOn(request, '_retry');
+        request._success(response);
+      });
+
+      it("calls _retry with the response", function() {
+        expect(request._retry).toHaveBeenCalledWith(response);
+      });
+    });
+  });
+
+  describe("_retry", function() {
+    var response;
+
+    beforeEach(function() {
+      response = {};
+      request.attempts = 0;
+      spyOn(window, 'setTimeout').and.callFake(function(callback, delay) {
+        callback();
+      });
+      spyOn(request, 'start');
+      spyOn(request, '_timeToWaitBeforeNextRetry').and.returnValue(1000);
+    });
+
+    describe("when a retry is available", function() {
+      beforeEach(function() {
+        spyOn(request, '_retryAvailable').and.returnValue(true);
+        request._retry(response);
+      });
+
+      it("increments the attempts counter by 1", function() {
+        expect(request.attempts).toEqual(1);
+      });
+
+      it("sets a delay before attempting the next call", function() {
+        expect(window.setTimeout).toHaveBeenCalledWith(jasmine.any(Function), 1000);
+      });
+
+      it("calls the onRetry callback with the attempts and response", function() {
+        expect(onRetrySpy).toHaveBeenCalledWith(request.attempts, response);
+      });
+
+      it("starts the request for another attempt", function() {
+        expect(request.start).toHaveBeenCalled();
+      });
+    });
+
+    describe("when retries have been exhausted", function() {
+      beforeEach(function() {
+        spyOn(request, '_retryAvailable').and.returnValue(false);
+        request._retry(response);
+      });
+
+      it("calls the onRetriesExhausted callback with the response", function() {
+        expect(onRetriesExhaustedSpy).toHaveBeenCalledWith(response);
+      });
+    });
+
+  });
+
+  describe("_retryAvailable", function() {
+    it("returns true if the number of current attempts is less than the maxRetries setting", function() {
+      request.attempts = 0;
+      expect(request._retryAvailable()).toBeTruthy();
+    });
+
+    it("returns false if the number of current attempts equal to the maxRetries setting", function() {
+      request.attempts = request.settings.maxRetries;
+      expect(request._retryAvailable()).toBeFalsy();
+    });
+
+    // should never really happen
+    it("returns false if the number of current attempts exceeds the maxRetries setting", function() {
+      request.attempts = request.settings.maxRetries + 1;
+      expect(request._retryAvailable()).toBeFalsy();
+    });
+  });
+
+  describe("_timeToWaitBeforeNextRetry", function() {
+    it("returns the number of attempts multiplied by the retryWaitTime setting", function() {
+      request.settings.retryWaitTime = 5000;
+      request.attempts = 5;
+      expect(request._timeToWaitBeforeNextRetry()).toEqual(25000);
+    });
+  });
+
 });

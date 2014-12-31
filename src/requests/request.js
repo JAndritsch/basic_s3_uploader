@@ -103,24 +103,24 @@ bs3u.Request.prototype._success = function(response) {
 
 bs3u.Request.prototype._retry = function(response) {
   var self = this;
-  if (self.retryAvailable()) {
+  if (self._retryAvailable()) {
     self.attempts += 1;
 
     setTimeout(function() {
       self.callbacks.onRetry(self.attempts, response);
       self.start();
-    }, self.timeToWaitBeforeNextRetry());
+    }, self._timeToWaitBeforeNextRetry());
 
   } else {
     self.callbacks.onRetriesExhausted(response);
   }
 };
 
-bs3u.Request.prototype.retryAvailable = function() {
-  return self.attempts < this.settings.maxRetries;
+bs3u.Request.prototype._retryAvailable = function() {
+  return this.attempts < this.settings.maxRetries;
 };
 
-bs3u.Request.prototype.timeToWaitBeforeNextRetry = function() {
-  return this.settings.retryWaitTime * self.attempts;
+bs3u.Request.prototype._timeToWaitBeforeNextRetry = function() {
+  return this.settings.retryWaitTime * this.attempts;
 };
 
