@@ -23,6 +23,7 @@ describe("bs3u.UploadPartRequest", function() {
     };
     mockFileReader = {
       readAsArrayBuffer: function(blob) {
+        this.result = "blob contents";
         this.onloadend();
       }
     };
@@ -56,6 +57,58 @@ describe("bs3u.UploadPartRequest", function() {
     it("inherits from bs3u.Request", function() {
       expect(request.start).toBeDefined();
     });
+  });
+
+  describe("getHeaders", function() {
+    beforeEach(function() {
+      spyOn(request, "_getHeaders");
+    });
+
+    it("properly configures the url, params, and payload for _getHeaders", function() {
+      var expectedUrl = "/signatures/get_chunk_headers";
+      var expectedParams = {
+        key: "my-upload-key",
+        content_type: "quicktime/mov",
+        region: "us-east-1",
+        upload_id: "some-upload-id",
+        part_number: 1,
+        host: "bucket.s3-us-east-1.amazonaws.com"
+      };
+      var expectedPayload = "blob contents";
+      request.getHeaders();
+      expect(request._getHeaders).toHaveBeenCalledWith(expectedUrl, expectedParams, expectedPayload);
+    });
+  });
+
+  describe("callS3", function() {
+    beforeEach(function() {
+      spyOn(request, '_callS3');
+    });
+
+    it("properly configures the url, method, params, and payload for _callS3", function() {
+      var expectedUrl = "bucket.s3-us-east-1.amazonaws.com/my-upload-key";
+      var expectedMethod = "PUT";
+      var expectedParams = {
+        uploadId: uploadId,
+        partNumber: partNumber
+      };
+      var expectedBody = "blob";
+      request.callS3();
+      expect(request._callS3).toHaveBeenCalledWith(expectedUrl, expectedMethod, expectedParams, expectedBody);
+    });
+  });
+
+  describe("success", function() {
+    it("extracts the eTag from the response headers and invokes the onSuccess callback with it", function() {
+      var response = {
+        target: {
+          getResponseHeader: function(name) { return "some-eTag"; }
+        }
+      };
+      request.success(response);
+      expect(onSuccessSpy).toHaveBeenCalledWith("some-eTag");
+    });
+
   });
 
 });
