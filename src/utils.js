@@ -46,6 +46,6 @@ bs3u.Utils.prototype.validateFileIsReadable = function(file, callback) {
   }
 };
 
-bs3u.Utils.prototype.defaultHost = function(settings) {
-  return settings.protocol + settings.bucket + "." + "s3-" + settings.region + ".amazonaws.com";
+bs3u.Utils.prototype.defaultHost = function() {
+  return this.settings.protocol + this.settings.bucket + "." + "s3-" + this.settings.region + ".amazonaws.com";
 };

@@ -272,7 +272,7 @@ describe("bs3u.Uploader", function() {
 
         describe("and the file is not readable", function() {
           beforeEach(function() {
-            spyOn(uploader, '_validateFileIsReadable').and.callFake(function(isValidCallback) {
+            spyOn(uploader._utils, 'validateFileIsReadable').and.callFake(function(isValidCallback) {
               var validFile = false;
               isValidCallback(validFile);
             });
@@ -298,14 +298,13 @@ describe("bs3u.Uploader", function() {
 
         describe("and the file is readable", function() {
           beforeEach(function() {
-            spyOn(uploader, '_validateFileIsReadable').and.callFake(function(isValidCallback) {
+            spyOn(uploader._utils, 'validateFileIsReadable').and.callFake(function(isValidCallback) {
               var validFile = true;
               isValidCallback(validFile);
             });
 
             spyOn(uploader, "_createChunks");
             spyOn(uploader, "_notifyUploadStarted");
-            spyOn(uploader, "_setUploading");
 
             uploader.startUpload();
           });
@@ -319,7 +318,7 @@ describe("bs3u.Uploader", function() {
           });
 
           it("sets the uploader to an uploading state", function() {
-            expect(uploader._setUploading).toHaveBeenCalled();
+            expect(uploader._isUploading).toBeTruthy();
           });
 
           it("calls to get the init headers", function() {
@@ -2779,7 +2778,6 @@ describe("bs3u.Uploader", function() {
       mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
       mockSettings = {};
       uploader = new bs3u.Uploader(mockFile, mockSettings);
-      uploader._setUploading();
       spyOn(window, 'setInterval').and.callFake(function(callback, interval) {
         callback();
       });
@@ -2996,53 +2994,6 @@ describe("bs3u.Uploader", function() {
     });
   });
 
-  describe("_setReady", function() {
-    var mockFile, mockSettings, uploader;
-
-    beforeEach(function() {
-      mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
-      mockSettings = {};
-      uploader = new bs3u.Uploader(mockFile, mockSettings);
-      uploader._setReady();
-    });
-
-    it("sets the uploader status to 'ready'", function() {
-      expect(uploader._status).toEqual('ready');
-    });
-  });
-
-  describe("_isReady", function() {
-    var mockFile, mockSettings, uploader;
-
-    beforeEach(function() {
-      mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
-      mockSettings = {};
-      uploader = new bs3u.Uploader(mockFile, mockSettings);
-    });
-
-    it("returns true if the uploader status is 'ready'", function() {
-      uploader._status = "something";
-      expect(uploader._isReady()).toBeFalsy();
-      uploader._status = "ready";
-      expect(uploader._isReady()).toBeTruthy();
-    });
-  });
-
-  describe("_setUploading", function() {
-    var mockFile, mockSettings, uploader;
-
-    beforeEach(function() {
-      mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
-      mockSettings = {};
-      uploader = new bs3u.Uploader(mockFile, mockSettings);
-      uploader._setUploading();
-    });
-
-    it("sets the uploader status to 'uploading'", function() {
-      expect(uploader._status).toEqual('uploading');
-    });
-  });
-
   describe("_isUploading", function() {
     var mockFile, mockSettings, uploader;
 
@@ -3055,92 +3006,8 @@ describe("bs3u.Uploader", function() {
     it("returns true if the uploader status is 'uploading'", function() {
       uploader._status = "something";
       expect(uploader._isUploading()).toBeFalsy();
-      uploader._status = "uploading";
+      uploader._status = uploader.UPLOADING;
       expect(uploader._isUploading()).toBeTruthy();
-    });
-  });
-
-  describe("_setComplete", function() {
-    var mockFile, mockSettings, uploader;
-
-    beforeEach(function() {
-      mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
-      mockSettings = {};
-      uploader = new bs3u.Uploader(mockFile, mockSettings);
-      uploader._setComplete();
-    });
-
-    it("sets the uploader status to 'complete'", function() {
-      expect(uploader._status).toEqual('complete');
-    });
-  });
-
-  describe("_isComplete", function() {
-    var mockFile, mockSettings, uploader;
-
-    beforeEach(function() {
-      mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
-      mockSettings = {};
-      uploader = new bs3u.Uploader(mockFile, mockSettings);
-    });
-
-    it("returns true if the uploader status is 'uploading'", function() {
-      uploader._status = "something";
-      expect(uploader._isComplete()).toBeFalsy();
-      uploader._status = "complete";
-      expect(uploader._isComplete()).toBeTruthy();
-    });
-  });
-
-  describe("_setCancelled", function() {
-    var mockFile, mockSettings, uploader;
-
-    beforeEach(function() {
-      mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
-      mockSettings = {};
-      uploader = new bs3u.Uploader(mockFile, mockSettings);
-      uploader._setCancelled();
-    });
-
-    it("sets the uploader status to 'cancelled'", function() {
-      expect(uploader._status).toEqual('cancelled');
-    });
-  });
-
-  describe("_isCancelled", function() {
-    var mockFile, mockSettings, uploader;
-
-    beforeEach(function() {
-      mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
-      mockSettings = {};
-      uploader = new bs3u.Uploader(mockFile, mockSettings);
-    });
-
-    it("returns true if the uploader status is 'cancelled'", function() {
-      uploader._status = "something";
-      expect(uploader._isCancelled()).toBeFalsy();
-      uploader._status = "cancelled";
-      expect(uploader._isCancelled()).toBeTruthy();
-    });
-  });
-
-  describe("_setFailed", function() {
-    var mockFile, mockSettings, uploader;
-
-    beforeEach(function() {
-      mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
-      mockSettings = {};
-      uploader = new bs3u.Uploader(mockFile, mockSettings);
-      spyOn(uploader, '_abortAllXHRs');
-      uploader._setFailed();
-    });
-
-    it("sets the uploader status to 'failed'", function() {
-      expect(uploader._status).toEqual('failed');
-    });
-
-    it("aborts all XHR requests", function() {
-      expect(uploader._abortAllXHRs).toHaveBeenCalled();
     });
   });
 
@@ -3156,7 +3023,7 @@ describe("bs3u.Uploader", function() {
     it("returns true if the uploader status is 'failed'", function() {
       uploader._status = "something";
       expect(uploader._isFailed()).toBeFalsy();
-      uploader._status = "failed";
+      uploader._status = uploader.FAILED;
       expect(uploader._isFailed()).toBeTruthy();
     });
   });
@@ -3253,118 +3120,6 @@ describe("bs3u.Uploader", function() {
       uploader._notifyUploadComplete('some/location');
       expect(spy).toHaveBeenCalledWith('some/location');
     });
-  });
-
-  describe("_validateFileIsReadable", function() {
-    var mockFile, mockSettings, uploader, mockFileReader, spy;
-
-    beforeEach(function() {
-      mockFileReader = {
-        readAsArrayBuffer: function() {
-          this.onloadend();
-        }
-      };
-      spy = jasmine.createSpy();
-      mockFile = { name: "myfile", type: "video/quicktime", size: 1000, slice: function(start, end) { return "blob"; } };
-      mockSettings = {};
-      spyOn(window, 'FileReader').and.returnValue(mockFileReader);
-      uploader = new bs3u.Uploader(mockFile, mockSettings);
-    });
-
-    describe("set up", function() {
-      beforeEach(function() {
-        spyOn(mockFile, 'slice').and.callThrough();
-        spyOn(mockFileReader, 'readAsArrayBuffer');
-      });
-
-      it("slices the file into a 1024 byte blob", function() {
-        uploader._validateFileIsReadable();
-        expect(mockFile.slice).toHaveBeenCalledWith(0, 1024);
-      });
-
-      it("attempts to read a blob of the file", function() {
-        uploader._validateFileIsReadable();
-        expect(mockFileReader.readAsArrayBuffer).toHaveBeenCalledWith('blob');
-      });
-    });
-
-    describe("when the file is deemed readable", function() {
-      it("executes the provided callback, passing in false", function() {
-        mockFileReader.error = "some error";
-        uploader._validateFileIsReadable(spy);
-        expect(spy).toHaveBeenCalledWith(false);
-      });
-    });
-
-    describe("when the file cannot be read", function() {
-      it("executes the provided callback, passing in true", function() {
-        mockFileReader.error = undefined;
-        uploader._validateFileIsReadable(spy);
-        expect(spy).toHaveBeenCalledWith(true);
-      });
-    });
-  });
-
-  describe("_encryptText", function() {
-    var mockFile, mockSettings, uploader, callback;
-
-    beforeEach(function() {
-      callback = jasmine.createSpy();
-      mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
-      mockSettings = {};
-      uploader = new bs3u.Uploader(mockFile, mockSettings);
-    });
-
-    describe("when configured to use web workers", function() {
-      var mockWorker;
-
-      beforeEach(function() {
-        uploader.settings.useWebWorkers = true;
-        uploader.settings.uploaderFilePath = "/path/to/basic_s3_uploader.js";
-        uploader.settings.workerFilePath = "/path/to/basic_s3_worker.js";
-
-        mockWorker = {
-          postMessage: function(data) {}
-        };
-        spyOn(window, 'Worker').and.returnValue(mockWorker);
-        spyOn(mockWorker, 'postMessage');
-
-        uploader._encryptText("some text", callback);
-      });
-
-      it("creates a web worker with the proper script", function() {
-        expect(window.Worker).toHaveBeenCalledWith("/path/to/basic_s3_worker.js");
-      });
-
-      it("defines 'onmessage' on the worker to execute the callback with the encrypted data", function() {
-        var event = {
-          data: "encrypted text!"
-        };
-        mockWorker.onmessage(event);
-        expect(callback).toHaveBeenCalledWith("encrypted text!");
-      });
-
-      it("executes 'postMessage' on the worker with proper data", function() {
-        var expectedData = {
-          text: "some text",
-          uploaderFilePath: "/path/to/basic_s3_uploader.js"
-        };
-        expect(mockWorker.postMessage).toHaveBeenCalledWith(expectedData);
-      });
-    });
-
-    describe("when not using web workers", function() {
-      beforeEach(function() {
-        uploader.settings.useWebWorkers = false;
-        spyOn(uploader, "_sha256").and.returnValue("encrypted text!");
-        uploader._encryptText("my text", callback);
-      });
-
-      it("passes the encrypted text directly to the provided callback", function() {
-        expect(callback).toHaveBeenCalledWith("encrypted text!");
-      });
-    });
-
   });
 
 });

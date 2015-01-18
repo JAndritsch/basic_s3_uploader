@@ -20,6 +20,7 @@ bs3u.Uploader.prototype._configureUploader = function(settings) {
   var uploader = this;
 
   uploader.settings                         = {};
+  uploader._utils                           = new bs3u.Utils(uploader.settings);
 
   // The content type of the file
   uploader.settings.contentType             = settings.contentType || uploader.file.type;
@@ -71,7 +72,7 @@ bs3u.Uploader.prototype._configureUploader = function(settings) {
   uploader.settings.region                  = settings.region || "your-region";
 
   // The host name is not required but can be explicitly set.
-  uploader.settings.host                    = settings.host || new bs3u.Utils(settings).defaultHost();
+  uploader.settings.host                    = settings.host || uploader._utils.defaultHost();
   // If true, you will see logging output in your browser's web inspector.
   uploader.settings.log                     = settings.log || false;
   // Any custom headers that need to be set. Note that these headers are only used for
@@ -135,8 +136,6 @@ bs3u.Uploader.prototype._configureUploader = function(settings) {
 bs3u.Uploader.prototype.startUpload = function() {
   var uploader = this;
 
-  var utils = new bs3u.Utils(uploader.settings);
-
   uploader.logger.log("startUpload called");
 
   if (uploader._isUploading()) {
@@ -150,7 +149,7 @@ bs3u.Uploader.prototype.startUpload = function() {
     return;
   }
 
-  utils.validateFileIsReadable(uploader.file, function(valid) {
+  uploader._utils.validateFileIsReadable(uploader.file, function(valid) {
     if (valid) {
       uploader._createChunks();
       uploader._notifyUploadStarted();
