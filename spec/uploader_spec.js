@@ -1975,7 +1975,9 @@ describe("bs3u.Uploader", function() {
     });
     it("stops any chunks that have not reported progress within 30 seconds", function() {
       expect(uploader._abortChunkUpload).toHaveBeenCalledWith('2');
-      expect(uploader._abortChunkUpload.calls.count()).toEqual(1);
+      expect(uploader._abortChunkUpload).toHaveBeenCalledWith('4');
+      expect(uploader._abortChunkUpload).toHaveBeenCalledWith('5');
+      expect(uploader._abortChunkUpload.calls.count()).toEqual(3);
     });
 
     it("flags any chunks that have not reported progress within 30 seconds for another retry", function() {
