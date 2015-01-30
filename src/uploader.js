@@ -1158,6 +1158,9 @@ bs3u.Uploader.prototype._startBandwidthMonitor = function() {
     uploader._log("Number of concurrent uploads in progress is ", uploader._chunkUploadsInProgress());
     uploader.settings.maxConcurrentChunks = newConcurrentChunks;
 
+    // We should try to abort chunk signature requests before aborting actual chunk uploads, that way
+    // no progress is lost.
+
     if (newConcurrentChunks < uploader._chunkUploadsInProgress()) {
       uploader._log("There are more concurrent uploads than your connection can support. Stopping some XHRs.");
       for (var number in uploader._chunks) {
