@@ -8,6 +8,7 @@ bs3u.Uploader = function(file, settings) {
   var uploader = this;
   uploader.file = file;
   uploader._XHRs = [];
+  uploader._chunkSignatureXHRs = {};
   uploader._chunkXHRs = {};
   uploader._chunkProgress = {};
   uploader._initHeaders = {};
@@ -198,6 +199,10 @@ bs3u.Uploader.prototype._abortAllXHRs = function() {
   for (var chunk in uploader._chunkXHRs) {
     uploader._chunkXHRs[chunk].abort();
   }
+
+  for (var chunkSignature in uploader._chunkSignatureXHRs) {
+    uploader._chunkSignatureXHRs[chunkSignature].abort();
+  }
 };
 
 // Slices up the file into chunks, storing the startRange and endRange of each chunk on the uploader
@@ -247,8 +252,7 @@ bs3u.Uploader.prototype._getInitHeaders = function(retries) {
 
   uploader._log("Getting the init headers");
 
-  uploader._encryptText("", function(encrypted) {
-
+  var success = function(encrypted) {
     var ajax = new bs3u.Ajax({
       url: uploader.settings.signatureBackend + uploader.settings.initHeadersPath,
       method: "GET",
@@ -278,8 +282,13 @@ bs3u.Uploader.prototype._getInitHeaders = function(retries) {
 
     ajax.send();
     uploader._XHRs.push(ajax);
+  };
 
-  });
+  var failure = function(error) {
+    uploader._getInitHeadersError(attempts, error);
+  };
+
+  uploader._encryptText("", success, failure);
 
 };
 
@@ -414,11 +423,13 @@ bs3u.Uploader.prototype._getChunkHeaders = function(number, retries) {
 
   fileReader.onloadend = function() {
 
-    uploader._encryptText(fileReader.result, function(encrypted) {
+    var success = function(encrypted) {
 
       // IMPORTANT! Forgetting to do this will result in the FileReader remaining
       // in memory with the entire contents of the file/data read.
       fileReader = undefined;
+
+      if (!chunk.uploading) { return; }
 
       var ajax = new bs3u.Ajax({
         url: uploader.settings.signatureBackend + uploader.settings.chunkHeadersPath,
@@ -448,9 +459,14 @@ bs3u.Uploader.prototype._getChunkHeaders = function(number, retries) {
       });
 
       ajax.send();
-      uploader._XHRs.push(ajax);
+      uploader._chunkSignatureXHRs[number] = ajax;
+    };
 
-    });
+    var failure = function(error) {
+      uploader._getChunkHeadersError(attempts, number, error);
+    };
+
+    uploader._encryptText(fileReader.result, success, failure);
 
   };
 
@@ -506,6 +522,9 @@ bs3u.Uploader.prototype._uploadChunk = function(number, retries) {
   var attempts = retries || 0;
 
   var chunk = uploader._chunks[number];
+
+  if (!chunk.uploading) { return; }
+
   var body = uploader.file.slice(chunk.startRange, chunk.endRange);
 
   uploader._log("Starting the XHR upload for chunk " + number);
@@ -608,8 +627,7 @@ bs3u.Uploader.prototype._getListHeaders = function(retries) {
 
   uploader._log("Getting the list headers");
 
-  uploader._encryptText("", function(encrypted) {
-
+  var success = function(encrypted) {
     var ajax = new bs3u.Ajax({
       url: uploader.settings.signatureBackend + uploader.settings.listHeadersPath,
       method: "GET",
@@ -638,8 +656,13 @@ bs3u.Uploader.prototype._getListHeaders = function(retries) {
 
     ajax.send();
     uploader._XHRs.push(ajax);
+  };
 
-  });
+  var failure = function(error) {
+    uploader._getListHeadersError(attempts, error);
+  };
+
+  uploader._encryptText("", success, failure);
 
 };
 
@@ -784,8 +807,7 @@ bs3u.Uploader.prototype._getCompleteHeaders = function(retries) {
 
   var payload = uploader._generateCompletePayload();
 
-  uploader._encryptText(payload, function(encrypted) {
-
+  var success = function(encrypted) {
     var ajax = new bs3u.Ajax({
       url: uploader.settings.signatureBackend + uploader.settings.completeHeadersPath,
       method: "GET",
@@ -814,9 +836,13 @@ bs3u.Uploader.prototype._getCompleteHeaders = function(retries) {
 
     ajax.send();
     uploader._XHRs.push(ajax);
+  };
 
-  });
+  var failure = function(error) {
+    uploader._getCompleteHeadersError(attempts, error);
+  };
 
+  uploader._encryptText(payload, success, failure);
 };
 
 bs3u.Uploader.prototype._getCompleteHeadersSuccess = function(attempts, response) {
@@ -1064,6 +1090,10 @@ bs3u.Uploader.prototype._abortTimedOutRequests = function() {
       ajax = uploader._chunkXHRs[index];
       chunkProgressTime = ajax.lastProgressAt;
 
+      uploader._log("========================================");
+      uploader._log("Chunk uploads in progress: ", uploader._chunkUploadsInProgress());
+      uploader._log("========================================");
+
       if (chunkProgressTime && (currentTime - chunkProgressTime) > 30000) {
         uploader._log("No progress has been reported within 30 seconds for chunk " + index);
         uploader._abortChunkUpload(index);
@@ -1140,6 +1170,9 @@ bs3u.Uploader.prototype._startBandwidthMonitor = function() {
   }, 10000);
 };
 
+// This doesn't account for the number of concurrent chunks. For instance, it
+// may be possible to upload 1 single chunk within the signature timeout, but
+// perhaps not possible if 2 chunks are going at the same time.
 bs3u.Uploader.prototype._calculateOptimalConcurrentChunks = function(time, initialMaxChunks) {
   var uploader = this;
   var loaded = uploader._calculateUploadProgress();
@@ -1156,16 +1189,23 @@ bs3u.Uploader.prototype._calculateOptimalConcurrentChunks = function(time, initi
 
 bs3u.Uploader.prototype._abortChunkUpload = function(number) {
   var uploader = this;
-  var xhr = uploader._chunkXHRs[number];
+  var chunkXHR = uploader._chunkXHRs[number];
+  var signatureXHR = uploader._chunkSignatureXHRs[number];
   var chunk = uploader._chunks[number];
 
-  if (xhr) {
-    uploader._log("Cancelling the upload for chunk ", number);
-    xhr.abort();
-    xhr.lastProgressAt = null;
-    chunk.uploading = false;
-    chunk.uploadComplete = false;
+  uploader._log("Cancelling the upload for chunk ", number);
+  // Stop the chunk XHR if it exists
+  if (chunkXHR) {
+    chunkXHR.abort();
+    chunkXHR.lastProgressAt = null;
   }
+
+  // Stop the XHR to fetch a chunk signature if it exists
+  if (signatureXHR) { signatureXHR.abort(); }
+
+  // Flag the chunk as not uploading
+  chunk.uploading = false;
+  chunk.uploadComplete = false;
 };
 
 bs3u.Uploader.prototype._timeToWaitBeforeNextRetry = function(attempts) {
@@ -1331,19 +1371,23 @@ bs3u.Uploader.prototype._requiresFirefoxHack = function() {
 
 // Encrypts the provided text, either with the help from web workers or not,
 // and then executes the provided callback with the encrypted text.
-bs3u.Uploader.prototype._encryptText = function(value, callback) {
+bs3u.Uploader.prototype._encryptText = function(value, success, error) {
   var uploader = this;
   if (uploader.settings.useWebWorkers) {
     var worker = new Worker(uploader.settings.workerFilePath);
     worker.onmessage = function(e) {
-      callback(e.data);
+      success(e.data);
+    };
+    worker.onerror = function(e) {
+      uploader._log("Worker error: ", e);
+      error({ target: { status: 500, responseText: "There was a Workerr error!"} });
     };
     worker.postMessage({
       text: value,
       uploaderFilePath: uploader.settings.uploaderFilePath
     });
   } else {
-    callback(uploader._sha256(value));
+    success(uploader._sha256(value));
   }
 };
 
@@ -1379,8 +1423,7 @@ bs3u.Uploader.prototype.errors = {
   7: "Max number of retries has been met. Cannot retry uploading chunk!",
   8: "Max number of retries have been met. Unable to complete multipart upload!",
   9: "Max number of retries have been met. Unable to get list headers!",
-  10: "Max number of retries have been met. Unable to get complete headers!",
-
+  10: "Max number of retries have been met. Unable to get complete headers!"
 };
 
 // For backwards compatibility
