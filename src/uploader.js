@@ -402,17 +402,16 @@ bs3u.Uploader.prototype._abortChunkUpload = function(number) {
 bs3u.Uploader.prototype._abortTimedOutRequests = function() {
   var uploader = this;
   var currentTime = new Date().getTime();
-  var chunkProgressTime, ajax, chunk, readyState;
+  var chunkProgressTime, ajax, chunk;
 
   for (var index in uploader._chunkRequests) {
     chunk = uploader._chunks[index];
     if (chunk.uploading && !chunk.uploadComplete) {
 
       ajax = uploader._chunkRequests[index];
-      readyState = ajax.xhr.readyState;
       chunkProgressTime = ajax.lastProgressAt;
 
-      if ((currentTime - chunkProgressTime) > 30000) {
+      if (chunkProgressTime && (currentTime - chunkProgressTime) > 30000) {
         uploader.logger.log("No progress has been reported within 30 seconds for chunk " + index);
         uploader._abortChunkUpload(index);
       }
