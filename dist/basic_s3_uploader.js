@@ -2,10 +2,10 @@
 
 var bs3u = {
   version: {
-    full: "2.0.7",
+    full: "2.0.8",
     major: "2",
     minor: "0",
-    patch: "7"
+    patch: "8"
   }
 };
 
@@ -1153,17 +1153,16 @@ bs3u.Uploader.prototype._chunkUploadsInProgress = function() {
 bs3u.Uploader.prototype._abortTimedOutRequests = function() {
   var uploader = this;
   var currentTime = new Date().getTime();
-  var chunkProgressTime, ajax, chunk, readyState;
+  var chunkProgressTime, ajax, chunk;
 
   for (var index in uploader._chunkXHRs) {
     chunk = uploader._chunks[index];
     if (chunk.uploading && !chunk.uploadComplete) {
 
       ajax = uploader._chunkXHRs[index];
-      readyState = ajax.xhr.readyState;
       chunkProgressTime = ajax.lastProgressAt;
 
-      if ((currentTime - chunkProgressTime) > 30000) {
+      if (chunkProgressTime && (currentTime - chunkProgressTime) > 30000) {
         uploader._log("No progress has been reported within 30 seconds for chunk " + index);
         uploader._abortChunkUpload(index);
       }
