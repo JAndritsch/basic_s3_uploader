@@ -1090,10 +1090,6 @@ bs3u.Uploader.prototype._abortTimedOutRequests = function() {
       ajax = uploader._chunkXHRs[index];
       chunkProgressTime = ajax.lastProgressAt;
 
-      uploader._log("========================================");
-      uploader._log("Chunk uploads in progress: ", uploader._chunkUploadsInProgress());
-      uploader._log("========================================");
-
       if (chunkProgressTime && (currentTime - chunkProgressTime) > 30000) {
         uploader._log("No progress has been reported within 30 seconds for chunk " + index);
         uploader._abortChunkUpload(index);
@@ -1158,9 +1154,6 @@ bs3u.Uploader.prototype._startBandwidthMonitor = function() {
     uploader._log("Number of concurrent uploads in progress is ", uploader._chunkUploadsInProgress());
     uploader.settings.maxConcurrentChunks = newConcurrentChunks;
 
-    // We should try to abort chunk signature requests before aborting actual chunk uploads, that way
-    // no progress is lost.
-
     if (newConcurrentChunks < uploader._chunkUploadsInProgress()) {
       uploader._log("There are more concurrent uploads than your connection can support. Stopping some XHRs.");
       for (var number in uploader._chunks) {
@@ -1173,9 +1166,6 @@ bs3u.Uploader.prototype._startBandwidthMonitor = function() {
   }, 10000);
 };
 
-// This doesn't account for the number of concurrent chunks. For instance, it
-// may be possible to upload 1 single chunk within the signature timeout, but
-// perhaps not possible if 2 chunks are going at the same time.
 bs3u.Uploader.prototype._calculateOptimalConcurrentChunks = function(time, initialMaxChunks) {
   var uploader = this;
   var loaded = uploader._calculateUploadProgress();
@@ -1406,7 +1396,7 @@ bs3u.Uploader.prototype._defaultHost = function() {
 bs3u.Uploader.prototype._log = function(msg, object) {
   msg = "[BasicS3Uploader] " + msg;
   if (this.settings.log && console && console.debug) {
-    if (object) {
+    if (object !== undefined) {
       console.debug(msg, object);
     } else {
       console.debug(msg);
