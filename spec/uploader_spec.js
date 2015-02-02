@@ -1048,8 +1048,8 @@ describe("bs3u.Uploader", function() {
       };
       uploader = new bs3u.Uploader(mockFile, mockSettings);
       uploader._chunks = {
-        1: { startRange: 0, endRange: 1024 },
-        2: { startRange: 0, endRange: 1024 },
+        1: { startRange: 0, endRange: 1024, uploading: true, uploadComplete: false },
+        2: { startRange: 0, endRange: 1024, uploading: true, uploadComplete: false },
       };
       chunkNumber = 2;
       uploader.file = {
@@ -1087,6 +1087,13 @@ describe("bs3u.Uploader", function() {
         expect(ajaxSettings.params.host).toEqual(uploader.settings.host);
         expect(ajaxSettings.params.upload_id).toEqual(uploader._uploadId);
         expect(ajaxSettings.params.part_number).toEqual(2);
+      });
+
+      it("does nothing if the chunk is not uploading", function() {
+        uploader._chunks[chunkNumber].uploading = false;
+        uploader._getChunkHeaders(chunkNumber);
+        mockFileReader.onloadend();
+        expect(bs3u.Ajax).not.toHaveBeenCalled();
       });
 
       it("registers the success callback", function() {
@@ -1128,10 +1135,10 @@ describe("bs3u.Uploader", function() {
         expect(mockAjaxClass.send).toHaveBeenCalled();
       });
 
-      it("pushes the xhr request into the _XHRs array", function() {
+      it("pushes the xhr request into the _chunkSignatureXHRs hash", function() {
         uploader._getChunkHeaders(chunkNumber);
         mockFileReader.onloadend();
-        expect(uploader._XHRs[0]).toEqual(mockAjaxClass);
+        expect(uploader._chunkSignatureXHRs[chunkNumber]).toEqual(mockAjaxClass);
       });
     });
   });
@@ -1300,7 +1307,7 @@ describe("bs3u.Uploader", function() {
       uploader = new bs3u.Uploader(mockFile, mockSettings);
       uploader._uploadId = "upload-id";
       uploader._chunks = {
-        1: { startRange: 0, endRange: 1000, uploading: false, uploadComplete: false }
+        1: { startRange: 0, endRange: 1000, uploading: true, uploadComplete: false }
       };
       uploader._chunkHeaders = {
         1: { Authorization: 'auth header'}
@@ -1315,6 +1322,12 @@ describe("bs3u.Uploader", function() {
       expect(ajaxSettings.params.uploadId).toEqual('upload-id');
       expect(ajaxSettings.params.partNumber).toEqual(1);
       expect(ajaxSettings.headers).toEqual(uploader._chunkHeaders[1]);
+    });
+
+    it("does nothing if the chunk is not set to upload", function() {
+      uploader._chunks[1].uploading = false;
+      uploader._uploadChunk(1);
+      expect(bs3u.Ajax).not.toHaveBeenCalled();
     });
 
     it("registers the progress callback", function() {
@@ -3329,10 +3342,11 @@ describe("bs3u.Uploader", function() {
   });
 
   describe("_encryptText", function() {
-    var mockFile, mockSettings, uploader, callback;
+    var mockFile, mockSettings, uploader, successCallback, errorCallback;
 
     beforeEach(function() {
-      callback = jasmine.createSpy();
+      successCallback = jasmine.createSpy();
+      errorCallback = jasmine.createSpy();
       mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
       mockSettings = {};
       uploader = new bs3u.Uploader(mockFile, mockSettings);
@@ -3352,19 +3366,33 @@ describe("bs3u.Uploader", function() {
         spyOn(window, 'Worker').and.returnValue(mockWorker);
         spyOn(mockWorker, 'postMessage');
 
-        uploader._encryptText("some text", callback);
+        uploader._encryptText("some text", successCallback, errorCallback);
       });
 
       it("creates a web worker with the proper script", function() {
         expect(window.Worker).toHaveBeenCalledWith("/path/to/basic_s3_worker.js");
       });
 
-      it("defines 'onmessage' on the worker to execute the callback with the encrypted data", function() {
+      it("defines 'onmessage' on the worker to execute the success callback with the encrypted data", function() {
         var event = {
           data: "encrypted text!"
         };
         mockWorker.onmessage(event);
-        expect(callback).toHaveBeenCalledWith("encrypted text!");
+        expect(successCallback).toHaveBeenCalledWith("encrypted text!");
+      });
+
+      it("defines 'onerror' on the worker to execute the error callback with a custom response object", function() {
+        var error = {
+          message: "Oops, things broke!"
+        };
+        var expectedErrorObject = {
+          target: {
+            status: 500,
+            responseText: "There was a Worker error: Oops, things broke!"
+          }
+        };
+        mockWorker.onerror(error);
+        expect(errorCallback).toHaveBeenCalledWith(expectedErrorObject);
       });
 
       it("executes 'postMessage' on the worker with proper data", function() {
@@ -3380,11 +3408,11 @@ describe("bs3u.Uploader", function() {
       beforeEach(function() {
         uploader.settings.useWebWorkers = false;
         spyOn(uploader, "_sha256").and.returnValue("encrypted text!");
-        uploader._encryptText("my text", callback);
+        uploader._encryptText("my text", successCallback, errorCallback);
       });
 
-      it("passes the encrypted text directly to the provided callback", function() {
-        expect(callback).toHaveBeenCalledWith("encrypted text!");
+      it("passes the encrypted text directly to the provided success callback", function() {
+        expect(successCallback).toHaveBeenCalledWith("encrypted text!");
       });
     });
 

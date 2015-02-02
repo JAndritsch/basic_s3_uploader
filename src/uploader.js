@@ -1373,7 +1373,7 @@ bs3u.Uploader.prototype._encryptText = function(value, success, error) {
     };
     worker.onerror = function(e) {
       uploader._log("Worker error: ", e);
-      error({ target: { status: 500, responseText: "There was a Workerr error!"} });
+      error({ target: { status: 500, responseText: "There was a Worker error: " + e.message} });
     };
     worker.postMessage({
       text: value,
