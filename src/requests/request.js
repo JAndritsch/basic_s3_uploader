@@ -1,13 +1,14 @@
 // The base class for sending requests to the signature and S3 APIs. All requests
 // should inherit from this.
 bs3u.Request = function(settings, callbacks) {
-  this.settings  = settings;
-  this.callbacks = callbacks; // onSuccess, onRetry, onRetriesExhausted, onProgress
-  this.attempts  = 0;
-  this.headers   = null;
-  this.xhrs      = [];
-  this.utils     = new bs3u.Utils(settings);
-  this.logger    = new bs3u.Logger(settings);
+  this.settings     = settings;
+  this.callbacks    = callbacks; // onSuccess, onRetry, onRetriesExhausted, onProgress
+  this.attempts     = 0;
+  this.headers      = null;
+  this.signatureXHR = null;
+  this.s3XHR        = null;
+  this.utils        = new bs3u.Utils(settings);
+  this.logger       = new bs3u.Logger(settings);
 };
 
 // public
@@ -19,15 +20,11 @@ bs3u.Request.prototype.start = function() {
 };
 
 bs3u.Request.prototype.stop = function() {
-  var self = this;
+  this.signatureXHR.abort();
+  this.signatureXHR = null;
 
-  var ajax;
-  for (var index in self.xhrs) {
-    ajax = self.xhrs[index];
-    ajax.abort();
-    ajax = undefined;
-  }
-  self.xhrs = [];
+  this.s3XHR.abort();
+  this.s3XHR = null;
 };
 
 // private
@@ -53,7 +50,7 @@ bs3u.Request.prototype._getHeaders = function(url, params, payload) {
 
     ajax.onError(function(response) { self._retry(response); });
     ajax.send();
-    self.xhrs.push(ajax);
+    self.signatureXHR = ajax;
   });
 };
 
@@ -86,7 +83,7 @@ bs3u.Request.prototype._callS3 = function(url, method, params, body) {
   } else {
     ajax.send();
   }
-  self.xhrs.push(ajax);
+  self.s3XHR = ajax;
 };
 
 // The success callback for calling S3. Any non-200 response should trigger a
