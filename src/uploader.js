@@ -133,6 +133,9 @@ bs3u.Uploader.prototype._configureUploader = function(settings) {
   uploader.settings.onRetry         = settings.onRetry || function(attempts, data) {};
   // Fires whenever an upload is cancelled.
   uploader.settings.onCancel        = settings.onCancel || function() {};
+  // Fires whenever the uploader logs data. This will only be invoked if logging
+  // is enabled.
+  uploader.settings.onLog           = settings.onLog || function(message, object) {};
 
 };
 
@@ -1394,8 +1397,11 @@ bs3u.Uploader.prototype._defaultHost = function() {
 };
 
 bs3u.Uploader.prototype._log = function(msg, object) {
+  if (!this.settings.log) { return; }
   msg = "[BasicS3Uploader] " + msg;
-  if (this.settings.log && console && console.debug) {
+  this.settings.onLog(msg, object);
+
+  if (console && console.debug) {
     if (object !== undefined) {
       console.debug(msg, object);
     } else {

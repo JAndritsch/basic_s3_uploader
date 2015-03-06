@@ -289,5 +289,10 @@ if not provided.
       <td>Fires whenever the upload has been manually canceled.</td>
       <td>function()</td>
     </tr>
+    <tr>
+      <td>onLog</td>
+      <td>Fires whenever the uploader logs debug info. This only runs when logging is enabled.</td>
+      <td>function(message, object)</td>
+    </tr>
   </tbody>
 </table>

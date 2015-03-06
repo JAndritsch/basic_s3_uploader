@@ -117,6 +117,7 @@ describe("bs3u.Uploader", function() {
         onError: function(code, message) {},
         onRetry: function(attempts, data) {},
         onCancel: function() {},
+        onLog: function(message, object) {},
       };
 
       spyOn(window, 'Date').and.returnValue({
@@ -160,6 +161,7 @@ describe("bs3u.Uploader", function() {
       expect(uploader.settings.onError).toEqual(mockSettings.onError);
       expect(uploader.settings.onRetry).toEqual(mockSettings.onRetry);
       expect(uploader.settings.onCancel).toEqual(mockSettings.onCancel);
+      expect(uploader.settings.onLog).toEqual(mockSettings.onLog);
     });
 
     it("provides a default for several options if no value was provided", function() {
