@@ -37,7 +37,7 @@ Specifically, it only requires these 4 APIs:
 Each of these APIs require authorization. BasicS3Uploader uses [AWS Signature Version 4](http://docs.aws.amazon.com/AmazonS3/latest/API/sig-v4-authenticating-requests.html) to authorize each request.
 
 In order to generate signatures in a secure manner, a server-side application is required. For more information
-about how to generate signatures or how to use the uploader, check out the [documentation page](https://github.com/jandritsch/basic_s3_uploader/wiki/Documentation).
+about how to generate signatures or how to use the uploader, check out the documentation section. 
 
 ## Requirements
 
@@ -88,7 +88,7 @@ As previously stated, BasicS3Uploader needs to communicate with a server-side ap
 in order to retrieve upload signatures. This application can be written in any language
 and use any framework.
 
-Check out the sample app and [documentation](https://github.com/JAndritsch/basic_s3_uploader/wiki/Documentation) for more info.
+Check out the sample app and documentation section for more info.
 
 ## The sample app
 
@@ -164,7 +164,9 @@ Open a web browser and navigate to http://localhost:8080
 
 ## Documentation
 
-All links to documentation for this uploader can be found [on this page](https://github.com/jandritsch/basic_s3_uploader/wiki/Documentation).
+- [The basics](https://github.com/JAndritsch/basic_s3_uploader/blob/master/docs/how_to_use.md)
+- [Uploader configuration](https://github.com/JAndritsch/basic_s3_uploader/blob/master/docs/upload_config.md)
+- [Signature generation](https://github.com/JAndritsch/basic_s3_uploader/blob/master/docs/signature_generation.md)
 
 ## Contributing
 
