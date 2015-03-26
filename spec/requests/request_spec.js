@@ -75,8 +75,12 @@ describe("bs3u.Request", function() {
       expect(request.headers).toEqual(null);
     });
 
-    it("initializes xhrs to an empty array", function() {
-      expect(request.xhrs).toEqual([]);
+    it("initializes signatureXHR to null", function() {
+      expect(request.signatureXHR).toEqual(null);
+    });
+
+    it("initializes s3XHR to null", function() {
+      expect(request.s3XHR).toEqual(null);
     });
 
     it("instantiates a Utils", function() {
@@ -108,8 +112,8 @@ describe("bs3u.Request", function() {
     var xhr2 = { abort: jasmine.createSpy() };
 
     beforeEach(function() {
-      request.xhrs.push(xhr1);
-      request.xhrs.push(xhr2);
+      request.signatureXHR = xhr1;
+      request.s3XHR = xhr2;
       request.stop();
     });
 
@@ -118,8 +122,9 @@ describe("bs3u.Request", function() {
       expect(xhr2.abort).toHaveBeenCalled();
     });
 
-    it("clears out the xhrs array", function() {
-      expect(request.xhrs).toEqual([]);
+    it("nulls out both xhrs", function() {
+      expect(request.signatureXHR).toEqual(null);
+      expect(request.s3XHR).toEqual(null);
     });
   });
 
@@ -162,8 +167,8 @@ describe("bs3u.Request", function() {
       expect(ajaxSendSpy).toHaveBeenCalled();
     });
 
-    it("pushes the ajax request into the list of XHRs", function() {
-      expect(request.xhrs).toEqual([mockAjaxInstance]);
+    it("sets the ajax request into signatureXHR variable", function() {
+      expect(request.signatureXHR).toEqual(mockAjaxInstance);
     });
 
     describe("ajax onSuccess", function() {
@@ -230,8 +235,8 @@ describe("bs3u.Request", function() {
       expect(ajaxSendSpy).toHaveBeenCalledWith(body);
     });
 
-    it("pushes the ajax request into the list of XHRs", function() {
-      expect(request.xhrs).toEqual([mockAjaxInstance]);
+    it("assigns the ajax request into the s3XHR variable", function() {
+      expect(request.s3XHR).toEqual(mockAjaxInstance);
     });
 
     describe("ajax onSuccess", function() {
