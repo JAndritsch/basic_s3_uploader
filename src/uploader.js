@@ -171,35 +171,9 @@ bs3u.Uploader.prototype.cancelUpload = function() {
   uploader._notifyUploadCancelled();
 };
 
-// Slices up the file into chunks, storing the startRange and endRange of each chunk on the uploader
-// so the blobs can be created when needed.
 bs3u.Uploader.prototype._createChunks = function() {
   var uploader = this;
-  var chunks = {};
-
-  uploader.logger.log("Slicing up file into chunks");
-
-  var chunkSize = Math.min(uploader.settings.chunkSize, uploader.file.size);
-  var totalChunks = Math.ceil(uploader.file.size / chunkSize);
-
-  var remainingSize, startRange, endRange, sizeOfChunk;
-
-  for(var partNumber = 1; partNumber < totalChunks + 1; partNumber++) {
-    remainingSize = remainingSize || uploader.file.size;
-    startRange = startRange || 0;
-    sizeOfChunk = sizeOfChunk || chunkSize * partNumber;
-
-    endRange = (startRange + sizeOfChunk);
-    chunks[partNumber] = new bs3u.Chunk(partNumber, uploader.file, startRange, endRange);
-    startRange = (chunkSize * partNumber);
-    remainingSize = remainingSize - sizeOfChunk;
-
-    if (remainingSize < sizeOfChunk) {
-      sizeOfChunk = remainingSize;
-    }
-  }
-  uploader._chunks = chunks;
-  uploader.logger.log("Total chunks to upload:", Object.keys(chunks).length);
+  uploader._chunks = bs3u.Chunk.createChunksFromFile(uploader.file, uploader.settings);
 };
 
 
