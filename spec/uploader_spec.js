@@ -2230,7 +2230,7 @@ describe("bs3u.Uploader", function() {
     it("returns true if the uploader status is 'uploading'", function() {
       uploader._status = "something";
       expect(uploader._isUploading()).toBeFalsy();
-      uploader._status = uploader.UPLOADING;
+      uploader._status = "uploading";
       expect(uploader._isUploading()).toBeTruthy();
     });
   });
@@ -2247,7 +2247,7 @@ describe("bs3u.Uploader", function() {
     it("returns true if the uploader status is 'failed'", function() {
       uploader._status = "something";
       expect(uploader._isFailed()).toBeFalsy();
-      uploader._status = uploader.FAILED;
+      uploader._status = "failed";
       expect(uploader._isFailed()).toBeTruthy();
     });
   });

@@ -1,16 +1,11 @@
 // Simple constructor. Accepts a file object and some settings.
 bs3u.Uploader = function(file, settings) {
-  var uploader            = this;
-  uploader.file           = file;
-  uploader._requests      = [];
+  var uploader = this;
+  uploader.file = file;
+  uploader._requests = [];
   uploader._chunkRequests = {};
   uploader._chunkProgress = {};
-  uploader.logger         = new bs3u.Logger(settings);
-  uploader.READY          = 0;
-  uploader.UPLOADING      = 1;
-  uploader.COMPLETE       = 2;
-  uploader.CANCELED       = 3;
-  uploader.FAILED         = 4;
+  uploader.logger = new bs3u.Logger(settings);
   uploader._configureUploader(settings);
   uploader._notifyUploaderReady();
 };
@@ -618,19 +613,19 @@ bs3u.Uploader.prototype._uploadFailed = function(errorCode) {
 
 bs3u.Uploader.prototype._isUploading = function() {
   var uploader = this;
-  return uploader._status == uploader.UPLOADING;
+  return uploader._status == "uploading";
 };
 
 bs3u.Uploader.prototype._isFailed = function() {
   var uploader = this;
-  return uploader._status == uploader.FAILED;
+  return uploader._status == "failed";
 };
 
 // Notification that the uploader is initialized. Calls the user-defined "onReady"
 // method.
 bs3u.Uploader.prototype._notifyUploaderReady = function() {
   var uploader = this;
-  uploader._status = uploader.READY;
+  uploader._status = "ready";
   uploader.settings.onReady.call(uploader);
 };
 
@@ -638,7 +633,7 @@ bs3u.Uploader.prototype._notifyUploaderReady = function() {
 // onStart method.
 bs3u.Uploader.prototype._notifyUploadStarted = function() {
   var uploader = this;
-  uploader._status = uploader.UPLOADING;
+  uploader._status = "uploading";
   uploader.settings.onStart.call(uploader);
 };
 
@@ -665,7 +660,7 @@ bs3u.Uploader.prototype._notifyChunkUploaded = function(chunkNumber, totalChunks
 // the user-defined onComplete method.
 bs3u.Uploader.prototype._notifyUploadComplete = function(location) {
   var uploader = this;
-  uploader._status = uploader.COMPLETE;
+  uploader._status = "complete";
   uploader.settings.onComplete.call(uploader, location);
 };
 
@@ -676,7 +671,7 @@ bs3u.Uploader.prototype._notifyUploadError = function(errorCode, description) {
   // If the uploader has already been set to failed, this message has already been
   // sent so we will want to prevent duplicate publishes of this event.
   if (!uploader._isFailed()) {
-    uploader._status = uploader.FAILED;
+    uploader._status = "failed";
     uploader.settings.onError.call(uploader, errorCode, description);
   }
 };
@@ -692,7 +687,7 @@ bs3u.Uploader.prototype._notifyUploadRetry = function(attempt, data) {
 // method.
 bs3u.Uploader.prototype._notifyUploadCancelled = function() {
   var uploader = this;
-  uploader._status = uploader.CANCELED;
+  uploader._status = "canceled";
   uploader.settings.onCancel.call(uploader);
 };
 
