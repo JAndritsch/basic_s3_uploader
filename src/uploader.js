@@ -99,7 +99,7 @@ bs3u.Uploader.prototype._configureUploader = function(settings) {
   uploader.settings.useWebWorkers           = settings.useWebWorkers || false;
 
   // The following settings are not necessary unless you're using web workers:
-  
+
   // The path where the the worker file is located.
   uploader.settings.workerFilePath          = settings.workerFilePath || "/basic_s3_worker.js";
   // The path where this file is located. This is needed because the worker imports this file.
@@ -190,15 +190,7 @@ bs3u.Uploader.prototype._createChunks = function() {
     sizeOfChunk = sizeOfChunk || chunkSize * partNumber;
 
     endRange = (startRange + sizeOfChunk);
-
-    chunks[partNumber] = {
-      startRange: startRange,
-      endRange: endRange,
-      uploading: false,
-      uploadComplete: false,
-      eTag: null
-    };
-
+    chunks[partNumber] = new bs3u.Chunk(partNumber, uploader.file, startRange, endRange);
     startRange = (chunkSize * partNumber);
     remainingSize = remainingSize - sizeOfChunk;
 
@@ -241,18 +233,13 @@ bs3u.Uploader.prototype._initiateUpload = function() {
 bs3u.Uploader.prototype._uploadChunk = function(number) {
   var uploader = this;
   var chunk = uploader._chunks[number];
-
-  chunk.uploading = true;
-  chunk.uploadComplete = false;
-
-  var uploadPartRequest = new bs3u.UploadPartRequest(uploader._uploadId, number, chunk, uploader.file, uploader.settings, {
-    onSuccess: function(eTag) {
+  chunk.setUploading();
+  var uploadPartRequest = new bs3u.UploadPartRequest(uploader._uploadId, chunk, uploader.settings, {
+    onSuccess: function() {
       var totalChunks = Object.keys(uploader._chunks).length;
-      chunk.uploading = false;
-      chunk.uploadComplete = true;
+      chunk.setComplete();
       uploader.logger.log("Chunk " + number +  " has finished uploading");
       uploader._notifyChunkUploaded(number, totalChunks);
-      chunk.eTag = eTag;
     },
     onProgress: function(response) {
       uploader._uploadChunkProgress(response, number);
@@ -352,7 +339,8 @@ bs3u.Uploader.prototype._uploadChunks = function() {
 };
 
 bs3u.Uploader.prototype._canUploadChunk = function(chunk) {
-  return !chunk.uploading && !chunk.uploadComplete && uploader._uploadSpotAvailable();
+  var uploader = this;
+  return chunk.pending() && uploader._uploadSpotAvailable();
 };
 
 // This checks to see which chunks are uploading and returns true if there is room
@@ -385,8 +373,7 @@ bs3u.Uploader.prototype._abortChunkUpload = function(number) {
     uploader.logger.log("Cancelling the upload for chunk ", number);
     xhr.stop();
     xhr.lastProgressAt = null;
-    chunk.uploading = false;
-    chunk.uploadComplete = false;
+    chunk.setPending();
   }
 };
 
@@ -401,8 +388,7 @@ bs3u.Uploader.prototype._abortTimedOutRequests = function() {
 
   for (var index in uploader._chunkRequests) {
     chunk = uploader._chunks[index];
-    if (chunk.uploading && !chunk.uploadComplete) {
-
+    if (chunk.uploading()) {
       ajax = uploader._chunkRequests[index];
       chunkProgressTime = ajax.lastProgressAt;
 
@@ -435,15 +421,14 @@ bs3u.Uploader.prototype._collectInvalidChunks = function(parts) {
     var size = parseInt(part.getElementsByTagName("Size")[0].textContent, 10);
 
     var uploadedChunk = uploader._chunks[number];
-    var expectedSize = uploadedChunk.endRange - uploadedChunk.startRange;
+    var expectedSize = uploadedChunk.size();
 
-    if (!uploadedChunk || eTag != uploadedChunk.eTag || size != expectedSize) {
+    if (!uploadedChunk || eTag != uploadedChunk.getETag() || size != expectedSize) {
       uploader.logger.log('About to add chunk ' + number + ' to the invalidParts.');
       invalidParts.push(number);
-      // ensure that uploadComplete has the correct value (see _uploadChunks)
-      uploadedChunk.uploadComplete = false;
+      uploadedChunk.setPending();
       // invalidate the eTag to prevent extraneous calls to _verifyAllChunksUploaded
-      uploadedChunk.eTag = null;
+      uploadedChunk.setETag(null);
     }
   }
 
@@ -457,8 +442,7 @@ bs3u.Uploader.prototype._handleInvalidChunks = function(invalidParts) {
   var chunkNumber;
   for (var index in invalidParts) {
     chunkNumber = invalidParts[index];
-    uploader._chunks[chunkNumber].uploading = false;
-    uploader._chunks[chunkNumber].uploadComplete = false;
+    uploader._chunks[chunkNumber].setPending();
   }
   // Re-enable the completeWatcher so it can pick up the failed chunks and retry
   // them.
@@ -480,8 +464,7 @@ bs3u.Uploader.prototype._handleMissingChunks = function(chunksFromS3) {
   // Mark the missing parts as not uploaded so they will automatically retry
   for (var chunkNumber in uploader._chunks) {
     if (chunkNumbersFromS3.indexOf(chunkNumber) == -1) {
-      uploader._chunks[chunkNumber].uploading = false;
-      uploader._chunks[chunkNumber].uploadComplete = false;
+      uploader._chunks[chunkNumber].setPending();
     }
   }
   // Re-enable the completeWatcher so it can pick up the failed chunks and retry
@@ -492,9 +475,11 @@ bs3u.Uploader.prototype._handleMissingChunks = function(chunksFromS3) {
 // Returns true if we have an eTag for every chunk
 bs3u.Uploader.prototype._allETagsAvailable = function() {
   var uploader = this;
+  var chunk, eTag;
   for (var chunkNumber in uploader._chunks) {
-    var chunk = uploader._chunks[chunkNumber];
-    if (chunk.eTag === null || chunk.eTag === undefined || chunk.eTag.length < 1) {
+    chunk = uploader._chunks[chunkNumber];
+    eTag = chunk.getETag();
+    if (eTag === null || eTag === undefined || eTag.length < 1) {
       return false;
     }
   }
@@ -509,7 +494,7 @@ bs3u.Uploader.prototype._chunkUploadsInProgress = function() {
 
   for (var chunkNumber in uploader._chunks) {
     chunk = uploader._chunks[chunkNumber];
-    if (chunk.uploading === true) { count += 1; }
+    if (chunk.uploading()) { count += 1; }
   }
 
   return count;

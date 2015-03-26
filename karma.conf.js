@@ -14,6 +14,7 @@ module.exports = function(config) {
       'src/ajax.js',
       'src/utils.js',
       'src/logger.js',
+      'src/chunk.js',
       'src/requests/request.js',
       'src/requests/initiate_upload.js',
       'src/requests/upload_part.js',

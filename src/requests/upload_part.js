@@ -1,17 +1,15 @@
 // Handles retreving authentication and uploading an part via S3's
 // UploadPart API.
-bs3u.UploadPartRequest = function(uploadId, partNumber, part, file, settings, callbacks) {
-  this.uploadId   = uploadId;
-  this.partNumber = partNumber;
-  this.file       = file;
-  this.part       = part;
+bs3u.UploadPartRequest = function(uploadId, chunk, settings, callbacks) {
+  this.uploadId = uploadId;
+  this.chunk = chunk;
   bs3u.extend(this, new bs3u.Request(settings, callbacks));
 };
 
 bs3u.UploadPartRequest.prototype.getHeaders = function() {
   var self = this;
-  var part = this.part;
-  var body = this.file.slice(part.startRange, part.endRange);
+  var chunk = this.chunk;
+  var body = chunk.contents();
   var fileReader = new FileReader();
 
   fileReader.onloadend = function() {
@@ -19,7 +17,7 @@ bs3u.UploadPartRequest.prototype.getHeaders = function() {
     var params = {
       key: self.settings.key,
       content_type: self.settings.contentType,
-      part_number: self.partNumber, 
+      part_number: chunk.getNumber(),
       upload_id: self.uploadId,
       region: self.settings.region,
       host: self.settings.host,
@@ -35,18 +33,19 @@ bs3u.UploadPartRequest.prototype.getHeaders = function() {
 };
 
 bs3u.UploadPartRequest.prototype.callS3 = function() {
-  var part = this.part;
-  var body = this.file.slice(part.startRange, part.endRange);
+  var chunk = this.chunk;
+  var body = chunk.contents();
   var url = this.settings.host + "/" + this.settings.key;
   var method = "PUT";
   var params = {
     uploadId: this.uploadId,
-    partNumber: this.partNumber,
+    partNumber: chunk.getNumber(),
   };
   this._callS3(url, method, params, body);
 };
 
 bs3u.UploadPartRequest.prototype.success = function(response) {
   var eTag = response.target.getResponseHeader("ETag");
-  this.callbacks.onSuccess(eTag);
+  this.chunk.setETag(eTag);
+  this.callbacks.onSuccess();
 };
