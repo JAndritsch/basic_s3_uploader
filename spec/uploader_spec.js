@@ -28,7 +28,6 @@ describe("bs3u.Uploader", function() {
 
       spyOn(bs3u.Uploader.prototype, '_configureUploader').and.callThrough();
       spyOn(bs3u.Uploader.prototype, '_notifyUploaderReady').and.callThrough();
-      spyOn(bs3u.Uploader.prototype, '_setReady').and.callThrough();
 
       uploader = new bs3u.Uploader(mockFile, mockSettings);
     });
@@ -71,10 +70,6 @@ describe("bs3u.Uploader", function() {
 
     it("notifies that the uploader is ready", function() {
       expect(bs3u.Uploader.prototype._notifyUploaderReady).toHaveBeenCalled();
-    });
-
-    it("sets the uploader status to ready", function() {
-      expect(bs3u.Uploader.prototype._setReady).toHaveBeenCalled();
     });
 
   });
