@@ -22,7 +22,7 @@ module.exports = function(grunt) {
           expand: true,
           src: [
             'dist/basic_s3_uploader.js',
-            'src/basic_s3_uploader_mock.js',
+            'dist/basic_s3_worker.js'
           ],
           dest: 'sample_app/public/javascripts/',
           filter: 'isFile'

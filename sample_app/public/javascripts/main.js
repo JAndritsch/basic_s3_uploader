@@ -9,12 +9,15 @@ $(document).ready(function() {
 
     settings = {
       bucket: "your-bucket-name",
-      region: "the region",
+      region: "the-region",
       signatureBackend: "",
       initHeadersPath: "/get_init_headers",
       listHeadersPath: "/get_list_headers",
       chunkHeadersPath: "/get_chunk_headers",
       completeHeadersPath: "/get_complete_headers",
+      useWebWorkers: true,
+      workerFilePath: '/javascripts/dist/basic_s3_worker.js',
+      uploaderFilePath: '/javascripts/dist/basic_s3_uploader.js',
 
       onReady: function() {
         $("#startUpload").removeAttr("disabled");
