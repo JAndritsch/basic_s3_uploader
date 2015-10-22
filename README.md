@@ -109,6 +109,7 @@ First, here is the list of files and description of each file used for the sampl
         - javascripts/
           - dist/
             - basic_s3_uploader.js: The uploader
+            - basic_s3_worker.js: A web worker file that helps speed up hashing file chunks
           - main.js: An example of how one might use the uploader
           - jquery-2.0.3.min.js: Not necessary for the uploader, but nice to use for main.js
         - stylesheets/
