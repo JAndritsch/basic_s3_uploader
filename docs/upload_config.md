@@ -55,7 +55,7 @@ Below are all the upload settings that can be configured.
       be unique. Note: certain characters are not allowed and could cause signature
       errors. You'll probably want to sanitize any special characters from the 
       file name.</td>
-      <td>/{bucket}/{timestamp}_{original_file_name}</td>
+      <td>{timestamp}_{original_file_name}</td>
       <td>No, but you'll probably want to specify how your uploaded file is named.</td>
     </tr>
     <tr>
