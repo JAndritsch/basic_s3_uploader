@@ -162,6 +162,13 @@ access.  The sample ruby app is setup to use port 8080, which does not need root
 
 Open a web browser and navigate to http://localhost:8080
 
+Note: If you are using this URL, you'll need to add this domain as an allowed host for your bucket's
+CORS config. You can either add a specific entry for it or just use a wildcard:
+
+    <AllowedOrigin>*</AllowedOrigin>
+
+Once the page loads, select a file using the file picker and click the "Upload it" button.
+
 ## Documentation
 
 - [The basics](https://github.com/JAndritsch/basic_s3_uploader/blob/master/docs/how_to_use.md)
