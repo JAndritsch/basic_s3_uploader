@@ -18,6 +18,9 @@ module Aws
 
     attr_reader :signer, :headers, :endpoint, :http_method
 
+    AWS_ACCESS_KEY_ID = 'YOUR_ACCESS_KEY_ID'
+    AWS_SECRET_ACCESS_KEY = 'YOUR_SECRET_ACCESS_KEY'
+
     def initialize(params)
       @host          = params[:host]
       @upload_id     = params[:upload_id]

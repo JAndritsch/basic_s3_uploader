@@ -98,7 +98,7 @@ bs3u.Uploader.prototype._configureUploader = function(settings) {
   uploader.settings.usingCloudFront         = settings.usingCloudFront || false;
 
   // Generates a default key to use for the upload if none was provided.
-  var defaultKey = "/" + uploader.settings.bucket + "/" + new Date().getTime() + "_" + uploader.file.name;
+  var defaultKey = new Date().getTime() + "_" + uploader.file.name;
   // The key for this upload.
   uploader.settings.key = settings.key || defaultKey;
 

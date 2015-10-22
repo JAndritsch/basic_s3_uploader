@@ -185,7 +185,7 @@ describe("bs3u.Uploader", function() {
       expect(uploader.settings.log).toBeFalsy();
       expect(uploader.settings.customHeaders).toEqual({});
       expect(uploader.settings.maxConcurrentChunks).toEqual(5);
-      expect(uploader.settings.key).toEqual("/" + uploader.settings.bucket + "/timestamp_" + uploader.file.name);
+      expect(uploader.settings.key).toEqual("timestamp_" + uploader.file.name);
       expect(uploader.settings.usingCloudFront).toBeFalsy();
       expect(uploader.settings.useWebWorkers).toBeFalsy();
       expect(uploader.settings.uploaderFilePath).toEqual("/basic_s3_uploader.js");
