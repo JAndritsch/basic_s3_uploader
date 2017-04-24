@@ -2528,7 +2528,6 @@ describe("bs3u.Uploader", function() {
       };
       uploader._completeHeaders = { Authroization: "auth header" };
       spyOn(uploader, '_generateCompletePayload').and.returnValue("payload");
-      spyOn(uploader, '_requiresFirefoxHack').and.returnValue(false);
     });
 
     it("adds the XHR object to the _XHRs array", function() {
