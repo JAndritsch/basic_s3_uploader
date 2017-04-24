@@ -587,7 +587,12 @@ bs3u.Uploader.prototype._uploadChunkSuccess = function(attempts, response, numbe
     uploader._notifyChunkUploaded(number, totalChunks);
     // Store the eTag on the chunk
     var eTag = response.target.getResponseHeader("ETag");
-    if (eTag && eTag.length > 0) { chunk.eTag = eTag; }
+    if (eTag && eTag.length > 0) {
+      chunk.eTag = eTag;
+    } else {
+      uploader._log("Upload of chunk " + number +  " has failed. The eTag was blank!");
+      uploader._uploadChunkError(attempts, response, number);
+    }
   } else {
     uploader._log("Upload of chunk " + number +  " has failed. Deferring to error handler");
     uploader._uploadChunkError(attempts, response, number);

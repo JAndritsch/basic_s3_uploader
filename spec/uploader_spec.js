@@ -1469,6 +1469,13 @@ describe("bs3u.Uploader", function() {
         uploader._uploadChunkSuccess(attempts, mockResponse, chunkNumber);
         expect(uploader._chunks[chunkNumber].eTag).toEqual("eTag");
       });
+
+      it("invokes the error handler if the eTag response header was blank", function() {
+        spyOn(uploader, '_uploadChunkError');
+        mockResponse.target.getResponseHeader = function() { return null; };
+        uploader._uploadChunkSuccess(attempts, mockResponse, chunkNumber);
+        expect(uploader._uploadChunkError).toHaveBeenCalledWith(attempts, mockResponse, chunkNumber);
+      });
     });
 
     describe("a non-200 response", function() {
@@ -2383,6 +2390,31 @@ describe("bs3u.Uploader", function() {
       expected +=   "<Part>";
       expected +=     "<PartNumber>2</PartNumber>";
       expected +=     "<ETag>\"chunk-2-eTag\"</ETag>";
+      expected +=   "</Part>";
+      expected += "</CompleteMultipartUpload>";
+      expect(result).toEqual(expected);
+    });
+
+    it("orders chunks properly", function() {
+      uploader._chunks = {
+        2: { startRange: 1000, endRange: 2000, uploading: false, uploadComplete: false, eTag: '"chunk-2-eTag"' },
+        3: { startRange: 2000, endRange: 3000, uploading: false, uploadComplete: false, eTag: '"chunk-3-eTag"' },
+        1: { startRange: 0, endRange: 1000, uploading: false, uploadComplete: false, eTag: '"chunk-1-eTag"' }
+      };
+      var result = uploader._generateCompletePayload();
+      var expected;
+      expected = "<CompleteMultipartUpload>";
+      expected +=   "<Part>";
+      expected +=     "<PartNumber>1</PartNumber>";
+      expected +=     "<ETag>\"chunk-1-eTag\"</ETag>";
+      expected +=   "</Part>";
+      expected +=   "<Part>";
+      expected +=     "<PartNumber>2</PartNumber>";
+      expected +=     "<ETag>\"chunk-2-eTag\"</ETag>";
+      expected +=   "</Part>";
+      expected +=   "<Part>";
+      expected +=     "<PartNumber>3</PartNumber>";
+      expected +=     "<ETag>\"chunk-3-eTag\"</ETag>";
       expected +=   "</Part>";
       expected += "</CompleteMultipartUpload>";
       expect(result).toEqual(expected);
