@@ -2,10 +2,13 @@
 
 var bs3u = {
   version: {
-    full: "2.0.11",
+    full: "2.0.12",
     major: "2",
     minor: "0",
-    patch: "11"
+    patch: "12"
+  },
+  constants: {
+    FIFTEEN_MINUTES: 900000
   }
 };
 
@@ -62,6 +65,7 @@ bs3u.Ajax.prototype.buildURL = function(url, params) {
 
 bs3u.Ajax.prototype.setHeaders = function(headers) {
   var ajax = this;
+  ajax.headers = headers;
   for (var header in headers) {
     ajax.xhr.setRequestHeader(header, headers[header]);
   }
@@ -73,17 +77,22 @@ bs3u.Ajax.prototype.open = function() {
   var params = this.config.params || {};
 
   url = this.buildURL(url, params);
+
+  this.url = url;
+  this.method = method;
   
   this.xhr.open(method, url);
 };
 
 bs3u.Ajax.prototype.send = function(body) {
   var headers = this.config.headers || {};
-  var timeout = this.config.timeout || 0;
+  var timeout = this.config.timeout || bs3u.constants.FIFTEEN_MINUTES;
 
   this.open();
   this.setHeaders(headers);
   this.setTimeout(timeout);
+
+  this.body = body;
 
   if (body) {
     this.xhr.send(body);
@@ -250,7 +259,7 @@ bs3u.Uploader.prototype.startUpload = function() {
 
   if (uploader.file.size > uploader.settings.maxFileSize) {
     var errorCode = 0;
-    uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
+    uploader._notifyUploadError(errorCode, uploader.errors[errorCode], {});
     uploader._setFailed();
     uploader._log("Uploader error: ", uploader.errors[errorCode]);
     return;
@@ -264,7 +273,7 @@ bs3u.Uploader.prototype.startUpload = function() {
       uploader._getInitHeaders();
     } else {
       var errorCode = 1;
-      uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
+      uploader._notifyUploadError(errorCode, uploader.errors[errorCode], {});
       uploader._setFailed();
       uploader._log("Uploader error: ", uploader.errors[errorCode]);
     }
@@ -370,15 +379,15 @@ bs3u.Uploader.prototype._getInitHeaders = function(retries) {
     });
 
     ajax.onSuccess(function(response) {
-      uploader._getInitHeadersSuccess(attempts, response);
+      uploader._getInitHeadersSuccess(attempts, response, ajax);
     });
 
     ajax.onError(function(response) {
-      uploader._getInitHeadersError(attempts, response);
+      uploader._getInitHeadersError(attempts, response, ajax);
     });
 
     ajax.onTimeout(function(response) {
-      uploader._getInitHeadersError(attempts, response);
+      uploader._getInitHeadersError(attempts, response, ajax);
     });
 
     ajax.send();
@@ -386,7 +395,7 @@ bs3u.Uploader.prototype._getInitHeaders = function(retries) {
   };
 
   var failure = function(error) {
-    uploader._getInitHeadersError(attempts, error);
+    uploader._getInitHeadersError(attempts, error, ajax);
   };
 
   uploader._encryptText("", success, failure);
@@ -394,7 +403,7 @@ bs3u.Uploader.prototype._getInitHeaders = function(retries) {
 };
 
 // The success callback for getting init headers
-bs3u.Uploader.prototype._getInitHeadersSuccess = function(attempts, response) {
+bs3u.Uploader.prototype._getInitHeadersSuccess = function(attempts, response, ajax) {
   var uploader = this;
   if (response.target.status == 200) {
     uploader._log("Init headers retrieved");
@@ -402,27 +411,24 @@ bs3u.Uploader.prototype._getInitHeadersSuccess = function(attempts, response) {
     uploader._initiateUpload();
   } else {
     uploader._log("Server returned a non-200. Deferring to error handler!");
-    uploader._getInitHeadersError(attempts, response);
+    uploader._getInitHeadersError(attempts, response, ajax);
   }
 };
 
 // The error callback for getting a init headers
-bs3u.Uploader.prototype._getInitHeadersError = function(attempts, response) {
+bs3u.Uploader.prototype._getInitHeadersError = function(attempts, response, ajax) {
   var uploader = this;
+  var data = uploader._formatErrorForAction('getInitHeaders', response, ajax);
   if (uploader._retryAvailable(attempts)) {
     attempts += 1;
     uploader._log("Attempting to retry retrieval of init headers.");
     setTimeout(function() {
-      var data = {
-        action: "getInitHeaders",
-        xhr: response
-      };
       uploader._notifyUploadRetry(attempts, data);
       uploader._getInitHeaders(attempts);
     }, uploader._timeToWaitBeforeNextRetry(attempts));
   } else {
     var errorCode = 2;
-    uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
+    uploader._notifyUploadError(errorCode, uploader.errors[errorCode], data);
     uploader._setFailed();
     uploader._log("Uploader error!", uploader.errors[errorCode]);
   }
@@ -443,15 +449,15 @@ bs3u.Uploader.prototype._initiateUpload = function(retries) {
   });
 
   ajax.onSuccess(function(response) {
-    uploader._initiateUploadSuccess(attempts, response);
+    uploader._initiateUploadSuccess(attempts, response, ajax);
   });
 
   ajax.onError(function(response) {
-    uploader._initiateUploadError(attempts, response);
+    uploader._initiateUploadError(attempts, response, ajax);
   });
 
   ajax.onTimeout(function(response) {
-    uploader._initiateUploadError(attempts, response);
+    uploader._initiateUploadError(attempts, response, ajax);
   });
 
   ajax.send();
@@ -459,7 +465,7 @@ bs3u.Uploader.prototype._initiateUpload = function(retries) {
 };
 
 // The success callback for initiating an upload
-bs3u.Uploader.prototype._initiateUploadSuccess = function(attempts, response) {
+bs3u.Uploader.prototype._initiateUploadSuccess = function(attempts, response, ajax) {
   var uploader = this;
   if (response.target.status == 200) {
     uploader._log("Upload initiated.");
@@ -469,27 +475,24 @@ bs3u.Uploader.prototype._initiateUploadSuccess = function(attempts, response) {
     uploader._startBandwidthMonitor();
   } else {
     uploader._log("Initiate upload error. Deferring to error handler.");
-    uploader._initiateUploadError(attempts, response);
+    uploader._initiateUploadError(attempts, response, ajax);
   }
 };
 
 // The error callback for initiating an upload
-bs3u.Uploader.prototype._initiateUploadError = function(attempts, response) {
+bs3u.Uploader.prototype._initiateUploadError = function(attempts, response, ajax) {
   var uploader = this;
+  var data = uploader._formatErrorForAction('initiateUpload', response, ajax);
   if (uploader._retryAvailable(attempts)) {
     attempts += 1;
     uploader._log("Retrying to initiate the upload.");
     setTimeout(function() {
-      var data = {
-        action: "initiateUpload",
-        xhr: response
-      };
       uploader._notifyUploadRetry(attempts, data);
-      uploader._initiateUpload(attempts);
+      uploader._getInitHeaders(attempts);
     }, uploader._timeToWaitBeforeNextRetry(attempts));
   } else {
     var errorCode = 3;
-    uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
+    uploader._notifyUploadError(errorCode, uploader.errors[errorCode], data);
     uploader._setFailed();
     uploader._log("Uploader error!", uploader.errors[errorCode]);
   }
@@ -548,15 +551,15 @@ bs3u.Uploader.prototype._getChunkHeaders = function(number, retries) {
       });
 
       ajax.onSuccess(function(response) {
-        uploader._getChunkHeadersSuccess(attempts, number, response);
+        uploader._getChunkHeadersSuccess(attempts, number, response, ajax);
       });
 
       ajax.onError(function(response) {
-        uploader._getChunkHeadersError(attempts, number, response);
+        uploader._getChunkHeadersError(attempts, number, response, ajax);
       });
 
       ajax.onTimeout(function(response) {
-        uploader._getChunkHeadersError(attempts, number, response);
+        uploader._getChunkHeadersError(attempts, number, response, ajax);
       });
 
       ajax.send();
@@ -564,7 +567,7 @@ bs3u.Uploader.prototype._getChunkHeaders = function(number, retries) {
     };
 
     var failure = function(error) {
-      uploader._getChunkHeadersError(attempts, number, error);
+      uploader._getChunkHeadersError(attempts, number, error, ajax);
     };
 
     uploader._encryptText(fileReader.result, success, failure);
@@ -574,34 +577,31 @@ bs3u.Uploader.prototype._getChunkHeaders = function(number, retries) {
   fileReader.readAsArrayBuffer(body);
 };
 
-bs3u.Uploader.prototype._getChunkHeadersSuccess = function(attempts, number, response) {
+bs3u.Uploader.prototype._getChunkHeadersSuccess = function(attempts, number, response, ajax) {
   var uploader = this;
   if (response.target.status == 200) {
     uploader._log("Chunk " + number + " headers retrieved");
     uploader._chunkHeaders[number] = JSON.parse(response.target.responseText);
-    uploader._uploadChunk(number);
+    uploader._uploadChunk(number, attempts);
   } else {
     uploader._log("Server returned a non-200. Deferring to error handler!");
-    uploader._getChunkHeadersError(attempts, number, response);
+    uploader._getChunkHeadersError(attempts, number, response, ajax);
   }
 };
 
-bs3u.Uploader.prototype._getChunkHeadersError = function(attempts, number, response) {
+bs3u.Uploader.prototype._getChunkHeadersError = function(attempts, number, response, ajax) {
   var uploader = this;
+  var data = uploader._formatErrorForAction('getChunkHeaders', response, ajax);
   if (uploader._retryAvailable(attempts)) {
     attempts += 1;
     uploader._log("Attempting to retry retrieval of chunk " + number + " headers.");
     setTimeout(function() {
-      var data = {
-        action: "getChunkHeaders",
-        xhr: response
-      };
       uploader._notifyUploadRetry(attempts, data);
       uploader._getChunkHeaders(number, attempts);
     }, uploader._timeToWaitBeforeNextRetry(attempts));
   } else {
     var errorCode = 4;
-    uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
+    uploader._notifyUploadError(errorCode, uploader.errors[errorCode], data);
     uploader._setFailed();
     uploader._log("Uploader error!", uploader.errors[errorCode]);
   }
@@ -650,15 +650,15 @@ bs3u.Uploader.prototype._uploadChunk = function(number, retries) {
     uploader._log("Superfluous logging of body size to keep body from getting GCed", body.size);
     body = undefined;
 
-    uploader._uploadChunkSuccess(attempts, response, number);
+    uploader._uploadChunkSuccess(attempts, response, number, ajax);
   });
 
   ajax.onError(function(response) {
-    uploader._uploadChunkError(attempts, response, number);
+    uploader._uploadChunkError(attempts, response, number, ajax);
   });
 
   ajax.onTimeout(function(response) {
-    uploader._uploadChunkError(attempts, response, number);
+    uploader._uploadChunkError(attempts, response, number, ajax);
   });
 
   ajax.send(body);
@@ -674,7 +674,7 @@ bs3u.Uploader.prototype._uploadChunkProgress = function(response, number) {
 };
 
 // The success callback for uploading a single chunk
-bs3u.Uploader.prototype._uploadChunkSuccess = function(attempts, response, number) {
+bs3u.Uploader.prototype._uploadChunkSuccess = function(attempts, response, number, ajax) {
   var uploader = this;
   var chunk = uploader._chunks[number];
   if (response.target.status == 200) {
@@ -685,36 +685,39 @@ bs3u.Uploader.prototype._uploadChunkSuccess = function(attempts, response, numbe
     uploader._notifyChunkUploaded(number, totalChunks);
     // Store the eTag on the chunk
     var eTag = response.target.getResponseHeader("ETag");
-    if (eTag && eTag.length > 0) { chunk.eTag = eTag; }
+    if (eTag && eTag.length > 0) {
+      chunk.eTag = eTag;
+    } else {
+      uploader._log("Upload of chunk " + number +  " has failed. The eTag was blank!");
+      uploader._uploadChunkError(attempts, response, number, ajax);
+    }
   } else {
     uploader._log("Upload of chunk " + number +  " has failed. Deferring to error handler");
-    uploader._uploadChunkError(attempts, response, number);
+    uploader._uploadChunkError(attempts, response, number, ajax);
   }
 };
 
 // The error callback for uploading a single chunk
-bs3u.Uploader.prototype._uploadChunkError = function(attempts, response, number) {
+bs3u.Uploader.prototype._uploadChunkError = function(attempts, response, number, ajax) {
   var uploader = this;
 
   uploader._log("XHR error for chunk " + number, response);
   var chunk = uploader._chunks[number];
 
+  var data = uploader._formatErrorForAction('uploadChunk', response, ajax);
+  data.chunkNumber = number;
+  data.chunk = chunk;
+
   if (uploader._retryAvailable(attempts)) {
     attempts += 1;
     uploader._log("Retrying to upload chunk " + number);
     setTimeout(function() {
-      var data = {
-        action: "uploadChunk",
-        xhr: response,
-        chunkNumber: number,
-        chunk: chunk
-      };
       uploader._notifyUploadRetry(attempts, data);
-      uploader._uploadChunk(number, attempts);
+      uploader._getChunkHeaders(number, attempts);
     }, uploader._timeToWaitBeforeNextRetry(attempts));
   } else {
     var errorCode = 7;
-    uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
+    uploader._notifyUploadError(errorCode, uploader.errors[errorCode], data);
     uploader._setFailed();
     uploader._log("Uploader error! Cannot retry chunk " + number, uploader.errors[errorCode]);
   }
@@ -744,15 +747,15 @@ bs3u.Uploader.prototype._getListHeaders = function(retries) {
     });
 
     ajax.onSuccess(function(response) {
-      uploader._getListHeadersSuccess(attempts, response);
+      uploader._getListHeadersSuccess(attempts, response, ajax);
     });
 
     ajax.onError(function(response) {
-      uploader._getListHeadersError(attempts, response);
+      uploader._getListHeadersError(attempts, response, ajax);
     });
 
     ajax.onTimeout(function(response) {
-      uploader._getListHeadersError(attempts, response);
+      uploader._getListHeadersError(attempts, response, ajax);
     });
 
     ajax.send();
@@ -760,14 +763,14 @@ bs3u.Uploader.prototype._getListHeaders = function(retries) {
   };
 
   var failure = function(error) {
-    uploader._getListHeadersError(attempts, error);
+    uploader._getListHeadersError(attempts, error, ajax);
   };
 
   uploader._encryptText("", success, failure);
 
 };
 
-bs3u.Uploader.prototype._getListHeadersSuccess = function(attempts, response) {
+bs3u.Uploader.prototype._getListHeadersSuccess = function(attempts, response, ajax) {
   var uploader = this;
   if (response.target.status == 200) {
     uploader._log("list headers retrieved");
@@ -775,27 +778,24 @@ bs3u.Uploader.prototype._getListHeadersSuccess = function(attempts, response) {
     uploader._verifyAllChunksUploaded();
   } else {
     uploader._log("Server returned a non-200. Deferring to error handler!");
-    uploader._getListHeadersError(attempts, response);
+    uploader._getListHeadersError(attempts, response, ajax);
   }
 };
 
-bs3u.Uploader.prototype._getListHeadersError = function(attempts, response) {
+bs3u.Uploader.prototype._getListHeadersError = function(attempts, response, ajax) {
   var uploader = this;
+  var data = uploader._formatErrorForAction('getListHeaders', response, ajax);
 
   if (uploader._retryAvailable(attempts)) {
     attempts += 1;
     uploader._log("Attempting to retry retrieval of list headers.");
     setTimeout(function() {
-      var data = {
-        action: "getListHeaders",
-        xhr: response
-      };
       uploader._notifyUploadRetry(attempts, data);
       uploader._getListHeaders(attempts);
     }, uploader._timeToWaitBeforeNextRetry(attempts));
   } else {
     var errorCode = 9;
-    uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
+    uploader._notifyUploadError(errorCode, uploader.errors[errorCode], data);
     uploader._setFailed();
     uploader._log("Uploader error!", uploader.errors[errorCode]);
   }
@@ -829,15 +829,15 @@ bs3u.Uploader.prototype._verifyAllChunksUploaded = function(retries) {
   });
 
   ajax.onSuccess(function(response) {
-    uploader._verifyAllChunksUploadedSuccess(attempts, response);
+    uploader._verifyAllChunksUploadedSuccess(attempts, response, ajax);
   });
 
   ajax.onError(function(response) {
-    uploader._verifyAllChunksUploadedError(attempts, response);
+    uploader._verifyAllChunksUploadedError(attempts, response, ajax);
   });
 
   ajax.onTimeout(function(response) {
-    uploader._verifyAllChunksUploadedError(attempts, response);
+    uploader._verifyAllChunksUploadedError(attempts, response, ajax);
   });
 
   ajax.send();
@@ -871,7 +871,7 @@ bs3u.Uploader.prototype._collectInvalidChunks = function(parts) {
   return invalidParts;
 };
 
-bs3u.Uploader.prototype._verifyAllChunksUploadedSuccess = function(attempts, response) {
+bs3u.Uploader.prototype._verifyAllChunksUploadedSuccess = function(attempts, response, ajax) {
   var uploader = this;
 
   if (response.target.status == 200) {
@@ -894,7 +894,7 @@ bs3u.Uploader.prototype._verifyAllChunksUploadedSuccess = function(attempts, res
 
   } else {
     uploader._log("Chunk verification has failed. Deferring to error handler");
-    uploader._verifyAllChunksUploadedError(attempts, response);
+    uploader._verifyAllChunksUploadedError(attempts, response, ajax);
   }
 };
 
@@ -924,15 +924,15 @@ bs3u.Uploader.prototype._getCompleteHeaders = function(retries) {
     });
 
     ajax.onSuccess(function(response) {
-      uploader._getCompleteHeadersSuccess(attempts, response);
+      uploader._getCompleteHeadersSuccess(attempts, response, ajax);
     });
 
     ajax.onError(function(response) {
-      uploader._getCompleteHeadersError(attempts, response);
+      uploader._getCompleteHeadersError(attempts, response, ajax);
     });
 
     ajax.onTimeout(function(response) {
-      uploader._getCompleteHeadersError(attempts, response);
+      uploader._getCompleteHeadersError(attempts, response, ajax);
     });
 
     ajax.send();
@@ -940,13 +940,13 @@ bs3u.Uploader.prototype._getCompleteHeaders = function(retries) {
   };
 
   var failure = function(error) {
-    uploader._getCompleteHeadersError(attempts, error);
+    uploader._getCompleteHeadersError(attempts, error, ajax);
   };
 
   uploader._encryptText(payload, success, failure);
 };
 
-bs3u.Uploader.prototype._getCompleteHeadersSuccess = function(attempts, response) {
+bs3u.Uploader.prototype._getCompleteHeadersSuccess = function(attempts, response, ajax) {
   var uploader = this;
   if (response.target.status == 200) {
     uploader._log("complete headers retrieved");
@@ -954,48 +954,43 @@ bs3u.Uploader.prototype._getCompleteHeadersSuccess = function(attempts, response
     uploader._completeUpload();
   } else {
     uploader._log("Server returned a non-200. Deferring to error handler!");
-    uploader._getCompleteHeadersError(attempts, response);
+    uploader._getCompleteHeadersError(attempts, response, ajax);
   }
 };
 
-bs3u.Uploader.prototype._getCompleteHeadersError = function(attempts, response) {
+bs3u.Uploader.prototype._getCompleteHeadersError = function(attempts, response, ajax) {
   var uploader = this;
+  var data = uploader._formatErrorForAction('getCompleteHeaders', response, ajax);
 
   if (uploader._retryAvailable(attempts)) {
     attempts += 1;
     uploader._log("Attempting to retry retrieval of complete headers.");
     setTimeout(function() {
-      var data = {
-        action: "getCompleteHeaders",
-        xhr: response
-      };
       uploader._notifyUploadRetry(attempts, data);
       uploader._getCompleteHeaders(attempts);
     }, uploader._timeToWaitBeforeNextRetry(attempts));
   } else {
     var errorCode = 10;
-    uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
+    uploader._notifyUploadError(errorCode, uploader.errors[errorCode], data);
     uploader._setFailed();
     uploader._log("Uploader error!", uploader.errors[errorCode]);
   }
 };
 
-bs3u.Uploader.prototype._verifyAllChunksUploadedError = function(attempts, response) {
+bs3u.Uploader.prototype._verifyAllChunksUploadedError = function(attempts, response, ajax) {
   var uploader = this;
+  var data = uploader._formatErrorForAction('verifyAllChunksUploaded', response, ajax);
+
   if (uploader._retryAvailable(attempts)) {
     attempts += 1;
     uploader._log("Retrying chunk verification");
     setTimeout(function() {
-      var data = {
-        action: "verifyAllChunksUploaded",
-        xhr: response
-      };
       uploader._notifyUploadRetry(attempts, data);
-      uploader._verifyAllChunksUploaded(attempts);
+      uploader._getListHeaders(attempts);
     }, uploader._timeToWaitBeforeNextRetry(attempts));
   } else {
     var errorCode = 6;
-    uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
+    uploader._notifyUploadError(errorCode, uploader.errors[errorCode], data);
     uploader._setFailed();
     uploader._log("Uploader error!", uploader.errors[errorCode]);
   }
@@ -1084,22 +1079,22 @@ bs3u.Uploader.prototype._completeUpload = function(retries) {
   });
 
   ajax.onSuccess(function(response) {
-    uploader._completeUploadSuccess(attempts, response);
+    uploader._completeUploadSuccess(attempts, response, ajax);
   });
 
   ajax.onError(function(response) {
-    uploader._completeUploadError(attempts, response);
+    uploader._completeUploadError(attempts, response, ajax);
   });
 
   ajax.onTimeout(function(response) {
-    uploader._completeUploadError(attempts, response);
+    uploader._completeUploadError(attempts, response, ajax);
   });
 
   ajax.send(body);
   uploader._XHRs.push(ajax);
 };
 
-bs3u.Uploader.prototype._completeUploadSuccess = function(attempts, response) {
+bs3u.Uploader.prototype._completeUploadSuccess = function(attempts, response, ajax) {
   var uploader = this;
   if (response.target.status == 200) {
     var xml = response.target.responseXML;
@@ -1112,26 +1107,24 @@ bs3u.Uploader.prototype._completeUploadSuccess = function(attempts, response) {
     }
   } else {
     uploader._log("Unable to complete the uploader. Deferring to error handler");
-    uploader._completeUploadError(attempts, response);
+    uploader._completeUploadError(attempts, response, ajax);
   }
 };
 
-bs3u.Uploader.prototype._completeUploadError = function(attempts, response) {
+bs3u.Uploader.prototype._completeUploadError = function(attempts, response, ajax) {
   var uploader = this;
+  var data = uploader._formatErrorForAction('completeUpload', response, ajax);
+
   if (uploader._retryAvailable(attempts)) {
     attempts += 1;
     uploader._log("Attempting to retry upload completion");
     setTimeout(function() {
-      var data = {
-        action: "completeUpload",
-        xhr: response
-      };
       uploader._notifyUploadRetry(attempts, data);
-      uploader._completeUpload(attempts);
+      uploader._getCompleteHeaders(attempts);
     }, uploader._timeToWaitBeforeNextRetry(attempts));
   } else {
     var errorCode = 8;
-    uploader._notifyUploadError(errorCode, uploader.errors[errorCode]);
+    uploader._notifyUploadError(errorCode, uploader.errors[errorCode], data);
     uploader._setFailed();
     uploader._log("Uploader error!", uploader.errors[errorCode]);
   }
@@ -1175,30 +1168,6 @@ bs3u.Uploader.prototype._chunkUploadsInProgress = function() {
   return count;
 };
 
-// Since none of the XHR requests are configured with a timeout, we need to
-// monitor each chunk upload request and evaluate if the request has bombed out
-// (no progress reported in 30sec). When this happens, we can abort the chunk
-// upload and mark it for a retry.
-bs3u.Uploader.prototype._abortTimedOutRequests = function() {
-  var uploader = this;
-  var currentTime = new Date().getTime();
-  var chunkProgressTime, ajax, chunk;
-
-  for (var index in uploader._chunkXHRs) {
-    chunk = uploader._chunks[index];
-    if (chunk.uploading && !chunk.uploadComplete) {
-
-      ajax = uploader._chunkXHRs[index];
-      chunkProgressTime = ajax.lastProgressAt;
-
-      if (chunkProgressTime && (currentTime - chunkProgressTime) > 30000) {
-        uploader._log("No progress has been reported within 30 seconds for chunk " + index);
-        uploader._abortChunkUpload(index);
-      }
-    }
-  }
-};
-
 // Monitors chunk uploads and attempts to complete the upload
 bs3u.Uploader.prototype._startCompleteWatcher = function() {
   var uploader = this;
@@ -1214,8 +1183,6 @@ bs3u.Uploader.prototype._startCompleteWatcher = function() {
     if (uploader._pauseCompleteWatcher) {
       return;
     }
-
-    uploader._abortTimedOutRequests();
 
     if (uploader._allETagsAvailable()) {
       // temporarily shut down the watcher
@@ -1271,11 +1238,10 @@ bs3u.Uploader.prototype._calculateOptimalConcurrentChunks = function(time, initi
   var uploader = this;
   var loaded = uploader._calculateUploadProgress();
   var speed = parseInt(loaded / (new Date().getTime() - time), 10);
-  var timeout = 900000; // 15 mins
   uploader._log("Calculated average upload speed is " + speed + " KB/s");
   var chunkSize = uploader.settings.chunkSize;
   // Needed speed to upload a single chunk within the signature timeout
-  var neededSpeed = (chunkSize / timeout);
+  var neededSpeed = (chunkSize / bs3u.constants.FIFTEEN_MINUTES);
   var count = parseInt((speed / neededSpeed), 10);
 
   return Math.max(Math.min(count, initialMaxChunks), 1);
@@ -1411,12 +1377,12 @@ bs3u.Uploader.prototype._notifyUploadComplete = function(location) {
 
 // Notifies that an error has occurred with the uploader. Calls the user-defined
 // onError method, sending in the error code and description
-bs3u.Uploader.prototype._notifyUploadError = function(errorCode, description) {
+bs3u.Uploader.prototype._notifyUploadError = function(errorCode, description, data) {
   var uploader = this;
   // If the uploader has already been set to failed, this message has already been
   // sent so we will want to prevent duplicate publishes of this event.
   if (!uploader._isFailed()) {
-    uploader.settings.onError.call(uploader, errorCode, description);
+    uploader.settings.onError.call(uploader, errorCode, description, data);
   }
 };
 
@@ -1492,6 +1458,22 @@ bs3u.Uploader.prototype._sha256 = function(value) {
 bs3u.Uploader.prototype._defaultHost = function() {
   var uploader = this;
   return uploader.settings.protocol + uploader.settings.bucket + "." + "s3-" + uploader.settings.region + ".amazonaws.com";
+};
+
+bs3u.Uploader.prototype._formatErrorForAction = function(action, response, ajax) {
+  return {
+    action: action,
+    requestInfo: {
+      headers: ajax.headers,
+      url: ajax.url,
+      method: ajax.method,
+      body: ajax.body
+    },
+    responseInfo: {
+      status: response.target.status,
+      responseText: response.target.responseText,
+    }
+  };
 };
 
 bs3u.Uploader.prototype._log = function(msg, object) {
