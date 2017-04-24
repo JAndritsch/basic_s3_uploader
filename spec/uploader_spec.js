@@ -946,7 +946,7 @@ describe("bs3u.Uploader", function() {
     describe("when a retry is available", function() {
       beforeEach(function() {
         spyOn(uploader, '_notifyUploadRetry');
-        spyOn(uploader, '_initiateUpload');
+        spyOn(uploader, '_getInitHeaders');
         spyOn(uploader, '_retryAvailable').and.returnValue(true);
         uploader._initiateUploadError(attempts, mockResponse);
       });
@@ -956,7 +956,7 @@ describe("bs3u.Uploader", function() {
       });
 
       it("calls _initiateUpload with attempts incremented by 1", function() {
-        expect(uploader._initiateUpload).toHaveBeenCalledWith(attempts + 1);
+        expect(uploader._getInitHeaders).toHaveBeenCalledWith(attempts + 1);
       });
     });
 
@@ -1511,7 +1511,7 @@ describe("bs3u.Uploader", function() {
         callback();
       });
       spyOn(uploader, '_notifyUploadRetry');
-      spyOn(uploader, '_uploadChunk');
+      spyOn(uploader, '_getChunkHeaders');
       uploader._chunks = {
         1: { uploading: true, uploadComplete: true }
       };
@@ -1525,7 +1525,7 @@ describe("bs3u.Uploader", function() {
     });
 
     it("retries uploading the chunk with the attempts count incremented by 1", function() {
-      expect(uploader._uploadChunk).toHaveBeenCalledWith(chunkNumber, attempts + 1);
+      expect(uploader._getChunkHeaders).toHaveBeenCalledWith(chunkNumber, attempts + 1);
     });
   });
 
@@ -2033,7 +2033,7 @@ describe("bs3u.Uploader", function() {
 
         spyOn(uploader, '_retryAvailable').and.returnValue(true);
         spyOn(uploader, '_notifyUploadRetry');
-        spyOn(uploader, '_verifyAllChunksUploaded');
+        spyOn(uploader, '_getListHeaders');
         attempts = 1;
         mockResponse = {};
         uploader._verifyAllChunksUploadedError(attempts, mockResponse);
@@ -2044,7 +2044,7 @@ describe("bs3u.Uploader", function() {
       });
 
       it("retries the call, increasing attempts by 1", function() {
-        expect(uploader._verifyAllChunksUploaded).toHaveBeenCalledWith(attempts + 1);
+        expect(uploader._getListHeaders).toHaveBeenCalledWith(attempts + 1);
       });
     });
 
@@ -2619,7 +2619,7 @@ describe("bs3u.Uploader", function() {
         attempts = 1;
         mockResponse = {};
         spyOn(uploader, '_notifyUploadRetry');
-        spyOn(uploader, '_completeUpload');
+        spyOn(uploader, '_getCompleteHeaders');
         uploader._completeUploadError(attempts, mockResponse);
       });
 
@@ -2628,7 +2628,7 @@ describe("bs3u.Uploader", function() {
       });
 
       it("retries the call with the attempt number incremented by 1", function() {
-        expect(uploader._completeUpload).toHaveBeenCalledWith(attempts + 1);
+        expect(uploader._getCompleteHeaders).toHaveBeenCalledWith(attempts + 1);
       });
     });
 

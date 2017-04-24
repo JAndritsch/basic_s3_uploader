@@ -387,7 +387,7 @@ bs3u.Uploader.prototype._initiateUploadError = function(attempts, response) {
         xhr: response
       };
       uploader._notifyUploadRetry(attempts, data);
-      uploader._initiateUpload(attempts);
+      uploader._getInitHeaders(attempts);
     }, uploader._timeToWaitBeforeNextRetry(attempts));
   } else {
     var errorCode = 3;
@@ -481,7 +481,7 @@ bs3u.Uploader.prototype._getChunkHeadersSuccess = function(attempts, number, res
   if (response.target.status == 200) {
     uploader._log("Chunk " + number + " headers retrieved");
     uploader._chunkHeaders[number] = JSON.parse(response.target.responseText);
-    uploader._uploadChunk(number);
+    uploader._uploadChunk(number, attempts);
   } else {
     uploader._log("Server returned a non-200. Deferring to error handler!");
     uploader._getChunkHeadersError(attempts, number, response);
@@ -617,7 +617,7 @@ bs3u.Uploader.prototype._uploadChunkError = function(attempts, response, number)
         chunk: chunk
       };
       uploader._notifyUploadRetry(attempts, data);
-      uploader._uploadChunk(number, attempts);
+      uploader._getChunkHeaders(number, attempts);
     }, uploader._timeToWaitBeforeNextRetry(attempts));
   } else {
     var errorCode = 7;
@@ -898,7 +898,7 @@ bs3u.Uploader.prototype._verifyAllChunksUploadedError = function(attempts, respo
         xhr: response
       };
       uploader._notifyUploadRetry(attempts, data);
-      uploader._verifyAllChunksUploaded(attempts);
+      uploader._getListHeaders(attempts);
     }, uploader._timeToWaitBeforeNextRetry(attempts));
   } else {
     var errorCode = 6;
@@ -1034,7 +1034,7 @@ bs3u.Uploader.prototype._completeUploadError = function(attempts, response) {
         xhr: response
       };
       uploader._notifyUploadRetry(attempts, data);
-      uploader._completeUpload(attempts);
+      uploader._getCompleteHeaders(attempts);
     }, uploader._timeToWaitBeforeNextRetry(attempts));
   } else {
     var errorCode = 8;
