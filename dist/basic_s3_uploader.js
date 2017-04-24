@@ -395,7 +395,7 @@ bs3u.Uploader.prototype._getInitHeaders = function(retries) {
   };
 
   var failure = function(error) {
-    uploader._getInitHeadersError(attempts, error, ajax);
+    uploader._getInitHeadersError(attempts, error, {});
   };
 
   uploader._encryptText("", success, failure);
@@ -567,7 +567,7 @@ bs3u.Uploader.prototype._getChunkHeaders = function(number, retries) {
     };
 
     var failure = function(error) {
-      uploader._getChunkHeadersError(attempts, number, error, ajax);
+      uploader._getChunkHeadersError(attempts, number, error, {});
     };
 
     uploader._encryptText(fileReader.result, success, failure);
@@ -763,7 +763,7 @@ bs3u.Uploader.prototype._getListHeaders = function(retries) {
   };
 
   var failure = function(error) {
-    uploader._getListHeadersError(attempts, error, ajax);
+    uploader._getListHeadersError(attempts, error, {});
   };
 
   uploader._encryptText("", success, failure);
@@ -940,7 +940,7 @@ bs3u.Uploader.prototype._getCompleteHeaders = function(retries) {
   };
 
   var failure = function(error) {
-    uploader._getCompleteHeadersError(attempts, error, ajax);
+    uploader._getCompleteHeadersError(attempts, error, {});
   };
 
   uploader._encryptText(payload, success, failure);
