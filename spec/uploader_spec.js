@@ -1632,7 +1632,7 @@ describe("bs3u.Uploader", function() {
       var callback = mockAjax.onSuccess.calls.argsFor(0)[0];
       var mockResponse = { target: { status: 200 } };
       callback(mockResponse);
-      expect(uploader._getListHeadersSuccess).toHaveBeenCalledWith(attempts, mockResponse);
+      expect(uploader._getListHeadersSuccess).toHaveBeenCalledWith(attempts, mockResponse, mockAjax);
     });
 
     it("registers the error callback", function() {
@@ -1642,7 +1642,7 @@ describe("bs3u.Uploader", function() {
       var callback = mockAjax.onError.calls.argsFor(0)[0];
       var mockResponse = { target: { status: 500 } };
       callback(mockResponse);
-      expect(uploader._getListHeadersError).toHaveBeenCalledWith(attempts, mockResponse);
+      expect(uploader._getListHeadersError).toHaveBeenCalledWith(attempts, mockResponse, mockAjax);
     });
 
     it("registers the timeout callback", function() {
@@ -1652,7 +1652,7 @@ describe("bs3u.Uploader", function() {
       var callback = mockAjax.onTimeout.calls.argsFor(0)[0];
       var mockResponse = { target: { status: 500 } };
       callback(mockResponse);
-      expect(uploader._getListHeadersError).toHaveBeenCalledWith(attempts, mockResponse);
+      expect(uploader._getListHeadersError).toHaveBeenCalledWith(attempts, mockResponse, mockAjax);
     });
 
     it("sends the request", function() {
@@ -1695,7 +1695,7 @@ describe("bs3u.Uploader", function() {
           }
         };
         spyOn(uploader, '_verifyAllChunksUploaded');
-        uploader._getListHeadersSuccess(attempts, mockResponse);
+        uploader._getListHeadersSuccess(attempts, mockResponse, mockAjax);
       });
 
       it("parses and stores the list headers from the response body", function() {
@@ -1715,11 +1715,11 @@ describe("bs3u.Uploader", function() {
           }
         };
         spyOn(uploader, '_getListHeadersError');
-        uploader._getListHeadersSuccess(attempts, mockResponse);
+        uploader._getListHeadersSuccess(attempts, mockResponse, mockAjax);
       });
 
       it("calls the error handler", function() {
-        expect(uploader._getListHeadersError).toHaveBeenCalledWith(attempts, mockResponse);
+        expect(uploader._getListHeadersError).toHaveBeenCalledWith(attempts, mockResponse, mockAjax);
       });
     });
   });
@@ -1758,11 +1758,14 @@ describe("bs3u.Uploader", function() {
         spyOn(uploader, '_notifyUploadRetry');
         spyOn(uploader, '_getListHeaders');
         spyOn(uploader, '_retryAvailable').and.returnValue(true);
-        uploader._getListHeadersError(attempts, mockResponse);
+        uploader._getListHeadersError(attempts, mockResponse, mockAjax);
       });
 
       it("notifies about the retry", function() {
-        expect(uploader._notifyUploadRetry).toHaveBeenCalledWith(attempts + 1, jasmine.any(Object));
+        expect(uploader._notifyUploadRetry).toHaveBeenCalledWith(
+          attempts + 1,
+          uploader._formatErrorForAction('getListHeaders', mockResponse, mockAjax)
+        );
       });
 
       it("calls _getListHeaders with attempts incremented by 1", function() {
@@ -1775,11 +1778,15 @@ describe("bs3u.Uploader", function() {
         spyOn(uploader, '_notifyUploadError');
         spyOn(uploader, '_setFailed');
         spyOn(uploader, '_retryAvailable').and.returnValue(false);
-        uploader._getListHeadersError(attempts, mockResponse);
+        uploader._getListHeadersError(attempts, mockResponse, mockAjax);
       });
 
       it("notifies about the upload error", function() {
-        expect(uploader._notifyUploadError).toHaveBeenCalledWith(9, uploader.errors[9]);
+        expect(uploader._notifyUploadError).toHaveBeenCalledWith(
+          9,
+          uploader.errors[9],
+          uploader._formatErrorForAction('getListHeaders', mockResponse, mockAjax)
+        );
       });
 
       it("sets the uploader to a failed state", function() {
@@ -1851,7 +1858,7 @@ describe("bs3u.Uploader", function() {
       var callback = mockAjax.onSuccess.calls.argsFor(0)[0];
       var mockResponse = { target: { status: 200 } };
       callback(mockResponse);
-      expect(uploader._verifyAllChunksUploadedSuccess).toHaveBeenCalledWith(attempts, mockResponse);
+      expect(uploader._verifyAllChunksUploadedSuccess).toHaveBeenCalledWith(attempts, mockResponse, mockAjax);
     });
 
     it("registers the error callback", function() {
@@ -1861,7 +1868,7 @@ describe("bs3u.Uploader", function() {
       var callback = mockAjax.onError.calls.argsFor(0)[0];
       var mockResponse = { target: { status: 200 } };
       callback(mockResponse);
-      expect(uploader._verifyAllChunksUploadedError).toHaveBeenCalledWith(attempts, mockResponse);
+      expect(uploader._verifyAllChunksUploadedError).toHaveBeenCalledWith(attempts, mockResponse, mockAjax);
     });
 
     it("registers the timeout callback", function() {
@@ -1871,7 +1878,7 @@ describe("bs3u.Uploader", function() {
       var callback = mockAjax.onTimeout.calls.argsFor(0)[0];
       var mockResponse = { target: { status: 200 } };
       callback(mockResponse);
-      expect(uploader._verifyAllChunksUploadedError).toHaveBeenCalledWith(attempts, mockResponse);
+      expect(uploader._verifyAllChunksUploadedError).toHaveBeenCalledWith(attempts, mockResponse, mockAjax);
     });
 
     it("sends the request", function() {
@@ -1976,7 +1983,7 @@ describe("bs3u.Uploader", function() {
             }
           };
           spyOn(uploader, '_handleMissingChunks');
-          uploader._verifyAllChunksUploadedSuccess(attempts, mockResponse);
+          uploader._verifyAllChunksUploadedSuccess(attempts, mockResponse, mockAjax);
         });
 
         it("calls _handleMissingChunks with the list of parts returned from Amazon", function() {
@@ -2004,7 +2011,7 @@ describe("bs3u.Uploader", function() {
             }
           };
           spyOn(uploader, '_handleInvalidChunks');
-          uploader._verifyAllChunksUploadedSuccess(attempts, mockResponse);
+          uploader._verifyAllChunksUploadedSuccess(attempts, mockResponse, mockAjax);
         });
 
         it("calls _handleInvalidChunks with the list of part numbers that are invalid", function() {
@@ -2032,7 +2039,7 @@ describe("bs3u.Uploader", function() {
             }
           };
           spyOn(uploader, '_getCompleteHeaders');
-          uploader._verifyAllChunksUploadedSuccess(attempts, mockResponse);
+          uploader._verifyAllChunksUploadedSuccess(attempts, mockResponse, mockAjax);
         });
 
         it("retrieves upload complete headers", function() {
@@ -2055,11 +2062,11 @@ describe("bs3u.Uploader", function() {
           callback();
         });
         spyOn(uploader, '_verifyAllChunksUploadedError');
-        uploader._verifyAllChunksUploadedSuccess(attempts, mockResponse);
+        uploader._verifyAllChunksUploadedSuccess(attempts, mockResponse, mockAjax);
       });
 
       it("calls _verifyAllChunksUploadedError", function() {
-        expect(uploader._verifyAllChunksUploadedError).toHaveBeenCalledWith(attempts, mockResponse);
+        expect(uploader._verifyAllChunksUploadedError).toHaveBeenCalledWith(attempts, mockResponse, mockAjax);
       });
     });
   });
@@ -2093,12 +2100,19 @@ describe("bs3u.Uploader", function() {
         spyOn(uploader, '_notifyUploadRetry');
         spyOn(uploader, '_getListHeaders');
         attempts = 1;
-        mockResponse = {};
-        uploader._verifyAllChunksUploadedError(attempts, mockResponse);
+        mockResponse = {
+          target: {
+            status: 500
+          }
+        };
+        uploader._verifyAllChunksUploadedError(attempts, mockResponse, mockAjax);
       });
 
       it("notifies about the next retry attempt", function() {
-        expect(uploader._notifyUploadRetry).toHaveBeenCalled();
+        expect(uploader._notifyUploadRetry).toHaveBeenCalledWith(
+          attempts + 1,
+          uploader._formatErrorForAction('verifyAllChunksUploaded', mockResponse, mockAjax)
+        );
       });
 
       it("retries the call, increasing attempts by 1", function() {
@@ -2111,11 +2125,15 @@ describe("bs3u.Uploader", function() {
         spyOn(uploader, '_retryAvailable').and.returnValue(false);
         spyOn(uploader, '_notifyUploadError');
         spyOn(uploader, '_setFailed');
-        uploader._verifyAllChunksUploadedError(attempts, mockResponse);
+        uploader._verifyAllChunksUploadedError(attempts, mockResponse, mockAjax);
       });
 
       it("notifies that the upload has failed", function() {
-        expect(uploader._notifyUploadError).toHaveBeenCalledWith(6, uploader.errors[6]);
+        expect(uploader._notifyUploadError).toHaveBeenCalledWith(
+          6,
+          uploader.errors[6],
+          uploader._formatErrorForAction('verifyAllChunksUploaded', mockResponse, mockAjax)
+        );
       });
 
       it("sets the uploader to a failed state", function() {
@@ -2174,7 +2192,7 @@ describe("bs3u.Uploader", function() {
       var callback = mockAjax.onSuccess.calls.argsFor(0)[0];
       var mockResponse = { target: { status: 200 } };
       callback(mockResponse);
-      expect(uploader._getCompleteHeadersSuccess).toHaveBeenCalledWith(attempts, mockResponse);
+      expect(uploader._getCompleteHeadersSuccess).toHaveBeenCalledWith(attempts, mockResponse, mockAjax);
     });
 
     it("registers the error callback", function() {
@@ -2184,7 +2202,7 @@ describe("bs3u.Uploader", function() {
       var callback = mockAjax.onError.calls.argsFor(0)[0];
       var mockResponse = { target: { status: 500 } };
       callback(mockResponse);
-      expect(uploader._getCompleteHeadersError).toHaveBeenCalledWith(attempts, mockResponse);
+      expect(uploader._getCompleteHeadersError).toHaveBeenCalledWith(attempts, mockResponse, mockAjax);
     });
 
     it("registers the timeout callback", function() {
@@ -2194,7 +2212,7 @@ describe("bs3u.Uploader", function() {
       var callback = mockAjax.onTimeout.calls.argsFor(0)[0];
       var mockResponse = { target: { status: 500 } };
       callback(mockResponse);
-      expect(uploader._getCompleteHeadersError).toHaveBeenCalledWith(attempts, mockResponse);
+      expect(uploader._getCompleteHeadersError).toHaveBeenCalledWith(attempts, mockResponse, mockAjax);
     });
 
     it("sends the request", function() {
@@ -2237,7 +2255,7 @@ describe("bs3u.Uploader", function() {
           }
         };
         spyOn(uploader, '_completeUpload');
-        uploader._getCompleteHeadersSuccess(attempts, mockResponse);
+        uploader._getCompleteHeadersSuccess(attempts, mockResponse, mockAjax);
       });
 
       it("parses and stores the complete headers from the response body", function() {
@@ -2257,11 +2275,11 @@ describe("bs3u.Uploader", function() {
           }
         };
         spyOn(uploader, '_getCompleteHeadersError');
-        uploader._getCompleteHeadersSuccess(attempts, mockResponse);
+        uploader._getCompleteHeadersSuccess(attempts, mockResponse, mockAjax);
       });
 
       it("calls the error handler", function() {
-        expect(uploader._getCompleteHeadersError).toHaveBeenCalledWith(attempts, mockResponse);
+        expect(uploader._getCompleteHeadersError).toHaveBeenCalledWith(attempts, mockResponse, mockAjax);
       });
     });
   });
@@ -2300,11 +2318,14 @@ describe("bs3u.Uploader", function() {
         spyOn(uploader, '_notifyUploadRetry');
         spyOn(uploader, '_getCompleteHeaders');
         spyOn(uploader, '_retryAvailable').and.returnValue(true);
-        uploader._getCompleteHeadersError(attempts, mockResponse);
+        uploader._getCompleteHeadersError(attempts, mockResponse, mockAjax);
       });
 
       it("notifies about the retry", function() {
-        expect(uploader._notifyUploadRetry).toHaveBeenCalledWith(attempts + 1, jasmine.any(Object));
+        expect(uploader._notifyUploadRetry).toHaveBeenCalledWith(
+          attempts + 1,
+          uploader._formatErrorForAction('getCompleteHeaders', mockResponse, mockAjax)
+        );
       });
 
       it("calls _getCompleteHeaders with attempts incremented by 1", function() {
@@ -2317,11 +2338,15 @@ describe("bs3u.Uploader", function() {
         spyOn(uploader, '_notifyUploadError');
         spyOn(uploader, '_setFailed');
         spyOn(uploader, '_retryAvailable').and.returnValue(false);
-        uploader._getCompleteHeadersError(attempts, mockResponse);
+        uploader._getCompleteHeadersError(attempts, mockResponse, mockAjax);
       });
 
       it("notifies about the upload error", function() {
-        expect(uploader._notifyUploadError).toHaveBeenCalledWith(10, uploader.errors[10]);
+        expect(uploader._notifyUploadError).toHaveBeenCalledWith(
+          10,
+          uploader.errors[10],
+          uploader._formatErrorForAction('getCompleteHeaders', mockResponse, mockAjax)
+        );
       });
 
       it("sets the uploader to a failed state", function() {
@@ -2528,7 +2553,7 @@ describe("bs3u.Uploader", function() {
       var callback = mockAjax.onSuccess.calls.argsFor(0)[0];
       var mockResponse = { target: { status: 200 } };
       callback(mockResponse);
-      expect(uploader._completeUploadSuccess).toHaveBeenCalledWith(attempts, mockResponse);
+      expect(uploader._completeUploadSuccess).toHaveBeenCalledWith(attempts, mockResponse, mockAjax);
     });
 
     it("registers the error callback", function() {
@@ -2538,7 +2563,7 @@ describe("bs3u.Uploader", function() {
       var callback = mockAjax.onError.calls.argsFor(0)[0];
       var mockResponse = { target: { status: 500 } };
       callback(mockResponse);
-      expect(uploader._completeUploadError).toHaveBeenCalledWith(attempts, mockResponse);
+      expect(uploader._completeUploadError).toHaveBeenCalledWith(attempts, mockResponse, mockAjax);
     });
 
     it("registers the timeout callback", function() {
@@ -2548,7 +2573,7 @@ describe("bs3u.Uploader", function() {
       var callback = mockAjax.onTimeout.calls.argsFor(0)[0];
       var mockResponse = { target: { status: 500 } };
       callback(mockResponse);
-      expect(uploader._completeUploadError).toHaveBeenCalledWith(attempts, mockResponse);
+      expect(uploader._completeUploadError).toHaveBeenCalledWith(attempts, mockResponse, mockAjax);
     });
 
     it("sends the ajax request", function() {
@@ -2601,7 +2626,7 @@ describe("bs3u.Uploader", function() {
         spyOn(uploader, "_notifyUploadComplete");
         spyOn(uploader, "_setComplete");
         spyOn(uploader, "_abortAllXHRs");
-        uploader._completeUploadSuccess(attempts, mockResponse);
+        uploader._completeUploadSuccess(attempts, mockResponse, mockAjax);
       });
 
       it("notifies that the upload is complete, passing in the location from the response xml", function() {
@@ -2629,11 +2654,11 @@ describe("bs3u.Uploader", function() {
           }
         };
         spyOn(uploader, '_completeUploadError');
-        uploader._completeUploadSuccess(attempts, mockResponse);
+        uploader._completeUploadSuccess(attempts, mockResponse, mockAjax);
       });
 
       it("calls _completeUploadError", function() {
-        expect(uploader._completeUploadError).toHaveBeenCalledWith(attempts, mockResponse);
+        expect(uploader._completeUploadError).toHaveBeenCalledWith(attempts, mockResponse, mockAjax);
       });
     });
   });
@@ -2675,14 +2700,21 @@ describe("bs3u.Uploader", function() {
 
       beforeEach(function() {
         attempts = 1;
-        mockResponse = {};
+        mockResponse = {
+          target: {
+            status: 400
+          }
+        };
         spyOn(uploader, '_notifyUploadRetry');
         spyOn(uploader, '_getCompleteHeaders');
-        uploader._completeUploadError(attempts, mockResponse);
+        uploader._completeUploadError(attempts, mockResponse, mockAjax);
       });
 
       it("notifies about the next retry attempt", function() {
-        expect(uploader._notifyUploadRetry).toHaveBeenCalled();
+        expect(uploader._notifyUploadRetry).toHaveBeenCalledWith(
+          attempts + 1,
+          uploader._formatErrorForAction('completeUpload', mockResponse, mockAjax)
+        );
       });
 
       it("retries the call with the attempt number incremented by 1", function() {
@@ -2695,15 +2727,23 @@ describe("bs3u.Uploader", function() {
 
       beforeEach(function() {
         attempts = 1;
-        mockResponse = {};
+        mockResponse = {
+          target: {
+            status: 400
+          }
+        };
         spyOn(uploader, '_retryAvailable').and.returnValue(false);
         spyOn(uploader, '_notifyUploadError');
         spyOn(uploader, '_setFailed');
-        uploader._completeUploadError(attempts, mockResponse);
+        uploader._completeUploadError(attempts, mockResponse, mockAjax);
       });
 
       it("notifies that the upload has failed", function() {
-        expect(uploader._notifyUploadError).toHaveBeenCalledWith(8, uploader.errors[8]);
+        expect(uploader._notifyUploadError).toHaveBeenCalledWith(
+          8,
+          uploader.errors[8],
+          uploader._formatErrorForAction('completeUpload', mockResponse, mockAjax)
+        );
       });
 
       it("sets the uploader to a failed state", function() {
