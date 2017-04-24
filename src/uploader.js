@@ -1082,30 +1082,6 @@ bs3u.Uploader.prototype._chunkUploadsInProgress = function() {
   return count;
 };
 
-// Since none of the XHR requests are configured with a timeout, we need to
-// monitor each chunk upload request and evaluate if the request has bombed out
-// (no progress reported in 30sec). When this happens, we can abort the chunk
-// upload and mark it for a retry.
-bs3u.Uploader.prototype._abortTimedOutRequests = function() {
-  var uploader = this;
-  var currentTime = new Date().getTime();
-  var chunkProgressTime, ajax, chunk;
-
-  for (var index in uploader._chunkXHRs) {
-    chunk = uploader._chunks[index];
-    if (chunk.uploading && !chunk.uploadComplete) {
-
-      ajax = uploader._chunkXHRs[index];
-      chunkProgressTime = ajax.lastProgressAt;
-
-      if (chunkProgressTime && (currentTime - chunkProgressTime) > 30000) {
-        uploader._log("No progress has been reported within 30 seconds for chunk " + index);
-        uploader._abortChunkUpload(index);
-      }
-    }
-  }
-};
-
 // Monitors chunk uploads and attempts to complete the upload
 bs3u.Uploader.prototype._startCompleteWatcher = function() {
   var uploader = this;
@@ -1121,8 +1097,6 @@ bs3u.Uploader.prototype._startCompleteWatcher = function() {
     if (uploader._pauseCompleteWatcher) {
       return;
     }
-
-    uploader._abortTimedOutRequests();
 
     if (uploader._allETagsAvailable()) {
       // temporarily shut down the watcher
@@ -1178,11 +1152,10 @@ bs3u.Uploader.prototype._calculateOptimalConcurrentChunks = function(time, initi
   var uploader = this;
   var loaded = uploader._calculateUploadProgress();
   var speed = parseInt(loaded / (new Date().getTime() - time), 10);
-  var timeout = 900000; // 15 mins
   uploader._log("Calculated average upload speed is " + speed + " KB/s");
   var chunkSize = uploader.settings.chunkSize;
   // Needed speed to upload a single chunk within the signature timeout
-  var neededSpeed = (chunkSize / timeout);
+  var neededSpeed = (chunkSize / bs3u.constants.FIFTEEN_MINUTES);
   var count = parseInt((speed / neededSpeed), 10);
 
   return Math.max(Math.min(count, initialMaxChunks), 1);

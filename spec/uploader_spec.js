@@ -2764,79 +2764,6 @@ describe("bs3u.Uploader", function() {
 
   });
 
-  describe("_abortTimedOutRequests", function() {
-    var mockFile, mockSettings, uploader, chunkXHROne, chunkXHRTwo,
-    chunkXHRThree, chunkXHRThreeFour, chunkXHRFive;
-
-    beforeEach(function() {
-      mockFile = { name: "myfile", type: "video/quicktime", size: 1000 };
-      mockSettings = {};
-      uploader = new bs3u.Uploader(mockFile, mockSettings);
-
-      chunkXHROne = {
-        lastProgressAt: 80000,
-        xhr: {
-          readyState: 2,
-        }
-      };
-
-      chunkXHRTwo = {
-        lastProgressAt: 30000,
-        xhr: {
-          readyState: 3,
-        }
-      };
-
-      chunkXHRThree = {
-        lastProgressAt: 0,
-        xhr: {
-          readyState: 1,
-        }
-      };
-
-      chunkXHRFour = {
-        lastProgressAt: 30000,
-        xhr: {
-          readyState: 0,
-        }
-      };
-
-      chunkXHRFive = {
-        lastProgressAt: 30000,
-        xhr: {
-          readyState: 4,
-        }
-      };
-
-      uploader._chunkXHRs = {
-        1: chunkXHROne,
-        2: chunkXHRTwo,
-        3: chunkXHRThree,
-        4: chunkXHRFour,
-        5: chunkXHRFive,
-      };
-
-      uploader._chunks = {
-        1: { uploading: true, uploadComplete: false },
-        2: { uploading: true, uploadComplete: false },
-        3: { uploading: false, uploadComplete: false },
-        4: { uploading: true, uploadComplete: false },
-        5: { uploading: true, uploadComplete: false },
-      };
-      spyOn(uploader, '_abortChunkUpload');
-      spyOn(window, 'Date').and.returnValue({
-        getTime: function() { return 90000; }
-      });
-      uploader._abortTimedOutRequests();
-    });
-    it("stops any chunks that have not reported progress within 30 seconds", function() {
-      expect(uploader._abortChunkUpload).toHaveBeenCalledWith('2');
-      expect(uploader._abortChunkUpload).toHaveBeenCalledWith('4');
-      expect(uploader._abortChunkUpload).toHaveBeenCalledWith('5');
-      expect(uploader._abortChunkUpload.calls.count()).toEqual(3);
-    });
-  });
-
   describe("_startCompleteWatcher", function() {
     var mockFile, mockSettings, uploader;
 
@@ -2850,7 +2777,6 @@ describe("bs3u.Uploader", function() {
       });
       spyOn(uploader, '_abortChunkUpload');
       spyOn(window, 'clearInterval');
-      spyOn(uploader, '_abortTimedOutRequests');
     });
 
     describe("when _pauseCompleteWatcher is set to true", function() {
@@ -2881,10 +2807,6 @@ describe("bs3u.Uploader", function() {
           expect(uploader._pauseCompleteWatcher).toBeTruthy();
         });
 
-        it("aborts any timed out requests", function() {
-          expect(uploader._abortTimedOutRequests).toHaveBeenCalled();
-        });
-
         it("retrieves list headers", function() {
           expect(uploader._getListHeaders).toHaveBeenCalled();
         });
@@ -2895,10 +2817,6 @@ describe("bs3u.Uploader", function() {
           spyOn(uploader, '_allETagsAvailable').and.returnValue(false);
           spyOn(uploader, '_uploadChunks');
           uploader._startCompleteWatcher();
-        });
-
-        it("aborts any timed out requests", function() {
-          expect(uploader._abortTimedOutRequests).toHaveBeenCalled();
         });
 
         it("continues uploading the remaining chunks", function() {

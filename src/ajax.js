@@ -68,7 +68,7 @@ bs3u.Ajax.prototype.open = function() {
 
 bs3u.Ajax.prototype.send = function(body) {
   var headers = this.config.headers || {};
-  var timeout = this.config.timeout || 0;
+  var timeout = this.config.timeout || bs3u.constants.FIFTEEN_MINUTES;
 
   this.open();
   this.setHeaders(headers);

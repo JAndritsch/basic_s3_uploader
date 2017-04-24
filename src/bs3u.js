@@ -4,5 +4,8 @@ var bs3u = {
     major: "2",
     minor: "0",
     patch: "11"
+  },
+  constants: {
+    FIFTEEN_MINUTES: 900000
   }
 };
