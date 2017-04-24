@@ -51,6 +51,7 @@ bs3u.Ajax.prototype.buildURL = function(url, params) {
 
 bs3u.Ajax.prototype.setHeaders = function(headers) {
   var ajax = this;
+  ajax.headers = headers;
   for (var header in headers) {
     ajax.xhr.setRequestHeader(header, headers[header]);
   }
@@ -62,6 +63,9 @@ bs3u.Ajax.prototype.open = function() {
   var params = this.config.params || {};
 
   url = this.buildURL(url, params);
+
+  this.url = url;
+  this.method = method;
   
   this.xhr.open(method, url);
 };
@@ -73,6 +77,8 @@ bs3u.Ajax.prototype.send = function(body) {
   this.open();
   this.setHeaders(headers);
   this.setTimeout(timeout);
+
+  this.body = body;
 
   if (body) {
     this.xhr.send(body);
