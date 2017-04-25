@@ -669,7 +669,6 @@ bs3u.Uploader.prototype._uploadChunk = function(number, retries) {
 bs3u.Uploader.prototype._uploadChunkProgress = function(response, number) {
   var uploader = this;
   uploader._chunkProgress[number] = response.loaded;
-  uploader._chunkXHRs[number].lastProgressAt = new Date().getTime();
   uploader._notifyUploadProgress();
 };
 
@@ -1006,8 +1005,7 @@ bs3u.Uploader.prototype._handleInvalidChunks = function(invalidParts) {
     uploader._chunks[chunkNumber].uploading = false;
     uploader._chunks[chunkNumber].uploadComplete = false;
   }
-  // Re-enable the completeWatcher so it can pick up the failed chunks and retry
-  // them.
+  uploader._log("Resuming the complete watcher.");
   uploader._pauseCompleteWatcher = false;
 };
 
@@ -1030,8 +1028,8 @@ bs3u.Uploader.prototype._handleMissingChunks = function(chunksFromS3) {
       uploader._chunks[chunkNumber].uploadComplete = false;
     }
   }
-  // Re-enable the completeWatcher so it can pick up the failed chunks and retry
-  // them.
+
+  uploader._log("Resuming the complete watcher.");
   uploader._pauseCompleteWatcher = false;
 };
 
@@ -1132,7 +1130,7 @@ bs3u.Uploader.prototype._retryAvailable = function(attempts) {
   if (uploader._isCancelled() || uploader._isFailed()) {
     return false;
   }
-  return (attempts + 1) < uploader.settings.maxRetries + 1;
+  return attempts < uploader.settings.maxRetries;
 };
 
 // Returns true if we have an eTag for every chunk
@@ -1176,11 +1174,12 @@ bs3u.Uploader.prototype._startCompleteWatcher = function() {
     }
 
     if (uploader._pauseCompleteWatcher) {
+      uploader._log("Complete watcher is paused. Waiting...");
       return;
     }
 
     if (uploader._allETagsAvailable()) {
-      // temporarily shut down the watcher
+      uploader._log("Pausing the complete watcher.");
       uploader._pauseCompleteWatcher = true;
       // get the list headers to verify the chunks are on the server
       uploader._getListHeaders();
@@ -1252,7 +1251,6 @@ bs3u.Uploader.prototype._abortChunkUpload = function(number) {
   // Stop the chunk XHR if it exists
   if (chunkXHR) {
     chunkXHR.abort();
-    chunkXHR.lastProgressAt = null;
   }
 
   // Stop the XHR to fetch a chunk signature if it exists
