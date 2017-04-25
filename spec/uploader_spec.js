@@ -1493,6 +1493,13 @@ describe("bs3u.Uploader", function() {
         uploader._uploadChunkSuccess(attempts, mockResponse, chunkNumber, mockAjax);
         expect(uploader._uploadChunkError).toHaveBeenCalledWith(attempts, mockResponse, chunkNumber, mockAjax);
       });
+
+      it('invokes the error handler if the eTag response header was for an empty blob', function() {
+        spyOn(uploader, '_uploadChunkError');
+        mockResponse.target.getResponseHeader = function() { return '"d41d8cd98f00b204e9800998ecf8427e"'; };
+        uploader._uploadChunkSuccess(attempts, mockResponse, chunkNumber, mockAjax);
+        expect(uploader._uploadChunkError).toHaveBeenCalledWith(attempts, mockResponse, chunkNumber, mockAjax);
+      });
     });
 
     describe("a non-200 response", function() {

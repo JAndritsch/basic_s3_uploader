@@ -577,7 +577,8 @@ bs3u.Uploader.prototype._uploadChunkSuccess = function(attempts, response, numbe
     uploader._notifyChunkUploaded(number, totalChunks);
     // Store the eTag on the chunk
     var eTag = response.target.getResponseHeader("ETag");
-    if (eTag && eTag.length > 0) {
+    var eTagOfZeroLengthBlob = '"d41d8cd98f00b204e9800998ecf8427e"';
+    if (eTag && eTag.length > 0 && eTag !== eTagOfZeroLengthBlob) {
       chunk.eTag = eTag;
     } else {
       uploader._log("Upload of chunk " + number +  " has failed. The eTag was blank!");
@@ -1241,7 +1242,6 @@ bs3u.Uploader.prototype._notifyUploadStarted = function() {
 // progress can be determined.
 bs3u.Uploader.prototype._notifyUploadProgress = function() {
   var uploader = this;
-
   var loaded = uploader._calculateUploadProgress();
   var total = uploader.file.size;
   uploader.settings.onProgress.call(uploader, loaded, total);
