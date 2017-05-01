@@ -1063,6 +1063,11 @@ bs3u.Uploader.prototype._completeUpload = function(retries) {
 
   var body = uploader._generateCompletePayload();
 
+  // Hack: Firefox requires the data in the form of a blob
+  if(uploader._requiresFirefoxHack()) {
+    body = new Blob([body]);
+  }
+
   var ajax = new bs3u.Ajax({
     url: uploader.settings.host + "/" + uploader.settings.key,
     method: "POST",
@@ -1416,6 +1421,10 @@ bs3u.Uploader.prototype._validateFileIsReadable = function(callback) {
   } catch(error) {
     callback(false);
   }
+};
+
+bs3u.Uploader.prototype._requiresFirefoxHack = function() {
+  return navigator.userAgent.indexOf("Firefox") !== -1;
 };
 
 // Encrypts the provided text, either with the help from web workers or not,
