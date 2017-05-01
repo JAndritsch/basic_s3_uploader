@@ -956,7 +956,10 @@ bs3u.Uploader.prototype._completeUpload = function(retries) {
 
   var body = uploader._generateCompletePayload();
 
-  // Hack: Firefox requires the data in the form of a blob
+  // Hack: Firefox requires the data in the form of a blob because
+  // it adds "charset=UTF8" to the content-type header. Turning it 
+  // into a blob avoids this issue by sending "binary" data instead of
+  // text.
   if(uploader._requiresFirefoxHack()) {
     body = new Blob([body]);
   }
@@ -1316,6 +1319,7 @@ bs3u.Uploader.prototype._validateFileIsReadable = function(callback) {
   }
 };
 
+// https://bugzilla.mozilla.org/show_bug.cgi?id=918742
 bs3u.Uploader.prototype._requiresFirefoxHack = function() {
   return navigator.userAgent.indexOf("Firefox") !== -1;
 };
