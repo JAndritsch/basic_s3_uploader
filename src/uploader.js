@@ -8,6 +8,7 @@ bs3u.Uploader = function(file, settings) {
   var uploader = this;
   uploader.file = file;
   uploader._XHRs = [];
+  uploader._chunks = {};
   uploader._chunkSignatureXHRs = {};
   uploader._chunkXHRs = {};
   uploader._chunkProgress = {};
@@ -212,7 +213,6 @@ bs3u.Uploader.prototype._abortAllXHRs = function() {
 // so the blobs can be created when needed.
 bs3u.Uploader.prototype._createChunks = function() {
   var uploader = this;
-  var chunks = {};
 
   uploader._log("Slicing up file into chunks");
 
@@ -228,7 +228,7 @@ bs3u.Uploader.prototype._createChunks = function() {
 
     endRange = (startRange + sizeOfChunk);
 
-    chunks[partNumber] = {
+    uploader._chunks[partNumber] = {
       startRange: startRange,
       endRange: endRange,
       uploading: false,
@@ -243,8 +243,7 @@ bs3u.Uploader.prototype._createChunks = function() {
       sizeOfChunk = remainingSize;
     }
   }
-  uploader._chunks = chunks;
-  uploader._log("Total chunks to upload:", Object.keys(chunks).length);
+  uploader._log("Total chunks to upload:", Object.keys(uploader._chunks).length);
 };
 
 // Call to the provided signature backend to get the init headers.
