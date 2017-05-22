@@ -928,21 +928,23 @@ bs3u.Uploader.prototype._handleMissingChunks = function(chunksFromS3) {
 
 bs3u.Uploader.prototype._generateCompletePayload = function() {
   var uploader = this;
-
-  var body = "<CompleteMultipartUpload>";
-  var totalChunks = Object.keys(uploader._chunks);
-  var chunkNumber;
-  // Order is important here, so iterating "the old fashioned way" to make sure
-  // we maintain ascending order for this payload.
-  for (var i = 0; i < totalChunks.length; i++) {
-    chunkNumber = i + 1;
-    body += "<Part>";
-    body += "<PartNumber>" + chunkNumber + "</PartNumber>";
-    body += "<ETag>" + uploader._chunks[chunkNumber].eTag + "</ETag>";
-    body += "</Part>";
-  }
-  body += "</CompleteMultipartUpload>";
-  return body;
+  var parts = Object.keys(uploader._chunks)
+    .sort(function(a, b) {
+      return a - b;
+    })
+    .map(function(chunkNumber) {
+      var part = "<Part>";
+      part += "<PartNumber>" + chunkNumber + "</PartNumber>";
+      part += "<ETag>" + uploader._chunks[chunkNumber].eTag + "</ETag>";
+      part += "</Part>";
+      return part;
+    })
+    .join('');
+  return [
+    "<CompleteMultipartUpload>",
+    parts,
+    "</CompleteMultipartUpload>"
+  ].join('');
 };
 
 // Completes the multipart upload, effectively assembling all chunks together
